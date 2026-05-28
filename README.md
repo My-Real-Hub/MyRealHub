@@ -2,6 +2,23 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Create a local environment file before running the app:
+
+```bash
+cp .env.example .env.local
+```
+
+Required values:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-publishable-or-anon-key
+```
+
+Use the Supabase project URL without `/rest/v1`; Supabase JS builds service
+paths from the project URL. To verify the connection, run the app and open
+[`/api/supabase/health`](http://localhost:3000/api/supabase/health).
+
 First, run the development server:
 
 ```bash
