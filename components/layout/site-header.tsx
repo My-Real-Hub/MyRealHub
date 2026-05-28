@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthMenu } from "@/components/auth/auth-menu";
 
 const primaryLinks = [
   { href: "/", label: "Home" },
@@ -33,24 +34,7 @@ export function SiteHeader() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/login"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-            >
-              Log In
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-            >
-              Sign Up
-            </Link>
-            <Link
-              href="/signup?role=provider"
-              className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
-            >
-              Join as Provider
-            </Link>
+            <AuthMenu />
           </div>
         </nav>
       </div>
