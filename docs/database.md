@@ -13,6 +13,8 @@ app should not duplicate passwords or auth internals in public tables.
 
 - The `id` column matches `auth.users.id`.
 - `role` identifies whether the profile is a regular user, provider, or admin.
+- New profiles default to `role = 'user'`; provider signups can request
+  `role = 'provider'`; admin roles should be assigned directly in the database.
 - Basic display information such as `full_name`, `email`, and `avatar_url`
   lives here.
 

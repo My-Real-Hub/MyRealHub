@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type SupabaseEnvVar =
   | "NEXT_PUBLIC_SUPABASE_URL"
@@ -57,15 +58,10 @@ export function getSupabaseClient() {
     );
   }
 
-  const isBrowser = typeof window !== "undefined";
-
-  supabaseClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: isBrowser,
-      detectSessionInUrl: isBrowser,
-      persistSession: isBrowser,
-    },
-  });
+  supabaseClient = createBrowserClient(
+    config.supabaseUrl,
+    config.supabaseAnonKey,
+  );
 
   return supabaseClient;
 }

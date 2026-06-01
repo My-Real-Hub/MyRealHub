@@ -1,7 +1,6 @@
 import {
   getSupabaseAuthHealthUrl,
   getMissingSupabaseEnvVars,
-  getSupabaseClient,
   getSupabaseConfig,
 } from "@/lib/supabase/client";
 
@@ -19,8 +18,6 @@ export async function GET() {
       { status: 500 },
     );
   }
-
-  getSupabaseClient();
 
   try {
     const response = await fetch(healthUrl, {

@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import {
+  DEFAULT_PROFILE_ROLE,
+  getDashboardPathForRole,
+  getProfileRoleForUser,
+  type SignUpRole,
+} from "@/lib/auth/roles";
+import {
   hasAuthFieldErrors,
   normalizeEmail,
   PASSWORD_MIN_LENGTH,
@@ -18,6 +24,10 @@ type FormStatus = {
   type: "error" | "success";
   message: string;
 } | null;
+
+type SignUpFormProps = {
+  initialRole?: SignUpRole;
+};
 
 const fieldClassName =
   "h-12 rounded-md border border-stone-200 bg-white px-3 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
@@ -69,7 +79,9 @@ function inputClassName(hasError: boolean) {
   return `${fieldClassName} ${hasError ? errorFieldClassName : ""}`;
 }
 
-export function SignUpForm() {
+export function SignUpForm({
+  initialRole = DEFAULT_PROFILE_ROLE,
+}: SignUpFormProps) {
   const router = useRouter();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
@@ -105,6 +117,7 @@ export function SignUpForm() {
         options: {
           data: {
             full_name: fields.fullName.trim(),
+            role: initialRole,
           },
         },
       });
@@ -115,7 +128,7 @@ export function SignUpForm() {
       }
 
       if (data.session) {
-        router.push("/search");
+        router.push(getDashboardPathForRole(initialRole));
         router.refresh();
         return;
       }
@@ -263,7 +276,14 @@ export function LoginForm() {
         return;
       }
 
-      router.push("/search");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const role = user
+        ? await getProfileRoleForUser(supabase, user.id)
+        : DEFAULT_PROFILE_ROLE;
+
+      router.push(getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE));
       router.refresh();
     } catch (error) {
       setStatus({
