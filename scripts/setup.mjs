@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { copyFileSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import readline from "node:readline/promises";
 import { spawnSync } from "node:child_process";
@@ -9,27 +9,66 @@ import process from "node:process";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const defaultProjectRef = "eywzwkfeghbhwtsnjuti";
+const args = new Set(process.argv.slice(2));
+const optionValues = new Map(
+  process.argv
+    .slice(2)
+    .filter((arg) => arg.startsWith("--") && arg.includes("="))
+    .map((arg) => {
+      const [name, ...valueParts] = arg.split("=");
+      return [name, valueParts.join("=")];
+    }),
+);
+const isInteractive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
-function commandName(name) {
-  return process.platform === "win32" ? `${name}.cmd` : name;
+function windowsShellArg(value) {
+  if (!value) {
+    return "\"\"";
+  }
+
+  if (!/[\s"&|<>^]/.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '\\"')}"`;
 }
 
-function run(command, args) {
-  const printable = [command, ...args].join(" ");
+function run(command, commandArgs, { interactive = false, required = true } = {}) {
+  const printable = [command, ...commandArgs].join(" ");
   console.log(`\n> ${printable}`);
 
-  const result = spawnSync(commandName(command), args, {
-    cwd: projectRoot,
-    stdio: "inherit",
-  });
+  const stdio = [interactive ? "inherit" : "ignore", "inherit", "inherit"];
+  const result =
+    process.platform === "win32"
+      ? spawnSync([command, ...commandArgs].map(windowsShellArg).join(" "), {
+          cwd: projectRoot,
+          shell: true,
+          stdio,
+        })
+      : spawnSync(command, commandArgs, {
+          cwd: projectRoot,
+          stdio,
+        });
 
   if (result.error) {
-    throw result.error;
+    if (required) {
+      throw result.error;
+    }
+
+    console.log(`\n${printable} could not start: ${result.error.message}`);
+    return false;
   }
 
   if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+    if (required) {
+      process.exit(result.status ?? 1);
+    }
+
+    console.log(`\n${printable} exited with status ${result.status ?? 1}.`);
+    return false;
   }
+
+  return true;
 }
 
 function isYes(value, defaultValue = false) {
@@ -42,18 +81,78 @@ function isYes(value, defaultValue = false) {
   return answer === "y" || answer === "yes";
 }
 
+function hasPlaceholderSupabaseEnv(envLocalPath) {
+  if (!existsSync(envLocalPath)) {
+    return true;
+  }
+
+  const envLocal = readFileSync(envLocalPath, "utf8");
+
+  return /your-project-ref|your-supabase|placeholder/i.test(envLocal);
+}
+
+function hasFlag(name) {
+  return args.has(name);
+}
+
+function getOptionValue(name) {
+  return optionValues.get(name);
+}
+
+function isForcedYes(name) {
+  return hasFlag(name);
+}
+
+async function askYesNo(
+  rl,
+  question,
+  defaultValue,
+  { nonInteractiveDefault = defaultValue } = {},
+) {
+  if (!isInteractive) {
+    console.log(
+      `${question} ${nonInteractiveDefault ? "yes" : "no"} (non-interactive default)`,
+    );
+    return nonInteractiveDefault;
+  }
+
+  const answer = await rl.question(question);
+  return isYes(answer, defaultValue);
+}
+
+async function askText(rl, question, defaultValue) {
+  if (!isInteractive) {
+    console.log(`${question}${defaultValue} (non-interactive default)`);
+    return defaultValue;
+  }
+
+  const answer = await rl.question(question);
+  return answer.trim() || defaultValue;
+}
+
 function printHelp() {
   console.log(`
 MyRealHub setup
 
 Usage:
   npm run setup
+  npm run setup -- --yes
+  npm run setup -- --skip-supabase
+  npm run setup -- --project-ref=${defaultProjectRef}
 
 What it does:
-  1. Installs npm dependencies.
-  2. Creates .env.local from .env.example if it does not exist.
-  3. Optionally logs into Supabase, links the project, and applies migrations.
-  4. Optionally runs lint and typecheck.
+  1. Creates .env.local from .env.example if it does not exist.
+  2. Installs npm dependencies.
+  3. Offers to log into Supabase, link the project, and check migrations.
+  4. Offers to run lint and typecheck.
+
+Options:
+  --yes                 Use default answers for prompts.
+  --skip-install        Do not run npm install.
+  --skip-supabase       Do not run Supabase login/link/migration checks.
+  --skip-validation     Do not run lint or typecheck.
+  --apply-migrations    Apply remote migrations after the dry run.
+  --project-ref=<ref>   Supabase project ref to link.
 `);
 }
 
@@ -63,8 +162,6 @@ if (process.argv.includes("--help") || process.argv.includes("-h")) {
 }
 
 console.log("\nMyRealHub setup\n");
-
-run("npm", ["install"]);
 
 const envExamplePath = join(projectRoot, ".env.example");
 const envLocalPath = join(projectRoot, ".env.local");
@@ -84,40 +181,81 @@ Before running the app, make sure .env.local has:
 You can find both values in Supabase Dashboard > Project Settings > API.
 `);
 
+if (hasPlaceholderSupabaseEnv(envLocalPath)) {
+  console.log(`
+.env.local still contains placeholder Supabase values. Auth will not work until
+you replace them with the project's URL and anon key.
+`);
+}
+
+if (!hasFlag("--skip-install")) {
+  run("npm", ["install"]);
+} else {
+  console.log("\nSkipped npm install.");
+}
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 try {
-  const setupSupabase = await rl.question(
-    "Log in, link Supabase, and check migrations now? [Y/n] ",
-  );
+  const setupSupabase =
+    !hasFlag("--skip-supabase") &&
+    (isForcedYes("--yes") ||
+      (await askYesNo(
+        rl,
+        "Log in, link Supabase, and check migrations now? [Y/n] ",
+        true,
+        { nonInteractiveDefault: false },
+      )));
 
-  if (isYes(setupSupabase, true)) {
-    run("npx", ["supabase", "login"]);
+  if (setupSupabase) {
+    run("npx", ["supabase", "login"], { interactive: true, required: false });
 
-    const projectRefAnswer = await rl.question(
-      `Supabase project ref [${defaultProjectRef}]: `,
-    );
-    const projectRef = projectRefAnswer.trim() || defaultProjectRef;
+    const projectRef =
+      getOptionValue("--project-ref") ??
+      (await askText(rl, `Supabase project ref [${defaultProjectRef}]: `, defaultProjectRef));
 
-    run("npx", ["supabase", "link", "--project-ref", projectRef]);
-    run("npx", ["supabase", "db", "push", "--dry-run"]);
+    const linked = run("npx", ["supabase", "link", "--project-ref", projectRef], {
+      required: false,
+    });
 
-    const applyMigrations = await rl.question(
-      "Apply pending remote migrations and seed data? [y/N] ",
-    );
+    if (linked) {
+      const dryRunSucceeded = run("npx", ["supabase", "db", "push", "--dry-run"], {
+        required: false,
+      });
 
-    if (isYes(applyMigrations, false)) {
-      run("npx", ["supabase", "db", "push", "--include-seed"]);
+      const applyMigrations =
+        dryRunSucceeded &&
+        (isForcedYes("--apply-migrations") ||
+          (await askYesNo(
+            rl,
+            "Apply pending remote migrations and seed data? [y/N] ",
+            false,
+          )));
+
+      if (applyMigrations) {
+        run("npx", ["supabase", "db", "push", "--include-seed"], {
+          required: false,
+        });
+      } else {
+        console.log("\nSkipped applying migrations.");
+      }
     } else {
-      console.log("\nSkipped applying migrations.");
+      console.log(`
+Supabase linking did not complete. This usually means the logged-in Supabase
+account does not have access to project ${projectRef}, or you need to run
+npx supabase login with the correct account.
+`);
     }
   } else {
     console.log("\nSkipped Supabase login/link.");
   }
 
-  const validate = await rl.question("Run lint and typecheck now? [Y/n] ");
+  const validate =
+    !hasFlag("--skip-validation") &&
+    (isForcedYes("--yes") ||
+      (await askYesNo(rl, "Run lint and typecheck now? [Y/n] ", true)));
 
-  if (isYes(validate, true)) {
+  if (validate) {
     run("npm", ["run", "lint"]);
     run("npm", ["run", "typecheck"]);
   } else {

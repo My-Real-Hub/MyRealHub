@@ -16,14 +16,21 @@ function normalizeSupabaseUrl(value: string) {
   return value.trim().replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, "");
 }
 
+function isPlaceholderSupabaseValue(value: string) {
+  return /your-project-ref|your-supabase|placeholder/i.test(value);
+}
+
 export function getMissingSupabaseEnvVars(): SupabaseEnvVar[] {
   const missing: SupabaseEnvVar[] = [];
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+
+  if (!supabaseUrl || isPlaceholderSupabaseValue(supabaseUrl)) {
     missing.push("NEXT_PUBLIC_SUPABASE_URL");
   }
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) {
+  if (!supabaseAnonKey || isPlaceholderSupabaseValue(supabaseAnonKey)) {
     missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
@@ -54,7 +61,7 @@ export function getSupabaseClient() {
 
   if (!config) {
     throw new Error(
-      `Missing Supabase environment variables: ${getMissingSupabaseEnvVars().join(", ")}`,
+      `Missing or placeholder Supabase environment variables: ${getMissingSupabaseEnvVars().join(", ")}`,
     );
   }
 
