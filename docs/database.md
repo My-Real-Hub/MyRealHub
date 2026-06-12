@@ -41,6 +41,11 @@ Provider profile status values:
 
 Only `active` provider profiles should be publicly listed by future search UI.
 
+Provider profile images are stored in Supabase Storage in the
+`provider-profile-images` bucket. The database keeps both `profile_image_url`
+for display and `profile_image_path` for the storage object path. Uploads are
+restricted to authenticated users writing inside their own user-id folder.
+
 ## Lookup Tables
 
 `public.categories` stores the controlled list of service professions, such as
