@@ -3,11 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  DEFAULT_PROFILE_ROLE,
+  getDashboardPathForRole,
+  getProfileRoleForUser,
+} from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 export function AuthMenu() {
   const router = useRouter();
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [dashboardPath, setDashboardPath] = useState(
+    getDashboardPathForRole(DEFAULT_PROFILE_ROLE),
+  );
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
@@ -22,6 +30,19 @@ export function AuthMenu() {
           if (isMounted) {
             setIsSignedIn(Boolean(data.session));
           }
+
+          if (data.session?.user.id) {
+            return getProfileRoleForUser(supabase, data.session.user.id);
+          }
+
+          return DEFAULT_PROFILE_ROLE;
+        })
+        .then((role) => {
+          if (isMounted) {
+            setDashboardPath(
+              getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
+            );
+          }
         })
         .catch(() => {
           // Keep the public auth links visible if session lookup is unavailable.
@@ -31,6 +52,24 @@ export function AuthMenu() {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
         setIsSignedIn(Boolean(session));
+        if (!session?.user.id) {
+          setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
+          return;
+        }
+
+        getProfileRoleForUser(supabase, session.user.id)
+          .then((role) => {
+            if (isMounted) {
+              setDashboardPath(
+                getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
+              );
+            }
+          })
+          .catch(() => {
+            if (isMounted) {
+              setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
+            }
+          });
       });
 
       return () => {
@@ -58,6 +97,7 @@ export function AuthMenu() {
       }
 
       setIsSignedIn(false);
+      setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
       router.push("/login");
       router.refresh();
     } finally {
@@ -67,14 +107,22 @@ export function AuthMenu() {
 
   if (isSignedIn) {
     return (
-      <button
-        type="button"
-        onClick={handleSignOut}
-        disabled={isSigningOut}
-        className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950 disabled:cursor-not-allowed disabled:text-stone-400"
-      >
-        {isSigningOut ? "Logging out..." : "Log Out"}
-      </button>
+      <>
+        <Link
+          href={dashboardPath}
+          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
+        >
+          Dashboard
+        </Link>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={isSigningOut}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950 disabled:cursor-not-allowed disabled:text-stone-400"
+        >
+          {isSigningOut ? "Logging out..." : "Log Out"}
+        </button>
+      </>
     );
   }
 
