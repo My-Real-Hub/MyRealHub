@@ -1,4 +1,9 @@
 import Link from "next/link";
+import {
+  createLookupItem,
+  setLookupActive,
+  updateLookupItem,
+} from "@/app/admin/dashboard/actions";
 import { requireProfileRole } from "@/lib/auth/session";
 import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
@@ -7,6 +12,12 @@ type LookupRow = {
   id: string;
   name: string;
   slug: string;
+  description: string | null;
+  is_active: boolean;
+};
+
+type SpecialtyLookupRow = LookupRow & {
+  category_id: string | null;
 };
 
 type ProviderSummaryRow = {
@@ -21,12 +32,33 @@ type ProviderSummaryRow = {
   updated_at: string | null;
 };
 
-type AdminDashboardPageProps = {
-  searchParams: Promise<{
-    status?: string | string[];
-    page?: string | string[];
-  }>;
+type AdminDashboardSearchParams = {
+  status?: string | string[];
+  page?: string | string[];
+  lookup?: string | string[];
+  lookupAction?: string | string[];
+  categoriesSearch?: string | string[];
+  categoriesPage?: string | string[];
+  languagesSearch?: string | string[];
+  languagesPage?: string | string[];
+  specialtiesSearch?: string | string[];
+  specialtiesPage?: string | string[];
 };
+
+type AdminDashboardPageProps = {
+  searchParams: Promise<AdminDashboardSearchParams>;
+};
+
+type LookupKind = "categories" | "languages" | "specialties";
+
+type LookupAction =
+  | "created"
+  | "updated"
+  | "deactivated"
+  | "activated"
+  | "invalid"
+  | "duplicate"
+  | "error";
 
 type DashboardCountKey =
   | "providers"
@@ -56,6 +88,88 @@ type ProviderPageData = {
 };
 
 const PROVIDERS_PER_PAGE = 10;
+const LOOKUPS_PER_PAGE = 10;
+
+const lookupKinds = ["categories", "languages", "specialties"] as const;
+
+type LookupSearchState = {
+  search: string;
+  page: number;
+};
+
+type LookupSearchStates = Record<LookupKind, LookupSearchState>;
+
+type LookupPageData<Row extends LookupRow | SpecialtyLookupRow> = {
+  rows: Row[];
+  total: number;
+  page: number;
+  totalPages: number;
+  search: string;
+};
+
+const lookupParamNames: Record<
+  LookupKind,
+  {
+    search: keyof AdminDashboardSearchParams;
+    page: keyof AdminDashboardSearchParams;
+  }
+> = {
+  categories: {
+    search: "categoriesSearch",
+    page: "categoriesPage",
+  },
+  languages: {
+    search: "languagesSearch",
+    page: "languagesPage",
+  },
+  specialties: {
+    search: "specialtiesSearch",
+    page: "specialtiesPage",
+  },
+};
+
+const lookupActionMessages: Record<
+  LookupAction,
+  { tone: "success" | "error"; message: string }
+> = {
+  created: {
+    tone: "success",
+    message: "Record added.",
+  },
+  updated: {
+    tone: "success",
+    message: "Record updated.",
+  },
+  deactivated: {
+    tone: "success",
+    message: "Record deactivated.",
+  },
+  activated: {
+    tone: "success",
+    message: "Record activated.",
+  },
+  invalid: {
+    tone: "error",
+    message: "Add the required fields before saving.",
+  },
+  duplicate: {
+    tone: "error",
+    message: "That slug is already in use. Choose a different slug.",
+  },
+  error: {
+    tone: "error",
+    message: "The record could not be saved. Please try again.",
+  },
+};
+
+const inputClassName =
+  "h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+
+const textareaClassName =
+  "min-h-20 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm leading-6 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+
+const selectClassName =
+  "h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 
 const dashboardNavItems = [
   { href: "#providers", label: "Providers" },
@@ -137,6 +251,72 @@ function getQueryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function getLookupKind(value: string | string[] | undefined) {
+  const lookupKind = getQueryValue(value);
+
+  return lookupKinds.includes(lookupKind as LookupKind)
+    ? (lookupKind as LookupKind)
+    : null;
+}
+
+function getLookupAction(value: string | string[] | undefined) {
+  const lookupAction = getQueryValue(value);
+
+  return lookupAction && lookupAction in lookupActionMessages
+    ? (lookupAction as LookupAction)
+    : null;
+}
+
+function getLookupSearch(value: string | string[] | undefined) {
+  return (getQueryValue(value) ?? "").trim().slice(0, 120);
+}
+
+function getLookupSearchStates(
+  query: AdminDashboardSearchParams,
+): LookupSearchStates {
+  return {
+    categories: {
+      search: getLookupSearch(query.categoriesSearch),
+      page: getProviderPageNumber(query.categoriesPage),
+    },
+    languages: {
+      search: getLookupSearch(query.languagesSearch),
+      page: getProviderPageNumber(query.languagesPage),
+    },
+    specialties: {
+      search: getLookupSearch(query.specialtiesSearch),
+      page: getProviderPageNumber(query.specialtiesPage),
+    },
+  };
+}
+
+function getLookupSearchExpression(search: string) {
+  const normalizedSearch = search
+    .replace(/[,%()]/g, " ")
+    .trim()
+    .replace(/\s+/g, "%");
+
+  return normalizedSearch
+    ? `name.ilike.%${normalizedSearch}%,slug.ilike.%${normalizedSearch}%`
+    : null;
+}
+
+function getLookupMessage({
+  activeKind,
+  currentKind,
+  currentAction,
+}: {
+  activeKind: LookupKind;
+  currentKind: LookupKind | null;
+  currentAction: LookupAction | null;
+}) {
+  if (activeKind !== currentKind || !currentAction) {
+    return null;
+  }
+
+  return lookupActionMessages[currentAction];
+}
+
 function getProviderStatusFilter(
   value: string | string[] | undefined,
 ): ProviderStatusFilter {
@@ -172,6 +352,71 @@ function getProviderDashboardHref(
   return `/admin/dashboard${queryString ? `?${queryString}` : ""}#providers`;
 }
 
+function appendProviderParams(
+  params: URLSearchParams,
+  statusFilter: ProviderStatusFilter,
+  page: number,
+) {
+  if (statusFilter !== "all") {
+    params.set("status", statusFilter);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+}
+
+function appendLookupParams(
+  params: URLSearchParams,
+  lookupStates: LookupSearchStates,
+  overrides?: Partial<Record<LookupKind, Partial<LookupSearchState>>>,
+) {
+  lookupKinds.forEach((kind) => {
+    const state = {
+      ...lookupStates[kind],
+      ...overrides?.[kind],
+    };
+    const names = lookupParamNames[kind];
+
+    if (state.search) {
+      params.set(names.search, state.search);
+    }
+
+    if (state.page > 1) {
+      params.set(names.page, String(state.page));
+    }
+  });
+}
+
+function getLookupDashboardHref({
+  kind,
+  lookupStates,
+  providerStatusFilter,
+  providerPage,
+  search,
+  page,
+}: {
+  kind: LookupKind;
+  lookupStates: LookupSearchStates;
+  providerStatusFilter: ProviderStatusFilter;
+  providerPage: number;
+  search: string;
+  page: number;
+}) {
+  const params = new URLSearchParams();
+  appendProviderParams(params, providerStatusFilter, providerPage);
+  appendLookupParams(params, lookupStates, {
+    [kind]: {
+      search,
+      page,
+    },
+  });
+
+  const queryString = params.toString();
+
+  return `/admin/dashboard${queryString ? `?${queryString}` : ""}#${kind}`;
+}
+
 function getProviderRangeLabel(providerPage: ProviderPageData) {
   if (providerPage.total === 0) {
     return "0 providers";
@@ -181,6 +426,45 @@ function getProviderRangeLabel(providerPage: ProviderPageData) {
   const end = Math.min(providerPage.total, providerPage.page * PROVIDERS_PER_PAGE);
 
   return `${start}-${end} of ${providerPage.total}`;
+}
+
+function getLookupRangeLabel<Row extends LookupRow | SpecialtyLookupRow>(
+  lookupPage: LookupPageData<Row>,
+) {
+  if (lookupPage.total === 0) {
+    return "0 records";
+  }
+
+  const start = (lookupPage.page - 1) * LOOKUPS_PER_PAGE + 1;
+  const end = Math.min(lookupPage.total, lookupPage.page * LOOKUPS_PER_PAGE);
+
+  return `${start}-${end} of ${lookupPage.total}`;
+}
+
+function getPaginationItems(currentPage: number, totalPages: number) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items: Array<number | "ellipsis-start" | "ellipsis-end"> = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) {
+    items.push("ellipsis-start");
+  }
+
+  for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
+    items.push(pageNumber);
+  }
+
+  if (end < totalPages - 1) {
+    items.push("ellipsis-end");
+  }
+
+  items.push(totalPages);
+
+  return items;
 }
 
 async function getTableCount(tableName: string) {
@@ -242,12 +526,63 @@ async function getProviderPageData(
   };
 }
 
+async function getLookupPageData<Row extends LookupRow | SpecialtyLookupRow>({
+  kind,
+  columns,
+  search,
+  requestedPage,
+}: {
+  kind: LookupKind;
+  columns: string;
+  search: string;
+  requestedPage: number;
+}): Promise<LookupPageData<Row>> {
+  const supabase = await getServerSupabaseClient();
+  const searchExpression = getLookupSearchExpression(search);
+  let countQuery = supabase
+    .from(kind)
+    .select("id", { count: "exact", head: true });
+
+  if (searchExpression) {
+    countQuery = countQuery.or(searchExpression);
+  }
+
+  const { count } = await countQuery;
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / LOOKUPS_PER_PAGE));
+  const page = Math.min(requestedPage, totalPages);
+  const rangeStart = (page - 1) * LOOKUPS_PER_PAGE;
+  const rangeEnd = rangeStart + LOOKUPS_PER_PAGE - 1;
+  let lookupQuery = supabase
+    .from(kind)
+    .select(columns)
+    .order("is_active", { ascending: false })
+    .order("name")
+    .range(rangeStart, rangeEnd);
+
+  if (searchExpression) {
+    lookupQuery = lookupQuery.or(searchExpression);
+  }
+
+  const { data } = await lookupQuery;
+
+  return {
+    rows: (data ?? []) as unknown as Row[],
+    total,
+    page,
+    totalPages,
+    search,
+  };
+}
+
 async function getAdminDashboardData({
   statusFilter,
   page,
+  lookupStates,
 }: {
   statusFilter: ProviderStatusFilter;
   page: number;
+  lookupStates: LookupSearchStates;
 }) {
   const supabase = await getServerSupabaseClient();
   const [
@@ -259,9 +594,10 @@ async function getAdminDashboardData({
     specialties,
     pendingProviders,
     providerPage,
-    categoryRows,
-    languageRows,
-    specialtyRows,
+    categoryPage,
+    languagePage,
+    specialtyPage,
+    categoryOptions,
   ] = await Promise.all([
     getTableCount("provider_profiles"),
     getProviderCountByStatus("pending_approval"),
@@ -276,21 +612,30 @@ async function getAdminDashboardData({
       .order("submitted_at", { ascending: false, nullsFirst: false })
       .limit(6),
     getProviderPageData(statusFilter, page),
+    getLookupPageData<LookupRow>({
+      kind: "categories",
+      columns: "id,name,slug,description,is_active",
+      search: lookupStates.categories.search,
+      requestedPage: lookupStates.categories.page,
+    }),
+    getLookupPageData<LookupRow>({
+      kind: "languages",
+      columns: "id,name,slug,is_active",
+      search: lookupStates.languages.search,
+      requestedPage: lookupStates.languages.page,
+    }),
+    getLookupPageData<SpecialtyLookupRow>({
+      kind: "specialties",
+      columns: "id,name,slug,description,category_id,is_active",
+      search: lookupStates.specialties.search,
+      requestedPage: lookupStates.specialties.page,
+    }),
     supabase
       .from("categories")
-      .select("id,name,slug")
+      .select("id,name,slug,description,is_active")
+      .order("is_active", { ascending: false })
       .order("name")
-      .limit(8),
-    supabase
-      .from("languages")
-      .select("id,name,slug")
-      .order("name")
-      .limit(8),
-    supabase
-      .from("specialties")
-      .select("id,name,slug")
-      .order("name")
-      .limit(8),
+      .limit(500),
   ]);
 
   return {
@@ -304,9 +649,10 @@ async function getAdminDashboardData({
     } satisfies Record<DashboardCountKey, number>,
     pendingProviders: (pendingProviders.data ?? []) as unknown as ProviderSummaryRow[],
     providerPage,
-    categories: (categoryRows.data ?? []) as unknown as LookupRow[],
-    languages: (languageRows.data ?? []) as unknown as LookupRow[],
-    specialties: (specialtyRows.data ?? []) as unknown as LookupRow[],
+    categoryPage,
+    languagePage,
+    specialtyPage,
+    categoryOptions: (categoryOptions.data ?? []) as unknown as LookupRow[],
   };
 }
 
@@ -469,17 +815,395 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
   );
 }
 
-function LookupSection({
+function LookupStatusBadge({ isActive }: { isActive: boolean }) {
+  return (
+    <span
+      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${
+        isActive
+          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+          : "border-stone-200 bg-stone-100 text-stone-700"
+      }`}
+    >
+      {isActive ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+function LookupActionMessage({
+  message,
+}: {
+  message: { tone: "success" | "error"; message: string } | null;
+}) {
+  if (!message) {
+    return null;
+  }
+
+  const className =
+    message.tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      : "border-red-200 bg-red-50 text-red-800";
+
+  return (
+    <p
+      className={`mt-5 rounded-md border px-4 py-3 text-sm leading-6 ${className}`}
+      role={message.tone === "error" ? "alert" : "status"}
+      aria-live="polite"
+    >
+      {message.message}
+    </p>
+  );
+}
+
+function PreservedLookupSearchInputs({
+  currentKind,
+  lookupStates,
+  providerStatusFilter,
+  providerPage,
+}: {
+  currentKind: LookupKind;
+  lookupStates: LookupSearchStates;
+  providerStatusFilter: ProviderStatusFilter;
+  providerPage: number;
+}) {
+  return (
+    <>
+      {providerStatusFilter !== "all" ? (
+        <input name="status" type="hidden" value={providerStatusFilter} />
+      ) : null}
+      {providerPage > 1 ? (
+        <input name="page" type="hidden" value={providerPage} />
+      ) : null}
+      {lookupKinds
+        .filter((kind) => kind !== currentKind)
+        .flatMap((kind) => {
+          const state = lookupStates[kind];
+          const names = lookupParamNames[kind];
+          const inputs = [];
+
+          if (state.search) {
+            inputs.push(
+              <input
+                key={`${kind}-search`}
+                name={names.search}
+                type="hidden"
+                value={state.search}
+              />,
+            );
+          }
+
+          if (state.page > 1) {
+            inputs.push(
+              <input
+                key={`${kind}-page`}
+                name={names.page}
+                type="hidden"
+                value={state.page}
+              />,
+            );
+          }
+
+          return inputs;
+        })}
+    </>
+  );
+}
+
+function LookupSearchControls({
   id,
+  kind,
   title,
-  count,
-  rows,
+  lookupPage,
+  lookupStates,
+  providerStatusFilter,
+  providerPage,
 }: {
   id: string;
+  kind: LookupKind;
+  title: string;
+  lookupPage: LookupPageData<LookupRow | SpecialtyLookupRow>;
+  lookupStates: LookupSearchStates;
+  providerStatusFilter: ProviderStatusFilter;
+  providerPage: number;
+}) {
+  return (
+    <form
+      action={`/admin/dashboard#${id}`}
+      className="mt-6 grid gap-3 rounded-md border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[1fr_auto_auto]"
+    >
+      <PreservedLookupSearchInputs
+        currentKind={kind}
+        lookupStates={lookupStates}
+        providerStatusFilter={providerStatusFilter}
+        providerPage={providerPage}
+      />
+      <label
+        htmlFor={`${kind}-search`}
+        className="grid gap-2 text-sm font-medium text-stone-800"
+      >
+        Search {title.toLowerCase()}
+        <input
+          id={`${kind}-search`}
+          name={lookupParamNames[kind].search}
+          type="search"
+          defaultValue={lookupPage.search}
+          placeholder={`Search ${title.toLowerCase()}`}
+          className={inputClassName}
+        />
+      </label>
+      <button
+        type="submit"
+        className="h-10 self-end rounded-md bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-stone-100"
+      >
+        Search
+      </button>
+      {lookupPage.search ? (
+        <Link
+          href={getLookupDashboardHref({
+            kind,
+            lookupStates,
+            providerStatusFilter,
+            providerPage,
+            search: "",
+            page: 1,
+          })}
+          className="inline-flex h-10 items-center justify-center self-end rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+        >
+          Clear
+        </Link>
+      ) : null}
+    </form>
+  );
+}
+
+function LookupPagination({
+  kind,
+  lookupPage,
+  lookupStates,
+  providerStatusFilter,
+  providerPage,
+}: {
+  kind: LookupKind;
+  lookupPage: LookupPageData<LookupRow | SpecialtyLookupRow>;
+  lookupStates: LookupSearchStates;
+  providerStatusFilter: ProviderStatusFilter;
+  providerPage: number;
+}) {
+  if (lookupPage.totalPages <= 1) {
+    return null;
+  }
+
+  const paginationItems = getPaginationItems(
+    lookupPage.page,
+    lookupPage.totalPages,
+  );
+  const previousPage = Math.max(1, lookupPage.page - 1);
+  const nextPage = Math.min(lookupPage.totalPages, lookupPage.page + 1);
+
+  return (
+    <nav
+      className="mt-5 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:items-center sm:justify-between"
+      aria-label={`${kind} pagination`}
+    >
+      <Link
+        href={getLookupDashboardHref({
+          kind,
+          lookupStates,
+          providerStatusFilter,
+          providerPage,
+          search: lookupPage.search,
+          page: previousPage,
+        })}
+        aria-disabled={lookupPage.page === 1}
+        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
+          lookupPage.page === 1 ? "pointer-events-none opacity-50" : ""
+        }`}
+      >
+        Previous
+      </Link>
+
+      <div className="flex flex-wrap gap-2">
+        {paginationItems.map((pageNumber) => {
+          if (typeof pageNumber !== "number") {
+            return (
+              <span
+                key={pageNumber}
+                className="inline-flex size-9 items-center justify-center text-xs font-semibold text-stone-400"
+              >
+                ...
+              </span>
+            );
+          }
+
+          const isCurrent = pageNumber === lookupPage.page;
+
+          return (
+            <Link
+              key={pageNumber}
+              href={getLookupDashboardHref({
+                kind,
+                lookupStates,
+                providerStatusFilter,
+                providerPage,
+                search: lookupPage.search,
+                page: pageNumber,
+              })}
+              aria-current={isCurrent ? "page" : undefined}
+              className={`inline-flex size-9 items-center justify-center rounded-md border text-xs font-semibold transition ${
+                isCurrent
+                  ? "border-stone-950 bg-stone-950 text-white"
+                  : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
+              }`}
+            >
+              {pageNumber}
+            </Link>
+          );
+        })}
+      </div>
+
+      <Link
+        href={getLookupDashboardHref({
+          kind,
+          lookupStates,
+          providerStatusFilter,
+          providerPage,
+          search: lookupPage.search,
+          page: nextPage,
+        })}
+        aria-disabled={lookupPage.page === lookupPage.totalPages}
+        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
+          lookupPage.page === lookupPage.totalPages
+            ? "pointer-events-none opacity-50"
+            : ""
+        }`}
+      >
+        Next
+      </Link>
+    </nav>
+  );
+}
+
+function getLookupRowCategoryId(row: LookupRow | SpecialtyLookupRow | null) {
+  return row && "category_id" in row ? row.category_id ?? "" : "";
+}
+
+function LookupFormFields({
+  kind,
+  row,
+  categories,
+  idPrefix,
+}: {
+  kind: LookupKind;
+  row: LookupRow | SpecialtyLookupRow | null;
+  categories: LookupRow[];
+  idPrefix: string;
+}) {
+  const showDescription = kind === "categories" || kind === "specialties";
+  const showCategory = kind === "specialties";
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      <label
+        htmlFor={`${idPrefix}-name`}
+        className="grid gap-2 text-sm font-medium text-stone-800"
+      >
+        Name
+        <input
+          id={`${idPrefix}-name`}
+          name="name"
+          type="text"
+          defaultValue={row?.name ?? ""}
+          className={inputClassName}
+          required
+        />
+      </label>
+
+      <label
+        htmlFor={`${idPrefix}-slug`}
+        className="grid gap-2 text-sm font-medium text-stone-800"
+      >
+        Slug
+        <input
+          id={`${idPrefix}-slug`}
+          name="slug"
+          type="text"
+          defaultValue={row?.slug ?? ""}
+          placeholder="Auto-generated if blank"
+          className={inputClassName}
+        />
+      </label>
+
+      {showCategory ? (
+        <label
+          htmlFor={`${idPrefix}-category`}
+          className="grid gap-2 text-sm font-medium text-stone-800"
+        >
+          Category
+          <select
+            id={`${idPrefix}-category`}
+            name="categoryId"
+            defaultValue={getLookupRowCategoryId(row)}
+            className={selectClassName}
+            required
+          >
+            <option value="">Select a category</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+                {category.is_active ? "" : " (inactive)"}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {showDescription ? (
+        <label
+          htmlFor={`${idPrefix}-description`}
+          className={`grid gap-2 text-sm font-medium text-stone-800 ${
+            showCategory ? "" : "lg:col-span-2"
+          }`}
+        >
+          Description
+          <textarea
+            id={`${idPrefix}-description`}
+            name="description"
+            defaultValue={row?.description ?? ""}
+            className={textareaClassName}
+          />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+function LookupManagementSection({
+  id,
+  kind,
+  title,
+  count,
+  lookupPage,
+  categories,
+  message,
+  lookupStates,
+  providerStatusFilter,
+  providerPage,
+}: {
+  id: string;
+  kind: LookupKind;
   title: string;
   count: number;
-  rows: LookupRow[];
+  lookupPage: LookupPageData<LookupRow | SpecialtyLookupRow>;
+  categories: LookupRow[];
+  message: { tone: "success" | "error"; message: string } | null;
+  lookupStates: LookupSearchStates;
+  providerStatusFilter: ProviderStatusFilter;
+  providerPage: number;
 }) {
+  const singularTitle = title.endsWith("ies")
+    ? title.replace(/ies$/, "y")
+    : title.replace(/s$/, "");
+  const rangeLabel = getLookupRangeLabel(lookupPage);
+
   return (
     <article
       id={id}
@@ -491,22 +1215,121 @@ function LookupSection({
             Directory data
           </p>
           <h2 className="mt-2 text-xl font-semibold text-stone-950">{title}</h2>
+          <p className="mt-2 text-sm text-stone-600">
+            Showing {rangeLabel}
+            {lookupPage.search ? ` for "${lookupPage.search}"` : ""}
+          </p>
         </div>
         <span className="w-fit rounded-md bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
           {count}
         </span>
       </div>
 
-      <div className="mt-6 grid gap-2 sm:grid-cols-2">
-        {rows.length > 0 ? (
-          rows.map((row) => (
-            <div
+      <LookupActionMessage message={message} />
+
+      <LookupSearchControls
+        id={id}
+        kind={kind}
+        title={title}
+        lookupPage={lookupPage}
+        lookupStates={lookupStates}
+        providerStatusFilter={providerStatusFilter}
+        providerPage={providerPage}
+      />
+
+      <form
+        action={createLookupItem}
+        className="mt-6 grid gap-4 rounded-md border border-stone-200 bg-stone-50 p-4"
+      >
+        <input name="lookupKind" type="hidden" value={kind} />
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+            Add {singularTitle}
+          </h3>
+          <button
+            type="submit"
+            className="h-10 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          >
+            Add
+          </button>
+        </div>
+        <LookupFormFields
+          kind={kind}
+          row={null}
+          categories={categories}
+          idPrefix={`${kind}-new`}
+        />
+      </form>
+
+      <div className="mt-6 grid gap-3">
+        {lookupPage.rows.length > 0 ? (
+          lookupPage.rows.map((row) => (
+            <details
               key={row.id}
-              className="rounded-md border border-stone-200 px-4 py-3"
+              className={`group rounded-md border px-4 py-3 ${
+                row.is_active
+                  ? "border-stone-200 bg-white"
+                  : "border-stone-200 bg-stone-50"
+              }`}
             >
-              <p className="text-sm font-semibold text-stone-950">{row.name}</p>
-              <p className="mt-1 text-xs text-stone-500">{row.slug}</p>
-            </div>
+              <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between [&::-webkit-details-marker]:hidden">
+                <div className="flex items-start gap-3">
+                  <span
+                    className="mt-1 text-stone-400 transition group-open:rotate-90"
+                    aria-hidden="true"
+                  >
+                    &gt;
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-stone-950">
+                      {row.name}
+                    </p>
+                    <p className="mt-1 text-xs text-stone-500">{row.slug}</p>
+                  </div>
+                </div>
+                <LookupStatusBadge isActive={row.is_active} />
+              </summary>
+
+              <div className="mt-4 grid gap-4 border-t border-stone-200 pt-4">
+                <form action={updateLookupItem} className="grid gap-4">
+                  <input name="lookupKind" type="hidden" value={kind} />
+                  <input name="lookupId" type="hidden" value={row.id} />
+                  <LookupFormFields
+                    kind={kind}
+                    row={row}
+                    categories={categories}
+                    idPrefix={`${kind}-${row.id}`}
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                    <button
+                      type="submit"
+                      className="h-10 rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
+                    >
+                      Save changes
+                    </button>
+                  </div>
+                </form>
+                <form action={setLookupActive} className="flex justify-end">
+                  <input name="lookupKind" type="hidden" value={kind} />
+                  <input name="lookupId" type="hidden" value={row.id} />
+                  <input
+                    name="isActive"
+                    type="hidden"
+                    value={row.is_active ? "false" : "true"}
+                  />
+                  <button
+                    type="submit"
+                    className={`h-10 rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-4 ${
+                      row.is_active
+                        ? "border border-red-200 text-red-700 hover:border-red-700 hover:text-red-800 focus:ring-red-100"
+                        : "bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-100"
+                    }`}
+                  >
+                    {row.is_active ? "Deactivate" : "Activate"}
+                  </button>
+                </form>
+              </div>
+            </details>
           ))
         ) : (
           <p className="rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm text-stone-600">
@@ -514,6 +1337,14 @@ function LookupSection({
           </p>
         )}
       </div>
+
+      <LookupPagination
+        kind={kind}
+        lookupPage={lookupPage}
+        lookupStates={lookupStates}
+        providerStatusFilter={providerStatusFilter}
+        providerPage={providerPage}
+      />
     </article>
   );
 }
@@ -525,9 +1356,13 @@ export default async function AdminDashboardPage({
   const query = await searchParams;
   const statusFilter = getProviderStatusFilter(query.status);
   const providerPageNumber = getProviderPageNumber(query.page);
+  const lookupStates = getLookupSearchStates(query);
+  const activeLookupKind = getLookupKind(query.lookup);
+  const activeLookupAction = getLookupAction(query.lookupAction);
   const dashboardData = await getAdminDashboardData({
     statusFilter,
     page: providerPageNumber,
+    lookupStates,
   });
 
   return (
@@ -663,23 +1498,53 @@ export default async function AdminDashboardPage({
           </article>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <LookupSection
+            <LookupManagementSection
               id="categories"
+              kind="categories"
               title="Categories"
               count={dashboardData.counts.categories}
-              rows={dashboardData.categories}
+              lookupPage={dashboardData.categoryPage}
+              categories={dashboardData.categoryOptions}
+              lookupStates={lookupStates}
+              providerStatusFilter={statusFilter}
+              providerPage={providerPageNumber}
+              message={getLookupMessage({
+                activeKind: "categories",
+                currentKind: activeLookupKind,
+                currentAction: activeLookupAction,
+              })}
             />
-            <LookupSection
+            <LookupManagementSection
               id="languages"
+              kind="languages"
               title="Languages"
               count={dashboardData.counts.languages}
-              rows={dashboardData.languages}
+              lookupPage={dashboardData.languagePage}
+              categories={dashboardData.categoryOptions}
+              lookupStates={lookupStates}
+              providerStatusFilter={statusFilter}
+              providerPage={providerPageNumber}
+              message={getLookupMessage({
+                activeKind: "languages",
+                currentKind: activeLookupKind,
+                currentAction: activeLookupAction,
+              })}
             />
-            <LookupSection
+            <LookupManagementSection
               id="specialties"
+              kind="specialties"
               title="Specialties"
               count={dashboardData.counts.specialties}
-              rows={dashboardData.specialties}
+              lookupPage={dashboardData.specialtyPage}
+              categories={dashboardData.categoryOptions}
+              lookupStates={lookupStates}
+              providerStatusFilter={statusFilter}
+              providerPage={providerPageNumber}
+              message={getLookupMessage({
+                activeKind: "specialties",
+                currentKind: activeLookupKind,
+                currentAction: activeLookupAction,
+              })}
             />
           </div>
         </div>

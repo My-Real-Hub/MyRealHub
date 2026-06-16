@@ -1,11 +1,36 @@
 import Link from "next/link";
 import { ProviderPreviewCard } from "@/components/providers/provider-preview-card";
 import { featuredProviders, serviceCategories } from "@/lib/service-directory";
+import { getServerSupabaseClient } from "@/lib/supabase/server";
+
+type ServiceCategoryRow = {
+  name: string;
+};
+
+async function getActiveServiceCategories() {
+  try {
+    const supabase = await getServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("name")
+      .eq("is_active", true)
+      .order("name");
+
+    if (error) {
+      return serviceCategories;
+    }
+
+    return ((data ?? []) as ServiceCategoryRow[]).map((category) => category.name);
+  } catch {
+    return serviceCategories;
+  }
+}
 
 export default async function SearchPage({
   searchParams,
 }: PageProps<"/search">) {
   const params = await searchParams;
+  const activeServiceCategories = await getActiveServiceCategories();
   const selectedService =
     typeof params.service === "string" ? params.service : "All services";
 
@@ -33,7 +58,7 @@ export default async function SearchPage({
             className="h-12 rounded-md border border-stone-200 bg-white px-3 text-base text-stone-950 outline-none focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
           >
             <option>All services</option>
-            {serviceCategories.map((category) => (
+            {activeServiceCategories.map((category) => (
               <option key={category}>{category}</option>
             ))}
           </select>

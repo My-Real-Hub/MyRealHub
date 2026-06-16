@@ -66,16 +66,22 @@ export async function saveProviderProfile(
           .from("categories")
           .select("id")
           .eq("id", values.categoryId)
+          .eq("is_active", true)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     values.languageIds.length > 0
-      ? supabase.from("languages").select("id").in("id", values.languageIds)
+      ? supabase
+          .from("languages")
+          .select("id")
+          .in("id", values.languageIds)
+          .eq("is_active", true)
       : Promise.resolve({ data: [], error: null }),
     values.specialtyIds.length > 0
       ? supabase
           .from("specialties")
           .select("id,category_id")
           .in("id", values.specialtyIds)
+          .eq("is_active", true)
       : Promise.resolve({ data: [], error: null }),
   ]);
 

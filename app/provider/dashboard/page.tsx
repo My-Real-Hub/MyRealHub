@@ -228,11 +228,20 @@ async function getProviderProfileLookups() {
   const supabase = await getServerSupabaseClient();
   const [categoriesResult, languagesResult, specialtiesResult] =
     await Promise.all([
-      supabase.from("categories").select("id,name,slug").order("name"),
-      supabase.from("languages").select("id,name,slug").order("name"),
+      supabase
+        .from("categories")
+        .select("id,name,slug")
+        .eq("is_active", true)
+        .order("name"),
+      supabase
+        .from("languages")
+        .select("id,name,slug")
+        .eq("is_active", true)
+        .order("name"),
       supabase
         .from("specialties")
         .select("id,category_id,name,slug")
+        .eq("is_active", true)
         .order("name"),
     ]);
 
