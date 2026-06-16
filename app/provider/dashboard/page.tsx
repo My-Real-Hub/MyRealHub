@@ -1,33 +1,38 @@
 import Link from "next/link";
+import {
+  ProviderProfileForm,
+  type ProviderProfileCategoryOption,
+  type ProviderProfileFormData,
+  type ProviderProfileLanguageOption,
+  type ProviderProfileSpecialtyOption,
+} from "@/components/providers/provider-profile-form";
 import { requireProfileRole } from "@/lib/auth/session";
+import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
-
-type ProviderProfileStatus =
-  | "draft"
-  | "pending_approval"
-  | "active"
-  | "inactive"
-  | "rejected";
 
 type DashboardStatus = ProviderProfileStatus | "not_started";
 
 type ContactRequestStatus = "new" | "read" | "responded" | "archived";
 
-type ProviderProfileRow = {
-  id: string;
-  business_name: string | null;
-  display_name: string | null;
-  phone: string | null;
-  email: string | null;
-  website_url: string | null;
-  city: string | null;
-  province_state: string | null;
+type ProviderProfileRow = ProviderProfileFormData & {
   service_area: string | null;
-  status: ProviderProfileStatus;
   rejection_reason: string | null;
   submitted_at: string | null;
   approved_at: string | null;
   updated_at: string | null;
+};
+
+type ProviderProfileBaseRow = Omit<
+  ProviderProfileRow,
+  "languageIds" | "specialtyIds"
+>;
+
+type ProviderLanguageRow = {
+  language_id: string;
+};
+
+type ProviderSpecialtyRow = {
+  specialty_id: string;
 };
 
 type ContactRequestRow = {
@@ -150,12 +155,15 @@ function countCompletedProfileFields(providerProfile: ProviderProfileRow | null)
   return [
     providerProfile.business_name,
     providerProfile.display_name,
+    providerProfile.category_id,
+    providerProfile.bio,
     providerProfile.email,
     providerProfile.phone,
     providerProfile.city,
     providerProfile.province_state,
-    providerProfile.service_area,
-    providerProfile.website_url,
+    providerProfile.country,
+    providerProfile.languageIds.length > 0 ? "languages" : null,
+    providerProfile.specialtyIds.length > 0 ? "specialties" : null,
   ].filter(Boolean).length;
 }
 
@@ -166,14 +174,19 @@ async function getProviderProfile(userId: string) {
     .select(
       [
         "id",
+        "category_id",
         "business_name",
         "display_name",
+        "bio",
         "phone",
         "email",
         "website_url",
         "city",
         "province_state",
+        "country",
         "service_area",
+        "profile_image_path",
+        "profile_image_url",
         "status",
         "rejection_reason",
         "submitted_at",
@@ -184,7 +197,50 @@ async function getProviderProfile(userId: string) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  return data as ProviderProfileRow | null;
+  if (!data) {
+    return null;
+  }
+
+  const providerProfile = data as unknown as ProviderProfileBaseRow;
+  const [languageRows, specialtyRows] = await Promise.all([
+    supabase
+      .from("provider_languages")
+      .select("language_id")
+      .eq("provider_profile_id", providerProfile.id),
+    supabase
+      .from("provider_specialties")
+      .select("specialty_id")
+      .eq("provider_profile_id", providerProfile.id),
+  ]);
+
+  return {
+    ...providerProfile,
+    languageIds: ((languageRows.data ?? []) as ProviderLanguageRow[]).map(
+      (row) => row.language_id,
+    ),
+    specialtyIds: ((specialtyRows.data ?? []) as ProviderSpecialtyRow[]).map(
+      (row) => row.specialty_id,
+    ),
+  };
+}
+
+async function getProviderProfileLookups() {
+  const supabase = await getServerSupabaseClient();
+  const [categoriesResult, languagesResult, specialtiesResult] =
+    await Promise.all([
+      supabase.from("categories").select("id,name,slug").order("name"),
+      supabase.from("languages").select("id,name,slug").order("name"),
+      supabase
+        .from("specialties")
+        .select("id,category_id,name,slug")
+        .order("name"),
+    ]);
+
+  return {
+    categories: (categoriesResult.data ?? []) as ProviderProfileCategoryOption[],
+    languages: (languagesResult.data ?? []) as ProviderProfileLanguageOption[],
+    specialties: (specialtiesResult.data ?? []) as ProviderProfileSpecialtyOption[],
+  };
 }
 
 async function getInquirySummary(providerProfileId: string | null) {
@@ -225,7 +281,10 @@ async function getInquirySummary(providerProfileId: string | null) {
 export default async function ProviderDashboardPage() {
   const profile = await requireProfileRole("provider");
   const providerProfile = await getProviderProfile(profile.id);
-  const inquirySummary = await getInquirySummary(providerProfile?.id ?? null);
+  const [inquirySummary, lookups] = await Promise.all([
+    getInquirySummary(providerProfile?.id ?? null),
+    getProviderProfileLookups(),
+  ]);
   const statusKey = providerProfile?.status ?? "not_started";
   const status = statusContent[statusKey];
   const completedFields = countCompletedProfileFields(providerProfile);
@@ -350,7 +409,7 @@ export default async function ProviderDashboardPage() {
                 Profile fields
               </p>
               <p className="mt-3 text-3xl font-semibold text-stone-950">
-                {completedFields}/8
+                {completedFields}/11
               </p>
               <p className="mt-2 text-sm leading-6 text-stone-600">
                 Core listing fields currently populated.
@@ -378,7 +437,7 @@ export default async function ProviderDashboardPage() {
             </article>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="grid gap-6">
             <article
               id="profile"
               className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
@@ -393,40 +452,20 @@ export default async function ProviderDashboardPage() {
                   </h2>
                 </div>
                 <span className="w-fit rounded-md bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
-                  Placeholder
+                  {status.label}
                 </span>
               </div>
 
-              <div className="mt-6 grid gap-3">
-                {[
-                  {
-                    label: "Business details",
-                    value:
-                      providerProfile?.business_name ??
-                      providerProfile?.display_name ??
-                      "Not added",
-                  },
-                  {
-                    label: "Service coverage",
-                    value: providerProfile?.service_area ?? "Not added",
-                  },
-                  {
-                    label: "Website",
-                    value: providerProfile?.website_url ?? "Not added",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="grid gap-2 rounded-md border border-stone-200 px-4 py-3 sm:grid-cols-[10rem_1fr]"
-                  >
-                    <p className="text-sm font-medium text-stone-500">
-                      {item.label}
-                    </p>
-                    <p className="break-words text-sm font-semibold text-stone-950">
-                      {item.value}
-                    </p>
-                  </div>
-                ))}
+              <div className="mt-6">
+                <ProviderProfileForm
+                  profile={providerProfile}
+                  categories={lookups.categories}
+                  languages={lookups.languages}
+                  specialties={lookups.specialties}
+                  accountId={profile.id}
+                  accountEmail={profile.email}
+                  accountFullName={profile.fullName}
+                />
               </div>
             </article>
 
