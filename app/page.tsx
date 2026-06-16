@@ -1,8 +1,61 @@
 import Link from "next/link";
 import { ProviderPreviewCard } from "@/components/providers/provider-preview-card";
 import { featuredProviders, serviceCategories } from "@/lib/service-directory";
+import { getServerSupabaseClient } from "@/lib/supabase/server";
 
-export default function Home() {
+type HomepageCategoryRow = {
+  id: string;
+  name: string;
+};
+
+function getFallbackCategories() {
+  return serviceCategories.map((category) => ({
+    name: category,
+    value: category,
+  }));
+}
+
+async function getHomepageData() {
+  try {
+    const supabase = await getServerSupabaseClient();
+    const [categoriesResult, providersResult] = await Promise.all([
+      supabase
+        .from("categories")
+        .select("id,name")
+        .eq("is_active", true)
+        .order("name"),
+      supabase
+        .from("provider_profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active"),
+    ]);
+    const fallbackCategories = getFallbackCategories();
+    const categories =
+      categoriesResult.error ||
+      !categoriesResult.data ||
+      categoriesResult.data.length === 0
+        ? fallbackCategories
+        : (categoriesResult.data as HomepageCategoryRow[]).map((category) => ({
+            name: category.name,
+            value: category.id,
+          }));
+
+    return {
+      activeProviderCount: providersResult.count ?? featuredProviders.length,
+      categories,
+    };
+  } catch {
+    return {
+      activeProviderCount: featuredProviders.length,
+      categories: getFallbackCategories(),
+    };
+  }
+}
+
+export default async function Home() {
+  const { activeProviderCount, categories: homepageCategories } =
+    await getHomepageData();
+
   return (
     <>
       <section className="border-b border-stone-200 bg-white">
@@ -22,18 +75,36 @@ export default function Home() {
 
             <form
               action="/search"
-              className="mt-8 grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 sm:grid-cols-[1fr_auto]"
+              method="get"
+              className="mt-8 grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 lg:grid-cols-[1fr_1fr_auto]"
             >
-              <label htmlFor="provider-search" className="sr-only">
-                Search providers
+              <label htmlFor="homepage-category" className="sr-only">
+                Service category
+              </label>
+              <select
+                id="homepage-category"
+                name="category"
+                className="h-12 min-w-0 rounded-md border border-stone-200 bg-white px-4 text-base text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+              >
+                <option value="">All service categories</option>
+                {homepageCategories.map((category) => (
+                  <option key={category.value} value={category.value}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+
+              <label htmlFor="homepage-location" className="sr-only">
+                Location
               </label>
               <input
-                id="provider-search"
-                name="q"
+                id="homepage-location"
+                name="location"
                 type="search"
-                placeholder="Search by service or location"
-                className="h-12 rounded-md border border-stone-200 bg-white px-4 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+                placeholder="City, province, or service area"
+                className="h-12 min-w-0 rounded-md border border-stone-200 bg-white px-4 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
               />
+
               <button
                 type="submit"
                 className="h-12 rounded-md bg-emerald-700 px-6 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
@@ -47,12 +118,14 @@ export default function Home() {
             <p className="text-sm font-medium text-amber-200">Directory snapshot</p>
             <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-md bg-white/10 p-4">
-                <p className="text-2xl font-semibold">9</p>
+                <p className="text-2xl font-semibold">
+                  {homepageCategories.length}
+                </p>
                 <p className="mt-1 text-stone-300">Service categories</p>
               </div>
               <div className="rounded-md bg-white/10 p-4">
-                <p className="text-2xl font-semibold">3</p>
-                <p className="mt-1 text-stone-300">Sample profiles</p>
+                <p className="text-2xl font-semibold">{activeProviderCount}</p>
+                <p className="mt-1 text-stone-300">Active providers</p>
               </div>
             </div>
             <p className="mt-6 text-sm leading-6 text-stone-300">
@@ -76,13 +149,13 @@ export default function Home() {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {serviceCategories.map((category) => (
+          {homepageCategories.map((category) => (
             <Link
-              key={category}
-              href={`/search?service=${encodeURIComponent(category)}`}
+              key={category.value}
+              href={`/search?category=${encodeURIComponent(category.value)}`}
               className="rounded-md border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-emerald-700 hover:text-emerald-800"
             >
-              {category}
+              {category.name}
             </Link>
           ))}
         </div>
