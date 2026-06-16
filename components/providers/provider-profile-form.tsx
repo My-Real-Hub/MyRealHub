@@ -227,7 +227,7 @@ export function ProviderProfileForm({
     profile?.languageIds ?? [],
   );
   const [pendingIntent, setPendingIntent] = useState<
-    "draft" | "submit" | null
+    "draft" | "submit" | "reactivate" | null
   >(null);
   const [languageSearch, setLanguageSearch] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
@@ -254,6 +254,9 @@ export function ProviderProfileForm({
   const isBusy = pending || isUploading;
   const isSavingDraft = pending && pendingIntent === "draft";
   const isSubmitting = pending && pendingIntent === "submit";
+  const isRequestingReactivation = pending && pendingIntent === "reactivate";
+  const isInactiveProfile = profile?.status === "inactive";
+  const approvalIntent = isInactiveProfile ? "reactivate" : "submit";
   const fallbackName =
     profile?.display_name ??
     profile?.business_name ??
@@ -788,16 +791,20 @@ export function ProviderProfileForm({
         <button
           type="submit"
           name="intent"
-          value="submit"
+          value={approvalIntent}
           className={`${buttonClassName} bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-100`}
           disabled={isBusy}
-          onClick={() => setPendingIntent("submit")}
+          onClick={() => setPendingIntent(approvalIntent)}
         >
           {isUploading
             ? "Uploading..."
-            : isSubmitting
-              ? "Submitting..."
-              : "Submit for approval"}
+            : isRequestingReactivation
+              ? "Requesting..."
+              : isSubmitting
+                ? "Submitting..."
+                : isInactiveProfile
+                  ? "Request reactivation"
+                  : "Submit for approval"}
         </button>
       </div>
     </form>
