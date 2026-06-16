@@ -14,13 +14,114 @@ type ReviewOutcome =
   | "missing-rejection-reason"
   | "not-updated";
 
+type LookupKind = "categories" | "languages" | "specialties";
+
+type LookupOutcome =
+  | "created"
+  | "updated"
+  | "deactivated"
+  | "activated"
+  | "invalid"
+  | "duplicate"
+  | "error";
+
+type LookupPayload = Record<string, string | boolean | null>;
+
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const lookupAnchors: Record<LookupKind, string> = {
+  categories: "categories",
+  languages: "languages",
+  specialties: "specialties",
+};
 
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
 
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getLookupKind(formData: FormData): LookupKind {
+  const kind = getFormString(formData, "lookupKind");
+
+  if (
+    kind === "categories" ||
+    kind === "languages" ||
+    kind === "specialties"
+  ) {
+    return kind;
+  }
+
+  redirect("/admin/dashboard#categories");
+}
+
+function getLookupId(formData: FormData, kind: LookupKind) {
+  const lookupId = getFormString(formData, "lookupId");
+
+  if (!uuidPattern.test(lookupId)) {
+    redirect(getLookupDashboardPath(kind, "invalid"));
+  }
+
+  return lookupId;
+}
+
+function getLookupDashboardPath(kind: LookupKind, outcome: LookupOutcome) {
+  const params = new URLSearchParams({
+    lookup: kind,
+    lookupAction: outcome,
+  });
+
+  return `/admin/dashboard?${params.toString()}#${lookupAnchors[kind]}`;
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function isDuplicateError(error: { code?: string; message?: string } | null) {
+  return error?.code === "23505" || /duplicate key/i.test(error?.message ?? "");
+}
+
+function getLookupPayload(kind: LookupKind, formData: FormData) {
+  const name = getFormString(formData, "name");
+  const slug = slugify(getFormString(formData, "slug") || name);
+  const description = getFormString(formData, "description");
+  const categoryId = getFormString(formData, "categoryId");
+
+  if (!name || !slug) {
+    return null;
+  }
+
+  if (kind === "specialties" && !uuidPattern.test(categoryId)) {
+    return null;
+  }
+
+  const payload: LookupPayload = {
+    name,
+    slug,
+  };
+
+  if (kind === "categories" || kind === "specialties") {
+    payload.description = description || null;
+  }
+
+  if (kind === "specialties") {
+    payload.category_id = categoryId;
+  }
+
+  return payload;
+}
+
+function revalidateLookupPaths() {
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/provider/dashboard");
+  revalidatePath("/search");
 }
 
 function getProviderId(formData: FormData) {
@@ -159,5 +260,85 @@ export async function setProviderActive(formData: FormData) {
 
   redirect(
     getProviderReviewPath(providerId, isUpdated ? "active" : "not-updated"),
+  );
+}
+
+export async function createLookupItem(formData: FormData) {
+  await requireProfileRole("admin");
+
+  const kind = getLookupKind(formData);
+  const payload = getLookupPayload(kind, formData);
+
+  if (!payload) {
+    redirect(getLookupDashboardPath(kind, "invalid"));
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { error } = await supabase.from(kind).insert({
+    ...payload,
+    is_active: true,
+  });
+
+  if (error) {
+    redirect(
+      getLookupDashboardPath(kind, isDuplicateError(error) ? "duplicate" : "error"),
+    );
+  }
+
+  revalidateLookupPaths();
+  redirect(getLookupDashboardPath(kind, "created"));
+}
+
+export async function updateLookupItem(formData: FormData) {
+  await requireProfileRole("admin");
+
+  const kind = getLookupKind(formData);
+  const lookupId = getLookupId(formData, kind);
+  const payload = getLookupPayload(kind, formData);
+
+  if (!payload) {
+    redirect(getLookupDashboardPath(kind, "invalid"));
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase
+    .from(kind)
+    .update(payload)
+    .eq("id", lookupId)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    redirect(
+      getLookupDashboardPath(kind, isDuplicateError(error) ? "duplicate" : "error"),
+    );
+  }
+
+  revalidateLookupPaths();
+  redirect(getLookupDashboardPath(kind, "updated"));
+}
+
+export async function setLookupActive(formData: FormData) {
+  await requireProfileRole("admin");
+
+  const kind = getLookupKind(formData);
+  const lookupId = getLookupId(formData, kind);
+  const isActive = getFormString(formData, "isActive") === "true";
+
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase
+    .from(kind)
+    .update({ is_active: isActive })
+    .eq("id", lookupId)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    redirect(getLookupDashboardPath(kind, "error"));
+  }
+
+  revalidateLookupPaths();
+  redirect(
+    getLookupDashboardPath(kind, isActive ? "activated" : "deactivated"),
   );
 }
