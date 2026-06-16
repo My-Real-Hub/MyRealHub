@@ -41,28 +41,37 @@ export async function saveProviderProfile(
   values.languageIds = dedupeIds(values.languageIds);
   values.specialtyIds = dedupeIds(values.specialtyIds);
 
-  const fieldErrors = validateProviderProfileFormValues(values);
+  const fieldErrors = validateProviderProfileFormValues(values, intent);
 
   if (hasProviderProfileFieldErrors(fieldErrors)) {
     return {
       status: "error",
-      message: "Please fix the highlighted fields.",
+      message:
+        intent === "submit"
+          ? "Complete the required fields before submitting for approval."
+          : "Please fix the highlighted fields.",
       fieldErrors,
     };
   }
 
   const supabase = await getServerSupabaseClient();
   const [categoryResult, languagesResult, specialtiesResult] = await Promise.all([
-    supabase
-      .from("categories")
-      .select("id")
-      .eq("id", values.categoryId)
-      .maybeSingle(),
-    supabase.from("languages").select("id").in("id", values.languageIds),
-    supabase
-      .from("specialties")
-      .select("id,category_id")
-      .in("id", values.specialtyIds),
+    values.categoryId
+      ? supabase
+          .from("categories")
+          .select("id")
+          .eq("id", values.categoryId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    values.languageIds.length > 0
+      ? supabase.from("languages").select("id").in("id", values.languageIds)
+      : Promise.resolve({ data: [], error: null }),
+    values.specialtyIds.length > 0
+      ? supabase
+          .from("specialties")
+          .select("id,category_id")
+          .in("id", values.specialtyIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (categoryResult.error) {
@@ -84,7 +93,7 @@ export async function saveProviderProfile(
   const specialties = (specialtiesResult.data ?? []) as SpecialtyRow[];
   const specialtyIds = new Set(specialties.map((specialty) => specialty.id));
 
-  if (!categoryResult.data) {
+  if (values.categoryId && !categoryResult.data) {
     verifiedFieldErrors.categoryId = "Choose a valid profession.";
   }
 
@@ -103,14 +112,22 @@ export async function saveProviderProfile(
         specialty.category_id !== values.categoryId,
     )
   ) {
-    verifiedFieldErrors.specialtyIds =
-      "Choose specialties for the selected profession.";
+    if (!values.categoryId) {
+      verifiedFieldErrors.categoryId =
+        "Choose a profession before selecting specialties.";
+    } else {
+      verifiedFieldErrors.specialtyIds =
+        "Choose specialties for the selected profession.";
+    }
   }
 
   if (hasProviderProfileFieldErrors(verifiedFieldErrors)) {
     return {
       status: "error",
-      message: "Please fix the highlighted fields.",
+      message:
+        intent === "submit"
+          ? "Complete the required fields before submitting for approval."
+          : "Please fix the highlighted fields.",
       fieldErrors: verifiedFieldErrors,
     };
   }
@@ -130,16 +147,16 @@ export async function saveProviderProfile(
   const status = intent === "submit" ? "pending_approval" : "draft";
   const providerProfilePayload: Record<string, string | null> = {
     user_id: profile.id,
-    category_id: values.categoryId,
-    business_name: values.businessName,
-    display_name: values.fullName,
-    bio: values.bio,
-    phone: values.phone,
-    email: values.email,
+    category_id: values.categoryId || null,
+    business_name: values.businessName || null,
+    display_name: values.fullName || null,
+    bio: values.bio || null,
+    phone: values.phone || null,
+    email: values.email || null,
     website_url: values.websiteUrl || null,
-    city: values.city,
-    province_state: values.province,
-    country: values.country,
+    city: values.city || null,
+    province_state: values.province || null,
+    country: values.country || null,
     status,
     rejection_reason: null,
     submitted_at: status === "pending_approval" ? now : null,
@@ -185,18 +202,22 @@ export async function saveProviderProfile(
   }
 
   const [languageInsertResult, specialtyInsertResult] = await Promise.all([
-    supabase.from("provider_languages").insert(
-      values.languageIds.map((languageId) => ({
-        provider_profile_id: providerProfile.id,
-        language_id: languageId,
-      })),
-    ),
-    supabase.from("provider_specialties").insert(
-      values.specialtyIds.map((specialtyId) => ({
-        provider_profile_id: providerProfile.id,
-        specialty_id: specialtyId,
-      })),
-    ),
+    values.languageIds.length > 0
+      ? supabase.from("provider_languages").insert(
+          values.languageIds.map((languageId) => ({
+            provider_profile_id: providerProfile.id,
+            language_id: languageId,
+          })),
+        )
+      : Promise.resolve({ error: null }),
+    values.specialtyIds.length > 0
+      ? supabase.from("provider_specialties").insert(
+          values.specialtyIds.map((specialtyId) => ({
+            provider_profile_id: providerProfile.id,
+            specialty_id: specialtyId,
+          })),
+        )
+      : Promise.resolve({ error: null }),
   ]);
 
   if (languageInsertResult.error || specialtyInsertResult.error) {
@@ -211,7 +232,7 @@ export async function saveProviderProfile(
     status: "success",
     message:
       status === "pending_approval"
-        ? "Profile submitted for approval."
+        ? "Profile submitted for admin approval. Your listing is now pending approval."
         : "Draft saved.",
     fieldErrors: {},
   };

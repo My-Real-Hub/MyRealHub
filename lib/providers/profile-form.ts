@@ -101,32 +101,39 @@ export function getProviderProfileFormValues(
 
 export function validateProviderProfileFormValues(
   values: ProviderProfileFormValues,
+  intent: ProviderProfileFormIntent = "submit",
 ) {
   const errors: ProviderProfileFieldErrors = {};
 
-  if (!values.fullName) {
-    errors.fullName = "Full name is required.";
+  if (intent === "submit") {
+    if (!values.fullName) {
+      errors.fullName = "Full name is required.";
+    }
+
+    if (!values.businessName) {
+      errors.businessName = "Business name is required.";
+    }
+
+    if (!values.categoryId) {
+      errors.categoryId = "Choose a profession.";
+    }
+
+    if (!values.bio) {
+      errors.bio = "Bio is required.";
+    }
   }
 
-  if (!values.businessName) {
-    errors.businessName = "Business name is required.";
+  if (values.email || intent === "submit") {
+    const emailError = validateEmail(values.email);
+    if (emailError) {
+      errors.email = emailError;
+    }
   }
 
-  if (!values.categoryId) {
-    errors.categoryId = "Choose a profession.";
-  }
-
-  if (!values.bio) {
-    errors.bio = "Bio is required.";
-  }
-
-  const emailError = validateEmail(values.email);
-  if (emailError) {
-    errors.email = emailError;
-  }
-
-  if (!values.phone) {
-    errors.phone = "Phone is required.";
+  if (intent === "submit") {
+    if (!values.phone) {
+      errors.phone = "Phone is required.";
+    }
   }
 
   const websiteUrlError = getWebsiteUrlError(values.websiteUrl);
@@ -134,24 +141,26 @@ export function validateProviderProfileFormValues(
     errors.websiteUrl = websiteUrlError;
   }
 
-  if (!values.city) {
-    errors.city = "City is required.";
-  }
+  if (intent === "submit") {
+    if (!values.city) {
+      errors.city = "City is required.";
+    }
 
-  if (!values.province) {
-    errors.province = "Province is required.";
-  }
+    if (!values.province) {
+      errors.province = "Province is required.";
+    }
 
-  if (!values.country) {
-    errors.country = "Country is required.";
-  }
+    if (!values.country) {
+      errors.country = "Country is required.";
+    }
 
-  if (values.languageIds.length === 0) {
-    errors.languageIds = "Choose at least one language.";
-  }
+    if (values.languageIds.length === 0) {
+      errors.languageIds = "Choose at least one language.";
+    }
 
-  if (values.specialtyIds.length === 0) {
-    errors.specialtyIds = "Choose at least one specialty.";
+    if (values.specialtyIds.length === 0) {
+      errors.specialtyIds = "Choose at least one specialty.";
+    }
   }
 
   return errors;
