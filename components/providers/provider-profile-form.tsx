@@ -226,6 +226,9 @@ export function ProviderProfileForm({
   const [selectedLanguageIds, setSelectedLanguageIds] = useState(
     profile?.languageIds ?? [],
   );
+  const [pendingIntent, setPendingIntent] = useState<
+    "draft" | "submit" | null
+  >(null);
   const [languageSearch, setLanguageSearch] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [imagePath, setImagePath] = useState(profile?.profile_image_path ?? "");
@@ -249,6 +252,8 @@ export function ProviderProfileForm({
   const fieldErrors = state.fieldErrors;
   const isUploading = uploadStatus.type === "uploading";
   const isBusy = pending || isUploading;
+  const isSavingDraft = pending && pendingIntent === "draft";
+  const isSubmitting = pending && pendingIntent === "submit";
   const fallbackName =
     profile?.display_name ??
     profile?.business_name ??
@@ -776,8 +781,9 @@ export function ProviderProfileForm({
           value="draft"
           className={`${buttonClassName} border border-stone-300 text-stone-800 hover:border-stone-950 hover:text-stone-950 focus:ring-stone-100`}
           disabled={isBusy}
+          onClick={() => setPendingIntent("draft")}
         >
-          {isBusy ? "Saving..." : "Save draft"}
+          {isUploading ? "Uploading..." : isSavingDraft ? "Saving..." : "Save draft"}
         </button>
         <button
           type="submit"
@@ -785,8 +791,13 @@ export function ProviderProfileForm({
           value="submit"
           className={`${buttonClassName} bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-100`}
           disabled={isBusy}
+          onClick={() => setPendingIntent("submit")}
         >
-          {isBusy ? "Saving..." : "Submit for approval"}
+          {isUploading
+            ? "Uploading..."
+            : isSubmitting
+              ? "Submitting..."
+              : "Submit for approval"}
         </button>
       </div>
     </form>
