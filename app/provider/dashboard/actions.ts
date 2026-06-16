@@ -12,6 +12,7 @@ import {
   type ProviderProfileFormState,
 } from "@/lib/providers/profile-form";
 import { PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
+import { getProviderProfileSlug } from "@/lib/providers/slug";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type SpecialtyRow = {
@@ -156,8 +157,14 @@ export async function saveProviderProfile(
 
   const now = new Date().toISOString();
   const status = isApprovalRequest ? "pending_approval" : "draft";
+  const slug = getProviderProfileSlug({
+    businessName: values.businessName,
+    displayName: values.fullName,
+    userId: profile.id,
+  });
   const providerProfilePayload: Record<string, string | null> = {
     user_id: profile.id,
+    slug,
     category_id: values.categoryId || null,
     business_name: values.businessName || null,
     display_name: values.fullName || null,
@@ -240,6 +247,7 @@ export async function saveProviderProfile(
   revalidatePath("/provider/dashboard");
   revalidatePath("/admin/dashboard");
   revalidatePath(`/admin/dashboard/providers/${providerProfile.id}`);
+  revalidatePath(`/providers/${slug}`);
   revalidatePath("/search");
 
   return {
