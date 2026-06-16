@@ -7,7 +7,7 @@ export type ProviderProfileStatus =
   | "inactive"
   | "rejected";
 
-export type ProviderProfileFormIntent = "draft" | "submit";
+export type ProviderProfileFormIntent = "draft" | "submit" | "reactivate";
 
 export type ProviderProfileFormValues = {
   fullName: string;
@@ -76,7 +76,13 @@ function getWebsiteUrlError(websiteUrl: string) {
 export function getProviderProfileFormIntent(
   formData: FormData,
 ): ProviderProfileFormIntent {
-  return formData.get("intent") === "submit" ? "submit" : "draft";
+  const intent = formData.get("intent");
+
+  if (intent === "submit" || intent === "reactivate") {
+    return intent;
+  }
+
+  return "draft";
 }
 
 export function getProviderProfileFormValues(
@@ -104,8 +110,9 @@ export function validateProviderProfileFormValues(
   intent: ProviderProfileFormIntent = "submit",
 ) {
   const errors: ProviderProfileFieldErrors = {};
+  const requiresCompleteProfile = intent !== "draft";
 
-  if (intent === "submit") {
+  if (requiresCompleteProfile) {
     if (!values.fullName) {
       errors.fullName = "Full name is required.";
     }
@@ -123,14 +130,14 @@ export function validateProviderProfileFormValues(
     }
   }
 
-  if (values.email || intent === "submit") {
+  if (values.email || requiresCompleteProfile) {
     const emailError = validateEmail(values.email);
     if (emailError) {
       errors.email = emailError;
     }
   }
 
-  if (intent === "submit") {
+  if (requiresCompleteProfile) {
     if (!values.phone) {
       errors.phone = "Phone is required.";
     }
@@ -141,7 +148,7 @@ export function validateProviderProfileFormValues(
     errors.websiteUrl = websiteUrlError;
   }
 
-  if (intent === "submit") {
+  if (requiresCompleteProfile) {
     if (!values.city) {
       errors.city = "City is required.";
     }

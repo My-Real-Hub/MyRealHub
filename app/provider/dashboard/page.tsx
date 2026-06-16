@@ -79,7 +79,7 @@ const statusContent: Record<DashboardStatus, StatusContent> = {
     label: "Inactive",
     badgeClassName: "border-stone-200 bg-stone-100 text-stone-700",
     summary: "Your listing exists but is hidden from public directory surfaces.",
-    nextStep: "Review profile details before reactivation.",
+    nextStep: "Update profile details and request reactivation when ready.",
   },
   rejected: {
     label: "Rejected",

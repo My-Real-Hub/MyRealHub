@@ -37,6 +37,11 @@ export async function saveProviderProfile(
 ): Promise<ProviderProfileFormState> {
   const profile = await requireProfileRole("provider");
   const intent = getProviderProfileFormIntent(formData);
+  const isApprovalRequest = intent === "submit" || intent === "reactivate";
+  const completeProfileErrorMessage =
+    intent === "reactivate"
+      ? "Complete the required fields before requesting reactivation."
+      : "Complete the required fields before submitting for approval.";
   const values = getProviderProfileFormValues(formData);
   values.languageIds = dedupeIds(values.languageIds);
   values.specialtyIds = dedupeIds(values.specialtyIds);
@@ -47,8 +52,8 @@ export async function saveProviderProfile(
     return {
       status: "error",
       message:
-        intent === "submit"
-          ? "Complete the required fields before submitting for approval."
+        isApprovalRequest
+          ? completeProfileErrorMessage
           : "Please fix the highlighted fields.",
       fieldErrors,
     };
@@ -125,8 +130,8 @@ export async function saveProviderProfile(
     return {
       status: "error",
       message:
-        intent === "submit"
-          ? "Complete the required fields before submitting for approval."
+        isApprovalRequest
+          ? completeProfileErrorMessage
           : "Please fix the highlighted fields.",
       fieldErrors: verifiedFieldErrors,
     };
@@ -144,7 +149,7 @@ export async function saveProviderProfile(
   }
 
   const now = new Date().toISOString();
-  const status = intent === "submit" ? "pending_approval" : "draft";
+  const status = isApprovalRequest ? "pending_approval" : "draft";
   const providerProfilePayload: Record<string, string | null> = {
     user_id: profile.id,
     category_id: values.categoryId || null,
@@ -227,11 +232,16 @@ export async function saveProviderProfile(
   }
 
   revalidatePath("/provider/dashboard");
+  revalidatePath("/admin/dashboard");
+  revalidatePath(`/admin/dashboard/providers/${providerProfile.id}`);
+  revalidatePath("/search");
 
   return {
     status: "success",
     message:
-      status === "pending_approval"
+      intent === "reactivate"
+        ? "Reactivation request sent for admin approval. Your listing is now pending approval."
+        : status === "pending_approval"
         ? "Profile submitted for admin approval. Your listing is now pending approval."
         : "Draft saved.",
     fieldErrors: {},
