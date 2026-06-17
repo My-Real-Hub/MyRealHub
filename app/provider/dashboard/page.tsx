@@ -39,6 +39,8 @@ type ContactRequestRow = {
   id: string;
   sender_name: string;
   sender_email: string;
+  sender_phone: string | null;
+  message: string;
   status: ContactRequestStatus;
   created_at: string;
 };
@@ -274,7 +276,7 @@ async function getInquirySummary(providerProfileId: string | null) {
       .eq("status", "new"),
     supabase
       .from("contact_requests")
-      .select("id,sender_name,sender_email,status,created_at")
+      .select("id,sender_name,sender_email,sender_phone,message,status,created_at")
       .eq("provider_profile_id", providerProfileId)
       .order("created_at", { ascending: false })
       .limit(3),
@@ -511,11 +513,19 @@ export default async function ProviderDashboardPage() {
                           <p className="mt-1 break-words text-sm text-stone-600">
                             {request.sender_email}
                           </p>
+                          {request.sender_phone ? (
+                            <p className="mt-1 break-words text-sm text-stone-600">
+                              {request.sender_phone}
+                            </p>
+                          ) : null}
                         </div>
                         <span className="w-fit rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-800">
                           {request.status}
                         </span>
                       </div>
+                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-stone-700">
+                        {request.message}
+                      </p>
                       <p className="mt-3 text-xs font-medium uppercase tracking-wide text-stone-500">
                         {formatDate(request.created_at)}
                       </p>
