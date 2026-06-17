@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SaveProviderButton } from "@/components/providers/save-provider-button";
+import { getCurrentProfile } from "@/lib/auth/session";
 import {
   isProviderProfileId,
   isProviderProfileSlug,
 } from "@/lib/providers/slug";
+import { getIsProviderSaved } from "@/lib/saved-providers";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 import { ProfileImage } from "./profile-image";
 
@@ -250,6 +253,11 @@ export default async function PublicProviderProfilePage({
   const providerName = getProviderName(provider);
   const location = getLocation(provider);
   const profileImageUrl = getPublicProfileImageUrl(provider.profile_image_url);
+  const currentProfile = await getCurrentProfile();
+  const isSaved = currentProfile
+    ? await getIsProviderSaved(currentProfile.id, provider.id)
+    : false;
+  const returnPath = `/providers/${provider.slug || provider.id}`;
 
   return (
     <section className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -344,13 +352,12 @@ export default async function PublicProviderProfilePage({
                   Contact provider
                 </button>
               )}
-              <button
-                type="button"
-                disabled
-                className="h-11 cursor-not-allowed rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-500"
-              >
-                Save provider
-              </button>
+              <SaveProviderButton
+                isSaved={isSaved}
+                isSignedIn={Boolean(currentProfile)}
+                providerId={provider.id}
+                returnPath={returnPath}
+              />
             </div>
           </article>
 
