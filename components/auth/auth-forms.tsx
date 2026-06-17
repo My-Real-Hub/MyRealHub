@@ -29,6 +29,10 @@ type SignUpFormProps = {
   initialRole?: SignUpRole;
 };
 
+type LoginFormProps = {
+  redirectTo?: string | null;
+};
+
 const fieldClassName =
   "h-12 rounded-md border border-stone-200 bg-white px-3 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 
@@ -239,7 +243,7 @@ export function SignUpForm({
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ redirectTo }: LoginFormProps) {
   const router = useRouter();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
@@ -283,7 +287,9 @@ export function LoginForm() {
         ? await getProfileRoleForUser(supabase, user.id)
         : DEFAULT_PROFILE_ROLE;
 
-      router.push(getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE));
+      router.push(
+        redirectTo ?? getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
+      );
       router.refresh();
     } catch (error) {
       setStatus({

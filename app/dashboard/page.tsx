@@ -1,216 +1,7 @@
 import Link from "next/link";
+import { SavedProviderCard } from "@/components/providers/saved-provider-card";
 import { requireProfileRole } from "@/lib/auth/session";
-import { getServerSupabaseClient } from "@/lib/supabase/server";
-
-type SavedProviderRow = {
-  id: string;
-  provider_profile_id: string;
-  created_at: string;
-};
-
-type ProviderProfileRow = {
-  id: string;
-  slug: string;
-  category_id: string | null;
-  business_name: string | null;
-  display_name: string | null;
-  bio: string | null;
-  city: string | null;
-  province_state: string | null;
-  country: string | null;
-  service_area: string | null;
-};
-
-type CategoryRow = {
-  id: string;
-  name: string;
-};
-
-type SavedProvider = SavedProviderRow & {
-  provider: ProviderProfileRow;
-  categoryName: string | null;
-};
-
-type SavedProviderData = {
-  errorMessage: string | null;
-  savedProviders: SavedProvider[];
-  totalSaved: number;
-  unavailableCount: number;
-};
-
-const savedProviderSelectColumns = [
-  "id",
-  "slug",
-  "category_id",
-  "business_name",
-  "display_name",
-  "bio",
-  "city",
-  "province_state",
-  "country",
-  "service_area",
-].join(",");
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-function formatDate(value: string) {
-  return dateFormatter.format(new Date(value));
-}
-
-function getProviderName(provider: ProviderProfileRow) {
-  return (
-    provider.business_name ??
-    provider.display_name ??
-    "Provider profile"
-  );
-}
-
-function getProviderLocation(provider: ProviderProfileRow) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(", ") : "Location not added";
-}
-
-function getCategoryName(categories: CategoryRow[], categoryId: string | null) {
-  return categories.find((category) => category.id === categoryId)?.name ?? null;
-}
-
-async function getSavedProviderData(userId: string): Promise<SavedProviderData> {
-  const supabase = await getServerSupabaseClient();
-  const { data: savedRows, error: savedError } = await supabase
-    .from("saved_providers")
-    .select("id,provider_profile_id,created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (savedError) {
-    return {
-      errorMessage: "Saved providers could not be loaded.",
-      savedProviders: [],
-      totalSaved: 0,
-      unavailableCount: 0,
-    };
-  }
-
-  const savedProviders = (savedRows ?? []) as SavedProviderRow[];
-  const providerIds = savedProviders.map((row) => row.provider_profile_id);
-
-  if (providerIds.length === 0) {
-    return {
-      errorMessage: null,
-      savedProviders: [],
-      totalSaved: 0,
-      unavailableCount: 0,
-    };
-  }
-
-  const { data: providerRows, error: providerError } = await supabase
-    .from("provider_profiles")
-    .select(savedProviderSelectColumns)
-    .eq("status", "active")
-    .in("id", providerIds);
-
-  if (providerError) {
-    return {
-      errorMessage: "Saved provider details could not be loaded.",
-      savedProviders: [],
-      totalSaved: savedProviders.length,
-      unavailableCount: savedProviders.length,
-    };
-  }
-
-  const providers = (providerRows ?? []) as unknown as ProviderProfileRow[];
-  const providerMap = new Map(providers.map((provider) => [provider.id, provider]));
-  const categoryIds = Array.from(
-    new Set(providers.map((provider) => provider.category_id).filter(Boolean)),
-  ) as string[];
-  const { data: categoryRows } =
-    categoryIds.length > 0
-      ? await supabase
-          .from("categories")
-          .select("id,name")
-          .in("id", categoryIds)
-          .eq("is_active", true)
-      : { data: [] };
-  const categories = (categoryRows ?? []) as CategoryRow[];
-  const visibleSavedProviders = savedProviders
-    .map((savedProvider) => {
-      const provider = providerMap.get(savedProvider.provider_profile_id);
-
-      if (!provider) {
-        return null;
-      }
-
-      return {
-        ...savedProvider,
-        categoryName: getCategoryName(categories, provider.category_id),
-        provider,
-      };
-    })
-    .filter((savedProvider): savedProvider is SavedProvider =>
-      Boolean(savedProvider),
-    );
-
-  return {
-    errorMessage: null,
-    savedProviders: visibleSavedProviders,
-    totalSaved: savedProviders.length,
-    unavailableCount: savedProviders.length - visibleSavedProviders.length,
-  };
-}
-
-function SavedProviderCard({ savedProvider }: { savedProvider: SavedProvider }) {
-  const providerName = getProviderName(savedProvider.provider);
-  const providerHref = `/providers/${savedProvider.provider.slug || savedProvider.provider.id}`;
-
-  return (
-    <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-            {savedProvider.categoryName ?? "Real estate service"}
-          </p>
-          <h3 className="mt-2 text-lg font-semibold text-stone-950">
-            {providerName}
-          </h3>
-          <p className="mt-2 text-sm font-medium text-stone-700">
-            {getProviderLocation(savedProvider.provider)}
-          </p>
-        </div>
-        <span className="w-fit rounded-md bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600">
-          Saved {formatDate(savedProvider.created_at)}
-        </span>
-      </div>
-
-      <p className="mt-4 line-clamp-2 text-sm leading-6 text-stone-600">
-        {savedProvider.provider.bio ?? "No bio added yet."}
-      </p>
-
-      <div className="mt-5 flex flex-col gap-2 border-t border-stone-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <Link
-          href={providerHref}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-        >
-          View profile
-        </Link>
-        <Link
-          href="/search"
-          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
-        >
-          Find more
-        </Link>
-      </div>
-    </article>
-  );
-}
+import { getSavedProviderData } from "@/lib/saved-providers";
 
 function EmptySavedProviders() {
   return (
@@ -219,8 +10,8 @@ function EmptySavedProviders() {
         No saved providers yet
       </h3>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-600">
-        Saved providers will appear here after the save button is connected.
-        For now, use search to find providers you may want to revisit.
+        Save providers from search results or public provider profiles to build
+        a shortlist here.
       </p>
       <Link
         href="/search"
@@ -236,6 +27,7 @@ export default async function UserDashboardPage() {
   const profile = await requireProfileRole("user");
   const savedProviderData = await getSavedProviderData(profile.id);
   const displayName = profile.fullName ?? profile.email ?? "MyRealHub user";
+  const previewSavedProviders = savedProviderData.savedProviders.slice(0, 4);
 
   return (
     <section className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -345,9 +137,17 @@ export default async function UserDashboardPage() {
                   Providers you have starred
                 </h2>
               </div>
-              <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
-                {savedProviderData.totalSaved} total saved
-              </span>
+              <div className="flex flex-wrap gap-2">
+                <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
+                  {savedProviderData.totalSaved} total saved
+                </span>
+                <Link
+                  href="/dashboard/saved"
+                  className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100 transition hover:bg-emerald-50"
+                >
+                  View all
+                </Link>
+              </div>
             </div>
 
             {savedProviderData.errorMessage ? (
@@ -360,10 +160,11 @@ export default async function UserDashboardPage() {
             ) : null}
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              {savedProviderData.savedProviders.length > 0 ? (
-                savedProviderData.savedProviders.map((savedProvider) => (
+              {previewSavedProviders.length > 0 ? (
+                previewSavedProviders.map((savedProvider) => (
                   <SavedProviderCard
                     key={savedProvider.id}
+                    returnPath="/dashboard"
                     savedProvider={savedProvider}
                   />
                 ))

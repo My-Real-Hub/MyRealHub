@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { SaveProviderButton } from "@/components/providers/save-provider-button";
+import { getCurrentProfile } from "@/lib/auth/session";
+import { getSavedProviderIds } from "@/lib/saved-providers";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type SearchPageSearchParams = {
@@ -56,6 +59,7 @@ type ProviderSearchFilters = {
 
 type ProviderSearchResult = ProviderProfileRow & {
   categoryName: string | null;
+  isSaved: boolean;
   languageNames: string[];
   specialtyNames: string[];
 };
@@ -227,6 +231,22 @@ function getActiveFilterCount(filters: ProviderSearchFilters) {
   ].filter(Boolean).length;
 }
 
+function getSearchReturnPath(query: SearchPageSearchParams) {
+  const params = new URLSearchParams();
+
+  (["category", "language", "location", "q", "service", "specialty"] as const)
+    .map((key) => [key, getSearchParam(query[key])] as const)
+    .forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value);
+      }
+    });
+
+  const queryString = params.toString();
+
+  return `/search${queryString ? `?${queryString}` : ""}`;
+}
+
 async function getProviderIdsForRelation(
   tableName: "provider_languages" | "provider_specialties",
   filterColumn: "language_id" | "specialty_id",
@@ -252,6 +272,7 @@ async function getProviderIdsForRelation(
 
 async function getSearchData(
   query: SearchPageSearchParams,
+  currentUserId: string | null,
 ): Promise<ProviderSearchData> {
   const supabase = await getServerSupabaseClient();
   const [categoriesResult, languagesResult, specialtiesResult] =
@@ -419,6 +440,9 @@ async function getSearchData(
         .select("provider_profile_id,specialty_id")
         .in("provider_profile_id", providerIds),
     ]);
+  const savedProviderIds = currentUserId
+    ? await getSavedProviderIds(currentUserId, providerIds)
+    : new Set<string>();
 
   const providerLanguageRows =
     (providerLanguagesResult.data ?? []) as ProviderRelationRow[];
@@ -461,6 +485,7 @@ async function getSearchData(
     providers: providers.map((provider) => ({
       ...provider,
       categoryName: getCategoryName(categories, provider.category_id),
+      isSaved: savedProviderIds.has(provider.id),
       languageNames: getNamesById(
         languages,
         languageIdsByProvider.get(provider.id) ?? [],
@@ -545,7 +570,15 @@ function FilterSummary({
   );
 }
 
-function ProviderResultCard({ provider }: { provider: ProviderSearchResult }) {
+function ProviderResultCard({
+  isSignedIn,
+  provider,
+  returnPath,
+}: {
+  isSignedIn: boolean;
+  provider: ProviderSearchResult;
+  returnPath: string;
+}) {
   const providerName = getProviderName(provider);
   const profileImageUrl = getPublicProfileImageUrl(provider.profile_image_url);
   const providerHref = `/providers/${provider.slug || provider.id}`;
@@ -620,7 +653,7 @@ function ProviderResultCard({ provider }: { provider: ProviderSearchResult }) {
         ) : null}
       </div>
 
-      <div className="mt-5 flex flex-col gap-2 border-t border-stone-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-5 grid gap-2 border-t border-stone-200 pt-4 sm:grid-cols-3">
         <Link
           href={providerHref}
           className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
@@ -635,6 +668,13 @@ function ProviderResultCard({ provider }: { provider: ProviderSearchResult }) {
             Contact
           </a>
         ) : null}
+        <SaveProviderButton
+          isSaved={provider.isSaved}
+          isSignedIn={isSignedIn}
+          providerId={provider.id}
+          returnPath={returnPath}
+          size="compact"
+        />
       </div>
     </article>
   );
@@ -665,7 +705,9 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const query = await searchParams;
-  const searchData = await getSearchData(query);
+  const currentProfile = await getCurrentProfile();
+  const searchData = await getSearchData(query, currentProfile?.id ?? null);
+  const returnPath = getSearchReturnPath(query);
   const activeFilterCount = getActiveFilterCount(searchData.filters);
   const filteredSpecialties = searchData.filters.categoryId
     ? searchData.specialties.filter(
@@ -813,7 +855,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {searchData.providers.length > 0 ? (
           searchData.providers.map((provider) => (
-            <ProviderResultCard key={provider.id} provider={provider} />
+            <ProviderResultCard
+              key={provider.id}
+              isSignedIn={Boolean(currentProfile)}
+              provider={provider}
+              returnPath={returnPath}
+            />
           ))
         ) : (
           <div className="lg:col-span-2">

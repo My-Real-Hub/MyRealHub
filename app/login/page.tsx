@@ -1,6 +1,32 @@
 import { LoginForm } from "@/components/auth/auth-forms";
 
-export default function LogInPage() {
+type LoginPageProps = {
+  searchParams: Promise<{
+    next?: string | string[];
+    reason?: string | string[];
+  }>;
+};
+
+function getSearchParam(value: string | string[] | undefined) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+
+  return rawValue?.trim() ?? "";
+}
+
+function getSafeRedirectPath(value: string) {
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return null;
+  }
+
+  return value;
+}
+
+export default async function LogInPage({ searchParams }: LoginPageProps) {
+  const query = await searchParams;
+  const redirectTo = getSafeRedirectPath(getSearchParam(query.next));
+  const reason = getSearchParam(query.reason);
+  const showSavePrompt = reason === "save-provider";
+
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
       <div>
@@ -14,9 +40,14 @@ export default function LogInPage() {
           Log in with the email and password you used to create your MyRealHub
           account.
         </p>
+        {showSavePrompt ? (
+          <p className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-900">
+            Log in to save this provider to your dashboard.
+          </p>
+        ) : null}
       </div>
 
-      <LoginForm />
+      <LoginForm redirectTo={redirectTo} />
     </section>
   );
 }
