@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ContactProviderForm } from "@/components/providers/contact-provider-form";
 import { SaveProviderButton } from "@/components/providers/save-provider-button";
 import { getCurrentProfile } from "@/lib/auth/session";
 import {
@@ -335,29 +336,21 @@ export default async function PublicProviderProfilePage({
         <aside className="grid gap-6 lg:sticky lg:top-28">
           <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-stone-950">Contact</h2>
-            <div className="mt-5 grid gap-3">
-              {provider.email ? (
-                <a
-                  href={`mailto:${provider.email}`}
-                  className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-                >
-                  Contact provider
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="h-11 cursor-not-allowed rounded-md bg-stone-300 px-4 text-sm font-semibold text-white"
-                >
-                  Contact provider
-                </button>
-              )}
-              <SaveProviderButton
-                isSaved={isSaved}
-                isSignedIn={Boolean(currentProfile)}
+            <div className="mt-5 grid gap-4">
+              <ContactProviderForm
                 providerId={provider.id}
                 returnPath={returnPath}
+                defaultName={currentProfile?.fullName ?? ""}
+                defaultEmail={currentProfile?.email ?? ""}
               />
+              <div className="border-t border-stone-200 pt-4">
+                <SaveProviderButton
+                  isSaved={isSaved}
+                  isSignedIn={Boolean(currentProfile)}
+                  providerId={provider.id}
+                  returnPath={returnPath}
+                />
+              </div>
             </div>
           </article>
 
