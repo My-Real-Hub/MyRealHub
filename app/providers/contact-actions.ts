@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { hasProfileCapability } from "@/lib/auth/roles";
 import { normalizeEmail, validateEmail } from "@/lib/auth/validation";
 import { isProviderProfileId } from "@/lib/providers/slug";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
@@ -70,12 +71,12 @@ async function getActiveProvider(providerId: string) {
   const supabase = await getServerSupabaseClient();
   const { data } = await supabase
     .from("provider_profiles")
-    .select("id")
+    .select("id,user_id")
     .eq("id", providerId)
     .eq("status", "active")
     .maybeSingle();
 
-  return (data ?? null) as { id: string } | null;
+  return (data ?? null) as { id: string; user_id: string } | null;
 }
 
 export async function submitContactRequest(
@@ -108,7 +109,10 @@ export async function submitContactRequest(
     };
   }
 
-  const activeProvider = await getActiveProvider(providerId);
+  const [activeProvider, currentProfile] = await Promise.all([
+    getActiveProvider(providerId),
+    getCurrentProfile(),
+  ]);
 
   if (!activeProvider) {
     return {
@@ -118,10 +122,26 @@ export async function submitContactRequest(
     };
   }
 
-  const [supabase, currentProfile] = await Promise.all([
-    getServerSupabaseClient(),
-    getCurrentProfile(),
-  ]);
+  if (currentProfile?.id === activeProvider.user_id) {
+    return {
+      status: "error",
+      message: "You cannot contact your own provider profile.",
+      fieldErrors: {},
+    };
+  }
+
+  if (
+    currentProfile &&
+    !hasProfileCapability(currentProfile.role, "consume_services")
+  ) {
+    return {
+      status: "error",
+      message: "This account cannot send provider contact requests.",
+      fieldErrors: {},
+    };
+  }
+
+  const supabase = await getServerSupabaseClient();
   const { error } = await supabase.from("contact_requests").insert({
     provider_profile_id: providerId,
     sender_user_id: currentProfile?.id ?? null,

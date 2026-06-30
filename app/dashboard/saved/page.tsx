@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SavedProviderCard } from "@/components/providers/saved-provider-card";
-import { requireProfileRole } from "@/lib/auth/session";
+import { requireProfileCapability } from "@/lib/auth/session";
 import { getSavedProviderData } from "@/lib/saved-providers";
 
 function EmptySavedProviders() {
@@ -24,7 +24,7 @@ function EmptySavedProviders() {
 }
 
 export default async function SavedProvidersPage() {
-  const profile = await requireProfileRole("user");
+  const profile = await requireProfileCapability("consume_services");
   const savedProviderData = await getSavedProviderData(profile.id);
 
   return (

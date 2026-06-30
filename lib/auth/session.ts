@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import {
   getDashboardPathForRole,
   getProfileRoleForUser,
+  hasProfileCapability,
   hasRequiredRole,
+  type ProfileCapability,
   type ProfileRole,
 } from "@/lib/auth/roles";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
@@ -64,6 +66,22 @@ export async function requireProfileRole(requiredRole: ProfileRole) {
   }
 
   if (!hasRequiredRole(profile.role, requiredRole)) {
+    redirect(getDashboardPathForRole(profile.role));
+  }
+
+  return profile;
+}
+
+export async function requireProfileCapability(
+  requiredCapability: ProfileCapability,
+) {
+  const profile = await getCurrentProfile();
+
+  if (!profile) {
+    redirect("/login");
+  }
+
+  if (!hasProfileCapability(profile.role, requiredCapability)) {
     redirect(getDashboardPathForRole(profile.role));
   }
 

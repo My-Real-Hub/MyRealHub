@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContactProviderForm } from "@/components/providers/contact-provider-form";
+import { ProviderRatingForm } from "@/components/providers/provider-rating-form";
 import { SaveProviderButton } from "@/components/providers/save-provider-button";
+import { hasProfileCapability } from "@/lib/auth/roles";
 import { getCurrentProfile } from "@/lib/auth/session";
 import {
   isProviderProfileId,
@@ -17,6 +19,7 @@ type PublicProviderProfilePageProps = {
 
 type ProviderProfileRow = {
   id: string;
+  user_id: string;
   slug: string;
   category_id: string | null;
   business_name: string | null;
@@ -48,6 +51,11 @@ type PublicProviderProfile = ProviderProfileRow & {
   categoryName: string | null;
   languageNames: string[];
   specialtyNames: string[];
+};
+
+type ProviderRatingSummaryRow = {
+  average_rating: number | string | null;
+  rating_count: number | string;
 };
 
 function getProviderName(provider: PublicProviderProfile) {
@@ -106,6 +114,7 @@ async function getPublicProviderProfile(identifier: string) {
     .select(
       [
         "id",
+        "user_id",
         "slug",
         "category_id",
         "business_name",
@@ -195,6 +204,39 @@ async function getPublicProviderProfile(identifier: string) {
   } satisfies PublicProviderProfile;
 }
 
+async function getProviderRatingData(
+  providerId: string,
+  currentProfileId: string | null,
+) {
+  const supabase = await getServerSupabaseClient();
+  const [summaryResult, currentRatingResult] = await Promise.all([
+    supabase.rpc("get_provider_rating_summary", {
+      target_provider_profile_id: providerId,
+    }),
+    currentProfileId
+      ? supabase
+          .from("provider_ratings")
+          .select("rating")
+          .eq("provider_profile_id", providerId)
+          .eq("rater_user_id", currentProfileId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const summaryData = Array.isArray(summaryResult.data)
+    ? summaryResult.data[0]
+    : summaryResult.data;
+  const summary = (summaryData ?? null) as ProviderRatingSummaryRow | null;
+
+  return {
+    averageRating: Number(summary?.average_rating ?? 0),
+    currentRating:
+      typeof currentRatingResult.data?.rating === "number"
+        ? currentRatingResult.data.rating
+        : null,
+    ratingCount: Number(summary?.rating_count ?? 0),
+  };
+}
+
 function TagList({ items }: { items: string[] }) {
   if (items.length === 0) {
     return <p className="text-sm text-stone-500">None selected.</p>;
@@ -255,10 +297,18 @@ export default async function PublicProviderProfilePage({
   const location = getLocation(provider);
   const profileImageUrl = getPublicProfileImageUrl(provider.profile_image_url);
   const currentProfile = await getCurrentProfile();
-  const isSaved = currentProfile
-    ? await getIsProviderSaved(currentProfile.id, provider.id)
-    : false;
+  const [isSaved, ratingData] = await Promise.all([
+    currentProfile
+      ? getIsProviderSaved(currentProfile.id, provider.id)
+      : Promise.resolve(false),
+    getProviderRatingData(provider.id, currentProfile?.id ?? null),
+  ]);
   const returnPath = `/providers/${provider.slug || provider.id}`;
+  const isOwnProviderProfile = currentProfile?.id === provider.user_id;
+  const canConsumeServices = hasProfileCapability(
+    currentProfile?.role,
+    "consume_services",
+  );
 
   return (
     <section className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -296,6 +346,13 @@ export default async function PublicProviderProfilePage({
                 ) : null}
                 <p className="mt-4 text-base leading-7 text-stone-600">
                   {location}
+                </p>
+                <p className="mt-3 text-sm font-semibold text-stone-800">
+                  {ratingData.ratingCount > 0
+                    ? `${ratingData.averageRating.toFixed(1)} out of 5 from ${
+                        ratingData.ratingCount
+                      } rating${ratingData.ratingCount === 1 ? "" : "s"}`
+                    : "No ratings yet"}
                 </p>
               </div>
             </div>
@@ -337,12 +394,18 @@ export default async function PublicProviderProfilePage({
           <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-stone-950">Contact</h2>
             <div className="mt-5 grid gap-4">
-              <ContactProviderForm
-                providerId={provider.id}
-                returnPath={returnPath}
-                defaultName={currentProfile?.fullName ?? ""}
-                defaultEmail={currentProfile?.email ?? ""}
-              />
+              {isOwnProviderProfile ? (
+                <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
+                  You cannot contact your own provider profile.
+                </p>
+              ) : (
+                <ContactProviderForm
+                  providerId={provider.id}
+                  returnPath={returnPath}
+                  defaultName={currentProfile?.fullName ?? ""}
+                  defaultEmail={currentProfile?.email ?? ""}
+                />
+              )}
               <div className="border-t border-stone-200 pt-4">
                 <SaveProviderButton
                   isSaved={isSaved}
@@ -351,6 +414,27 @@ export default async function PublicProviderProfilePage({
                   returnPath={returnPath}
                 />
               </div>
+            </div>
+          </article>
+
+          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-stone-950">
+              Rate this provider
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-stone-600">
+              {ratingData.ratingCount > 0
+                ? `Current average: ${ratingData.averageRating.toFixed(1)} out of 5.`
+                : "Be the first to submit a rating."}
+            </p>
+            <div className="mt-5">
+              <ProviderRatingForm
+                canRate={canConsumeServices}
+                currentRating={ratingData.currentRating}
+                isSelf={isOwnProviderProfile}
+                isSignedIn={Boolean(currentProfile)}
+                providerId={provider.id}
+                returnPath={returnPath}
+              />
             </div>
           </article>
 

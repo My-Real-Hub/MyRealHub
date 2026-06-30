@@ -7,6 +7,7 @@ import {
   DEFAULT_PROFILE_ROLE,
   getDashboardPathForRole,
   getProfileRoleForUser,
+  type ProfileRole,
 } from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
@@ -16,6 +17,7 @@ export function AuthMenu() {
   const [dashboardPath, setDashboardPath] = useState(
     getDashboardPathForRole(DEFAULT_PROFILE_ROLE),
   );
+  const [profileRole, setProfileRole] = useState<ProfileRole | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
@@ -35,10 +37,11 @@ export function AuthMenu() {
             return getProfileRoleForUser(supabase, data.session.user.id);
           }
 
-          return DEFAULT_PROFILE_ROLE;
+          return null;
         })
         .then((role) => {
           if (isMounted) {
+            setProfileRole(role);
             setDashboardPath(
               getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
             );
@@ -51,15 +54,17 @@ export function AuthMenu() {
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
-        setIsSignedIn(Boolean(session));
-        if (!session?.user.id) {
-          setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
-          return;
+          setIsSignedIn(Boolean(session));
+          if (!session?.user.id) {
+            setProfileRole(null);
+            setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
+            return;
         }
 
         getProfileRoleForUser(supabase, session.user.id)
           .then((role) => {
             if (isMounted) {
+              setProfileRole(role);
               setDashboardPath(
                 getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
               );
@@ -67,6 +72,7 @@ export function AuthMenu() {
           })
           .catch(() => {
             if (isMounted) {
+              setProfileRole(null);
               setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
             }
           });
@@ -97,6 +103,7 @@ export function AuthMenu() {
       }
 
       setIsSignedIn(false);
+      setProfileRole(null);
       setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
       router.push("/login");
       router.refresh();
@@ -108,6 +115,14 @@ export function AuthMenu() {
   if (isSignedIn) {
     return (
       <>
+        {profileRole === "provider" ? (
+          <Link
+            href="/dashboard"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+          >
+            Consumer tools
+          </Link>
+        ) : null}
         <Link
           href={dashboardPath}
           className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"

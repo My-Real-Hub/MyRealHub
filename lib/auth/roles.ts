@@ -8,17 +8,34 @@ export type SignUpRole = Exclude<ProfileRole, "admin">;
 
 export const DEFAULT_PROFILE_ROLE: SignUpRole = "user";
 
+export const PROFILE_CAPABILITIES = [
+  "consume_services",
+  "manage_provider_profile",
+  "administer_platform",
+] as const;
+
+export type ProfileCapability = (typeof PROFILE_CAPABILITIES)[number];
+
+const CAPABILITIES_BY_ROLE: Record<ProfileRole, ProfileCapability[]> = {
+  user: ["consume_services"],
+  provider: ["consume_services", "manage_provider_profile"],
+  admin: ["administer_platform"],
+};
+
 const DASHBOARD_PATHS: Record<ProfileRole, string> = {
   user: "/dashboard",
   provider: "/provider/dashboard",
   admin: "/admin/dashboard",
 };
 
-const PROTECTED_ROUTE_PREFIXES: Record<ProfileRole, string[]> = {
-  user: ["/dashboard"],
-  provider: ["/provider"],
-  admin: ["/admin"],
-};
+const PROTECTED_ROUTE_CAPABILITIES: Array<{
+  capability: ProfileCapability;
+  prefix: string;
+}> = [
+  { prefix: "/dashboard", capability: "consume_services" },
+  { prefix: "/provider", capability: "manage_provider_profile" },
+  { prefix: "/admin", capability: "administer_platform" },
+];
 
 function matchesPathPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -50,16 +67,23 @@ export function hasRequiredRole(
   return role === requiredRole;
 }
 
+export function hasProfileCapability(
+  role: ProfileRole | null | undefined,
+  capability: ProfileCapability,
+) {
+  return role ? CAPABILITIES_BY_ROLE[role].includes(capability) : false;
+}
+
 export function getDashboardPathForRole(role: ProfileRole) {
   return DASHBOARD_PATHS[role];
 }
 
-export function getRequiredRoleForPath(pathname: string) {
-  return PROFILE_ROLES.find((role) =>
-    PROTECTED_ROUTE_PREFIXES[role].some((prefix) =>
+export function getRequiredCapabilityForPath(pathname: string) {
+  return (
+    PROTECTED_ROUTE_CAPABILITIES.find(({ prefix }) =>
       matchesPathPrefix(pathname, prefix),
-    ),
-  ) ?? null;
+    )?.capability ?? null
+  );
 }
 
 export function getSignUpRole(value: unknown): SignUpRole {

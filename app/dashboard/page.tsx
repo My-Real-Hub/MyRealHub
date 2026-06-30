@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SavedProviderCard } from "@/components/providers/saved-provider-card";
-import { requireProfileRole } from "@/lib/auth/session";
+import { requireProfileCapability } from "@/lib/auth/session";
 import {
   CONTACT_REQUESTS_PER_PAGE,
   contactRequestStatusClassNames,
@@ -459,7 +459,7 @@ export default async function UserDashboardPage({
   const requestedSentMessagePage = getPositivePage(
     getQueryValue(query.messagePage),
   );
-  const profile = await requireProfileRole("user");
+  const profile = await requireProfileCapability("consume_services");
   const [savedProviderData, sentMessages, sentMessageTotal] = await Promise.all([
     getSavedProviderData(profile.id),
     getSentContactRequestPageData({
@@ -470,6 +470,7 @@ export default async function UserDashboardPage({
     getSentContactRequestTotal(profile.id),
   ]);
   const displayName = profile.fullName ?? profile.email ?? "MyRealHub user";
+  const isProvider = profile.role === "provider";
   const previewSavedProviders = savedProviderData.savedProviders.slice(0, 4);
 
   return (
@@ -477,10 +478,10 @@ export default async function UserDashboardPage({
       <div className="grid gap-8 lg:grid-cols-[15rem_1fr] lg:items-start">
         <aside className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:sticky lg:top-28">
           <p className="px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-            User
+            {isProvider ? "Consumer tools" : "User"}
           </p>
           <nav
-            aria-label="User dashboard navigation"
+            aria-label="Consumer dashboard navigation"
             className="mt-3 grid gap-1 text-sm font-medium"
           >
             {[
@@ -511,7 +512,7 @@ export default async function UserDashboardPage({
         <div className="grid gap-6">
           <header id="overview" className="scroll-mt-28">
             <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-              User dashboard
+              {isProvider ? "Consumer dashboard" : "User dashboard"}
             </p>
             <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -519,8 +520,8 @@ export default async function UserDashboardPage({
                   Welcome, {displayName}
                 </h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                  Keep track of providers you want to revisit and manage basic
-                  account details from one place.
+                  Keep track of providers you want to revisit and manage
+                  service-seeker activity from one place.
                 </p>
               </div>
               <Link
@@ -573,9 +574,13 @@ export default async function UserDashboardPage({
               <p className="text-sm font-medium text-stone-300">
                 Account type
               </p>
-              <p className="mt-3 text-3xl font-semibold">User</p>
+              <p className="mt-3 text-3xl font-semibold">
+                {isProvider ? "Provider" : "User"}
+              </p>
               <p className="mt-2 text-sm leading-6 text-stone-300">
-                Service seeker account.
+                {isProvider
+                  ? "Provider account with consumer access."
+                  : "Service seeker account."}
               </p>
             </article>
           </div>

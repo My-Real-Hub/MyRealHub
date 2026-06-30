@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   getDashboardPathForRole,
   getProfileRoleForUser,
-  getRequiredRoleForPath,
-  hasRequiredRole,
+  getRequiredCapabilityForPath,
+  hasProfileCapability,
 } from "@/lib/auth/roles";
 import { getSupabaseConfig } from "@/lib/supabase/client";
 
@@ -18,11 +18,13 @@ function isAuthRoute(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const config = getSupabaseConfig();
-  const requiredRole = getRequiredRoleForPath(request.nextUrl.pathname);
+  const requiredCapability = getRequiredCapabilityForPath(
+    request.nextUrl.pathname,
+  );
   const shouldRedirectSignedInUser = isAuthRoute(request.nextUrl.pathname);
 
   if (!config) {
-    if (requiredRole) {
+    if (requiredCapability) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
@@ -73,14 +75,14 @@ export async function proxy(request: NextRequest) {
   const userId = data?.claims?.sub;
 
   if (!userId) {
-    if (requiredRole) {
+    if (requiredCapability) {
       return redirectTo("/login");
     }
 
     return applyPendingSession(NextResponse.next({ request }));
   }
 
-  if (!requiredRole && !shouldRedirectSignedInUser) {
+  if (!requiredCapability && !shouldRedirectSignedInUser) {
     return applyPendingSession(NextResponse.next({ request }));
   }
 
@@ -96,7 +98,10 @@ export async function proxy(request: NextRequest) {
     return redirectTo(dashboardPath);
   }
 
-  if (requiredRole && !hasRequiredRole(role, requiredRole)) {
+  if (
+    requiredCapability &&
+    !hasProfileCapability(role, requiredCapability)
+  ) {
     return redirectTo(dashboardPath);
   }
 
