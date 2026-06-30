@@ -137,6 +137,7 @@ const statusContent: Record<DashboardStatus, StatusContent> = {
 
 const dashboardNavItems = [
   { href: "#overview", label: "Overview" },
+  { href: "#consumer-tools", label: "Find services" },
   { href: "#profile", label: "Profile" },
   { href: "#inquiries", label: "Inquiries" },
   { href: "#settings", label: "Settings" },
@@ -992,13 +993,13 @@ export default async function ProviderDashboardPage({
             className="mt-3 grid gap-1 text-sm font-medium"
           >
             {dashboardNavItems.map((item) => (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 className="rounded-md px-2 py-2 text-stone-700 transition hover:bg-stone-50 hover:text-stone-950"
               >
                 {item.label}
-              </a>
+              </Link>
             ))}
           </nav>
           <div className="mt-5 border-t border-stone-200 pt-5">
@@ -1026,14 +1027,53 @@ export default async function ProviderDashboardPage({
                   one provider workspace.
                 </p>
               </div>
-              <Link
-                href="/search"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-              >
-                View Directory
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/search"
+                  className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                >
+                  Search providers
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+                >
+                  Consumer dashboard
+                </Link>
+              </div>
             </div>
           </header>
+
+          <section
+            id="consumer-tools"
+            className="scroll-mt-28 border-y border-stone-200 py-5"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-stone-950">
+                  Find services for your own real estate needs
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  Search, save, contact, and rate other providers with this
+                  account.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/search"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950"
+                >
+                  Browse directory
+                </Link>
+                <Link
+                  href="/dashboard#saved-providers"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950"
+                >
+                  Saved providers
+                </Link>
+              </div>
+            </div>
+          </section>
 
           <div className="grid gap-4 md:grid-cols-3">
             <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm md:col-span-2">

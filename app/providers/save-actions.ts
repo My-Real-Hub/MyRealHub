@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth/session";
+import {
+  getDashboardPathForRole,
+  hasProfileCapability,
+} from "@/lib/auth/roles";
 import { isProviderProfileId } from "@/lib/providers/slug";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -49,6 +53,10 @@ export async function saveProvider(formData: FormData) {
     redirect(`/login?next=${encodeURIComponent(returnPath)}&reason=save-provider`);
   }
 
+  if (!hasProfileCapability(profile.role, "consume_services")) {
+    redirect(getDashboardPathForRole(profile.role));
+  }
+
   if (!isProviderProfileId(providerId)) {
     redirect(returnPath);
   }
@@ -82,6 +90,10 @@ export async function unsaveProvider(formData: FormData) {
 
   if (!profile) {
     redirect(`/login?next=${encodeURIComponent(returnPath)}&reason=save-provider`);
+  }
+
+  if (!hasProfileCapability(profile.role, "consume_services")) {
+    redirect(getDashboardPathForRole(profile.role));
   }
 
   if (!isProviderProfileId(providerId)) {
