@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireProfileCapability } from "@/lib/auth/session";
 import { normalizeEmail, validateEmail } from "@/lib/auth/validation";
 import { PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
+import { isProviderProfileId } from "@/lib/providers/slug";
+import { MAX_PROVIDER_SERVICE_REGIONS } from "@/lib/service-regions";
 import { PROFILE_BIO_MAX_LENGTH } from "@/lib/settings/profile";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -20,10 +22,24 @@ export type AccountSettingsFormState = {
   fieldErrors: AccountSettingsFieldErrors;
 };
 
+export type ProviderServiceRegionsFormState = {
+  status: "idle" | "success" | "error";
+  message: string;
+  fieldError: string;
+};
+
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
 
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getFormStrings(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function hasFieldErrors(errors: AccountSettingsFieldErrors) {
@@ -154,5 +170,96 @@ export async function saveAccountSettings(
       ? "Settings saved. Check your new email address to confirm the change."
       : "Settings saved.",
     fieldErrors: {},
+  };
+}
+
+export async function saveProviderServiceRegions(
+  _previousState: ProviderServiceRegionsFormState,
+  formData: FormData,
+): Promise<ProviderServiceRegionsFormState> {
+  const profile = await requireProfileCapability("manage_provider_profile");
+  const serviceRegionIds = getFormStrings(formData, "serviceRegionIds");
+  const uniqueServiceRegionIds = Array.from(new Set(serviceRegionIds));
+
+  if (uniqueServiceRegionIds.length !== serviceRegionIds.length) {
+    return {
+      status: "error",
+      message: "Service regions could not be saved.",
+      fieldError: "Choose unique service regions.",
+    };
+  }
+
+  if (serviceRegionIds.length > MAX_PROVIDER_SERVICE_REGIONS) {
+    return {
+      status: "error",
+      message: "Service regions could not be saved.",
+      fieldError: `Choose no more than ${MAX_PROVIDER_SERVICE_REGIONS} service regions.`,
+    };
+  }
+
+  if (serviceRegionIds.some((regionId) => !isProviderProfileId(regionId))) {
+    return {
+      status: "error",
+      message: "Service regions could not be saved.",
+      fieldError: "Choose valid Canadian service regions.",
+    };
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { data: providerProfile, error: providerProfileError } = await supabase
+    .from("provider_profiles")
+    .select("id,slug")
+    .eq("user_id", profile.id)
+    .maybeSingle();
+
+  if (providerProfileError || !providerProfile) {
+    return {
+      status: "error",
+      message: "Create and save your provider listing before adding regions.",
+      fieldError: "",
+    };
+  }
+
+  if (serviceRegionIds.length > 0) {
+    const { data: verifiedRegions, error: regionError } = await supabase
+      .from("service_regions")
+      .select("id")
+      .in("id", serviceRegionIds)
+      .eq("is_active", true);
+
+    if (
+      regionError ||
+      (verifiedRegions ?? []).length !== serviceRegionIds.length
+    ) {
+      return {
+        status: "error",
+        message: "Service regions could not be saved.",
+        fieldError: "Choose valid active Canadian service regions.",
+      };
+    }
+  }
+
+  const { error } = await supabase.rpc("replace_provider_service_regions", {
+    selected_service_region_ids: serviceRegionIds,
+    target_provider_profile_id: providerProfile.id,
+  });
+
+  if (error) {
+    return {
+      status: "error",
+      message: "Service regions could not be saved. Please try again.",
+      fieldError: "",
+    };
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/provider/dashboard");
+  revalidatePath("/search");
+  revalidatePath(`/providers/${providerProfile.slug}`);
+
+  return {
+    status: "success",
+    message: "Service regions saved.",
+    fieldError: "",
   };
 }

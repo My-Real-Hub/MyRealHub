@@ -1,14 +1,17 @@
 import Link from "next/link";
+import { ProviderRegionFilterFields } from "@/components/providers/provider-region-filter-fields";
 import { SaveProviderButton } from "@/components/providers/save-provider-button";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { getSavedProviderIds } from "@/lib/saved-providers";
+import type { CanadianSubdivisionOption } from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type SearchPageSearchParams = {
   category?: string | string[];
   language?: string | string[];
-  location?: string | string[];
+  province?: string | string[];
   q?: string | string[];
+  region?: string | string[];
   service?: string | string[];
   specialty?: string | string[];
 };
@@ -25,6 +28,10 @@ type LookupRow = {
 
 type SpecialtyLookupRow = LookupRow & {
   category_id: string | null;
+};
+
+type ServiceRegionLookupRow = LookupRow & {
+  province_code: string;
 };
 
 type ProviderProfileRow = {
@@ -46,6 +53,7 @@ type ProviderProfileRow = {
 type ProviderRelationRow = {
   provider_profile_id: string;
   language_id?: string;
+  service_region_id?: string;
   specialty_id?: string;
 };
 
@@ -53,7 +61,8 @@ type ProviderSearchFilters = {
   categoryId: string;
   keyword: string;
   languageId: string;
-  location: string;
+  provinceCode: string;
+  regionId: string;
   specialtyId: string;
 };
 
@@ -61,6 +70,7 @@ type ProviderSearchResult = ProviderProfileRow & {
   categoryName: string | null;
   isSaved: boolean;
   languageNames: string[];
+  serviceRegionNames: string[];
   specialtyNames: string[];
 };
 
@@ -70,7 +80,9 @@ type ProviderSearchData = {
   filters: ProviderSearchFilters;
   languages: LookupRow[];
   providers: ProviderSearchResult[];
+  serviceRegions: ServiceRegionLookupRow[];
   specialties: SpecialtyLookupRow[];
+  subdivisions: CanadianSubdivisionOption[];
 };
 
 const providerSelectColumns = [
@@ -130,6 +142,25 @@ function getSelectedCategoryId(
   }
 
   return resolveLookupId(getSearchParam(query.service), categories);
+}
+
+function resolveSubdivisionCode(
+  value: string,
+  subdivisions: CanadianSubdivisionOption[],
+) {
+  const normalizedValue = normalizeLookupValue(value);
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  return (
+    subdivisions.find(
+      (subdivision) =>
+        normalizeLookupValue(subdivision.code) === normalizedValue ||
+        normalizeLookupValue(subdivision.name) === normalizedValue,
+    )?.code ?? ""
+  );
 }
 
 function sanitizeSearchTerm(value: string) {
@@ -225,7 +256,8 @@ function getActiveFilterCount(filters: ProviderSearchFilters) {
   return [
     filters.categoryId,
     filters.languageId,
-    filters.location,
+    filters.provinceCode,
+    filters.regionId,
     filters.specialtyId,
     filters.keyword,
   ].filter(Boolean).length;
@@ -234,7 +266,17 @@ function getActiveFilterCount(filters: ProviderSearchFilters) {
 function getSearchReturnPath(query: SearchPageSearchParams) {
   const params = new URLSearchParams();
 
-  (["category", "language", "location", "q", "service", "specialty"] as const)
+  (
+    [
+      "category",
+      "language",
+      "province",
+      "q",
+      "region",
+      "service",
+      "specialty",
+    ] as const
+  )
     .map((key) => [key, getSearchParam(query[key])] as const)
     .forEach(([key, value]) => {
       if (value) {
@@ -248,8 +290,11 @@ function getSearchReturnPath(query: SearchPageSearchParams) {
 }
 
 async function getProviderIdsForRelation(
-  tableName: "provider_languages" | "provider_specialties",
-  filterColumn: "language_id" | "specialty_id",
+  tableName:
+    | "provider_languages"
+    | "provider_service_regions"
+    | "provider_specialties",
+  filterColumn: "language_id" | "service_region_id" | "specialty_id",
   filterValue: string,
 ) {
   const supabase = await getServerSupabaseClient();
@@ -270,12 +315,45 @@ async function getProviderIdsForRelation(
   };
 }
 
+async function getProviderIdsForServiceRegions(serviceRegionIds: string[]) {
+  if (serviceRegionIds.length === 0) {
+    return { ids: [] as string[], ok: true };
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("provider_service_regions")
+    .select("provider_profile_id")
+    .in("service_region_id", serviceRegionIds);
+
+  if (error) {
+    return { ids: [] as string[], ok: false };
+  }
+
+  return {
+    ids: Array.from(
+      new Set(
+        ((data ?? []) as ProviderRelationRow[]).map(
+          (row) => row.provider_profile_id,
+        ),
+      ),
+    ),
+    ok: true,
+  };
+}
+
 async function getSearchData(
   query: SearchPageSearchParams,
   currentUserId: string | null,
 ): Promise<ProviderSearchData> {
   const supabase = await getServerSupabaseClient();
-  const [categoriesResult, languagesResult, specialtiesResult] =
+  const [
+    categoriesResult,
+    languagesResult,
+    specialtiesResult,
+    serviceRegionsResult,
+    subdivisionsResult,
+  ] =
     await Promise.all([
       supabase
         .from("categories")
@@ -292,20 +370,53 @@ async function getSearchData(
         .select("id,category_id,name,slug")
         .eq("is_active", true)
         .order("name"),
+      supabase
+        .from("service_regions")
+        .select("id,name,province_code,slug")
+        .eq("is_active", true)
+        .order("name"),
+      supabase
+        .from("canadian_subdivisions")
+        .select("code,name,kind")
+        .order("display_order"),
     ]);
 
   const categories = (categoriesResult.data ?? []) as LookupRow[];
   const languages = (languagesResult.data ?? []) as LookupRow[];
   const specialties = (specialtiesResult.data ?? []) as SpecialtyLookupRow[];
+  const serviceRegions = (serviceRegionsResult.data ??
+    []) as ServiceRegionLookupRow[];
+  const subdivisions = (subdivisionsResult.data ??
+    []) as CanadianSubdivisionOption[];
+  const requestedRegionId = resolveLookupId(
+    getSearchParam(query.region),
+    serviceRegions,
+  );
+  const requestedRegion = serviceRegions.find(
+    (region) => region.id === requestedRegionId,
+  );
+  const requestedProvinceCode = resolveSubdivisionCode(
+    getSearchParam(query.province),
+    subdivisions,
+  );
+  const provinceCode =
+    requestedProvinceCode || requestedRegion?.province_code || "";
+  const regionId =
+    requestedRegion?.province_code === provinceCode ? requestedRegion.id : "";
   const filters: ProviderSearchFilters = {
     categoryId: getSelectedCategoryId(query, categories),
     keyword: getSearchParam(query.q),
     languageId: resolveLookupId(getSearchParam(query.language), languages),
-    location: getSearchParam(query.location),
+    provinceCode,
+    regionId,
     specialtyId: resolveLookupId(getSearchParam(query.specialty), specialties),
   };
   const lookupError =
-    categoriesResult.error || languagesResult.error || specialtiesResult.error
+    categoriesResult.error ||
+    languagesResult.error ||
+    specialtiesResult.error ||
+    serviceRegionsResult.error ||
+    subdivisionsResult.error
       ? "Some filter options could not be loaded."
       : null;
   const relationFilters: string[][] = [];
@@ -324,7 +435,9 @@ async function getSearchData(
         filters,
         languages,
         providers: [],
+        serviceRegions,
         specialties,
+        subdivisions,
       };
     }
 
@@ -345,11 +458,58 @@ async function getSearchData(
         filters,
         languages,
         providers: [],
+        serviceRegions,
         specialties,
+        subdivisions,
       };
     }
 
     relationFilters.push(specialtyProviderIds.ids);
+  }
+
+  if (filters.regionId) {
+    const regionProviderIds = await getProviderIdsForRelation(
+      "provider_service_regions",
+      "service_region_id",
+      filters.regionId,
+    );
+
+    if (!regionProviderIds.ok) {
+      return {
+        categories,
+        errorMessage: "Service-region filter could not be applied.",
+        filters,
+        languages,
+        providers: [],
+        serviceRegions,
+        specialties,
+        subdivisions,
+      };
+    }
+
+    relationFilters.push(regionProviderIds.ids);
+  } else if (filters.provinceCode) {
+    const provinceServiceRegionIds = serviceRegions
+      .filter((region) => region.province_code === filters.provinceCode)
+      .map((region) => region.id);
+    const provinceProviderIds = await getProviderIdsForServiceRegions(
+      provinceServiceRegionIds,
+    );
+
+    if (!provinceProviderIds.ok) {
+      return {
+        categories,
+        errorMessage: "Province filter could not be applied.",
+        filters,
+        languages,
+        providers: [],
+        serviceRegions,
+        specialties,
+        subdivisions,
+      };
+    }
+
+    relationFilters.push(provinceProviderIds.ids);
   }
 
   const relationProviderIds =
@@ -366,7 +526,9 @@ async function getSearchData(
       filters,
       languages,
       providers: [],
+      serviceRegions,
       specialties,
+      subdivisions,
     };
   }
 
@@ -382,15 +544,6 @@ async function getSearchData(
 
   if (relationProviderIds) {
     providerQuery = providerQuery.in("id", relationProviderIds);
-  }
-
-  const locationExpression = getIlikeExpression(
-    ["city", "province_state", "country", "service_area"],
-    filters.location,
-  );
-
-  if (locationExpression) {
-    providerQuery = providerQuery.or(locationExpression);
   }
 
   const keywordExpression = getIlikeExpression(
@@ -411,7 +564,9 @@ async function getSearchData(
       filters,
       languages,
       providers: [],
+      serviceRegions,
       specialties,
+      subdivisions,
     };
   }
 
@@ -425,11 +580,17 @@ async function getSearchData(
       filters,
       languages,
       providers: [],
+      serviceRegions,
       specialties,
+      subdivisions,
     };
   }
 
-  const [providerLanguagesResult, providerSpecialtiesResult] =
+  const [
+    providerLanguagesResult,
+    providerSpecialtiesResult,
+    providerServiceRegionsResult,
+  ] =
     await Promise.all([
       supabase
         .from("provider_languages")
@@ -439,6 +600,11 @@ async function getSearchData(
         .from("provider_specialties")
         .select("provider_profile_id,specialty_id")
         .in("provider_profile_id", providerIds),
+      supabase
+        .from("provider_service_regions")
+        .select("provider_profile_id,service_region_id")
+        .in("provider_profile_id", providerIds)
+        .order("created_at"),
     ]);
   const savedProviderIds = currentUserId
     ? await getSavedProviderIds(currentUserId, providerIds)
@@ -448,7 +614,10 @@ async function getSearchData(
     (providerLanguagesResult.data ?? []) as ProviderRelationRow[];
   const providerSpecialtyRows =
     (providerSpecialtiesResult.data ?? []) as ProviderRelationRow[];
+  const providerServiceRegionRows =
+    (providerServiceRegionsResult.data ?? []) as ProviderRelationRow[];
   const languageIdsByProvider = new Map<string, string[]>();
+  const serviceRegionIdsByProvider = new Map<string, string[]>();
   const specialtyIdsByProvider = new Map<string, string[]>();
 
   providerLanguageRows.forEach((row) => {
@@ -473,11 +642,24 @@ async function getSearchData(
     ]);
   });
 
+  providerServiceRegionRows.forEach((row) => {
+    if (!row.service_region_id) {
+      return;
+    }
+
+    serviceRegionIdsByProvider.set(row.provider_profile_id, [
+      ...(serviceRegionIdsByProvider.get(row.provider_profile_id) ?? []),
+      row.service_region_id,
+    ]);
+  });
+
   return {
     categories,
     errorMessage:
       lookupError ||
-      (providerLanguagesResult.error || providerSpecialtiesResult.error
+      (providerLanguagesResult.error ||
+        providerSpecialtiesResult.error ||
+        providerServiceRegionsResult.error
         ? "Some result details could not be loaded."
         : null),
     filters,
@@ -490,12 +672,18 @@ async function getSearchData(
         languages,
         languageIdsByProvider.get(provider.id) ?? [],
       ),
+      serviceRegionNames: getNamesById(
+        serviceRegions,
+        serviceRegionIdsByProvider.get(provider.id) ?? [],
+      ),
       specialtyNames: getNamesById(
         specialties,
         specialtyIdsByProvider.get(provider.id) ?? [],
       ),
     })),
+    serviceRegions,
     specialties,
+    subdivisions,
   };
 }
 
@@ -531,20 +719,33 @@ function FilterSummary({
   categories,
   filters,
   languages,
+  serviceRegions,
   specialties,
+  subdivisions,
 }: {
   categories: LookupRow[];
   filters: ProviderSearchFilters;
   languages: LookupRow[];
+  serviceRegions: ServiceRegionLookupRow[];
   specialties: SpecialtyLookupRow[];
+  subdivisions: CanadianSubdivisionOption[];
 }) {
   const filterLabels = [
-    filters.location ? `Location: ${filters.location}` : null,
+    filters.provinceCode
+      ? `Province: ${
+          subdivisions.find(
+            (subdivision) => subdivision.code === filters.provinceCode,
+          )?.name ?? filters.provinceCode
+        }`
+      : null,
     filters.categoryId
       ? `Profession: ${getCategoryName(categories, filters.categoryId)}`
       : null,
     filters.languageId
       ? `Language: ${getCategoryName(languages, filters.languageId)}`
+      : null,
+    filters.regionId
+      ? `Service region: ${getCategoryName(serviceRegions, filters.regionId)}`
       : null,
     filters.specialtyId
       ? `Specialty: ${getCategoryName(specialties, filters.specialtyId)}`
@@ -627,6 +828,12 @@ function ProviderResultCard({
         </div>
       </div>
 
+      {provider.serviceRegionNames.length > 0 ? (
+        <p className="mt-4 text-sm font-semibold text-emerald-800">
+          Serves {provider.serviceRegionNames.join(" · ")}
+        </p>
+      ) : null}
+
       <p className="mt-4 text-sm leading-6 text-stone-600">
         {provider.bio ?? "No bio added yet."}
       </p>
@@ -688,7 +895,7 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
       </h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-600">
         {hasFilters
-          ? "No active providers match those filters yet. Try clearing one filter or searching a nearby city."
+          ? "No active providers match those filters yet. Try clearing one filter or choosing another region."
           : "No active providers are listed yet. Approved provider profiles will appear here."}
       </p>
       {hasFilters ? (
@@ -728,8 +935,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             Find active real estate service providers
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-stone-600">
-            Filter by location, profession, language, and specialty to find the
-            right provider for the job.
+            Choose a province or territory, then narrow to a service region,
+            profession, language, or specialty.
           </p>
         </div>
         <Link
@@ -744,21 +951,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         {searchData.filters.keyword ? (
           <input type="hidden" name="q" value={searchData.filters.keyword} />
         ) : null}
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr_1fr_1fr_auto] lg:items-end">
-          <label
-            htmlFor="provider-location"
-            className="flex flex-col gap-2 text-sm font-medium text-stone-800"
-          >
-            Location
-            <input
-              id="provider-location"
-              name="location"
-              type="search"
-              defaultValue={searchData.filters.location}
-              placeholder="City, province, or service area"
-              className="h-11 rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-            />
-          </label>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:items-end">
+          <ProviderRegionFilterFields
+            initialProvinceCode={searchData.filters.provinceCode}
+            initialRegionId={searchData.filters.regionId}
+            regions={searchData.serviceRegions}
+            subdivisions={searchData.subdivisions}
+          />
 
           <FilterSelect
             id="provider-category"
@@ -815,7 +1014,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             categories={searchData.categories}
             filters={searchData.filters}
             languages={searchData.languages}
+            serviceRegions={searchData.serviceRegions}
             specialties={searchData.specialties}
+            subdivisions={searchData.subdivisions}
           />
           {activeFilterCount > 0 ? (
             <Link

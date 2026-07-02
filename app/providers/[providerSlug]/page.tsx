@@ -42,14 +42,20 @@ type LookupNameRow = {
   name: string;
 };
 
+type ServiceRegionNameRow = LookupNameRow & {
+  province_code: string;
+};
+
 type RelationIdRow = {
   language_id?: string;
+  service_region_id?: string;
   specialty_id?: string;
 };
 
 type PublicProviderProfile = ProviderProfileRow & {
   categoryName: string | null;
   languageNames: string[];
+  serviceRegionNames: string[];
   specialtyNames: string[];
 };
 
@@ -107,6 +113,16 @@ function getLookupNames(rows: LookupNameRow[], ids: string[]) {
     .filter((value): value is string => Boolean(value));
 }
 
+function getServiceRegionNames(rows: ServiceRegionNameRow[], ids: string[]) {
+  const lookup = new Map(
+    rows.map((row) => [row.id, `${row.name}, ${row.province_code}`]),
+  );
+
+  return ids
+    .map((id) => lookup.get(id))
+    .filter((value): value is string => Boolean(value));
+}
+
 async function getPublicProviderProfile(identifier: string) {
   const supabase = await getServerSupabaseClient();
   let providerQuery = supabase
@@ -145,7 +161,12 @@ async function getPublicProviderProfile(identifier: string) {
   }
 
   const provider = providerData as unknown as ProviderProfileRow;
-  const [categoryResult, languageRowsResult, specialtyRowsResult] =
+  const [
+    categoryResult,
+    languageRowsResult,
+    specialtyRowsResult,
+    serviceRegionRowsResult,
+  ] =
     await Promise.all([
       provider.category_id
         ? supabase
@@ -163,6 +184,11 @@ async function getPublicProviderProfile(identifier: string) {
         .from("provider_specialties")
         .select("specialty_id")
         .eq("provider_profile_id", provider.id),
+      supabase
+        .from("provider_service_regions")
+        .select("service_region_id")
+        .eq("provider_profile_id", provider.id)
+        .order("created_at"),
     ]);
 
   const languageIds = ((languageRowsResult.data ?? []) as RelationIdRow[])
@@ -171,8 +197,14 @@ async function getPublicProviderProfile(identifier: string) {
   const specialtyIds = ((specialtyRowsResult.data ?? []) as RelationIdRow[])
     .map((row) => row.specialty_id)
     .filter((value): value is string => Boolean(value));
+  const serviceRegionIds = (
+    (serviceRegionRowsResult.data ?? []) as RelationIdRow[]
+  )
+    .map((row) => row.service_region_id)
+    .filter((value): value is string => Boolean(value));
 
-  const [languageResult, specialtyResult] = await Promise.all([
+  const [languageResult, specialtyResult, serviceRegionResult] =
+    await Promise.all([
     languageIds.length > 0
       ? supabase
           .from("languages")
@@ -187,7 +219,14 @@ async function getPublicProviderProfile(identifier: string) {
           .in("id", specialtyIds)
           .eq("is_active", true)
       : Promise.resolve({ data: [] }),
-  ]);
+    serviceRegionIds.length > 0
+      ? supabase
+          .from("service_regions")
+          .select("id,name,province_code")
+          .in("id", serviceRegionIds)
+          .eq("is_active", true)
+      : Promise.resolve({ data: [] }),
+    ]);
 
   return {
     ...provider,
@@ -196,6 +235,10 @@ async function getPublicProviderProfile(identifier: string) {
     languageNames: getLookupNames(
       (languageResult.data ?? []) as LookupNameRow[],
       languageIds,
+    ),
+    serviceRegionNames: getServiceRegionNames(
+      (serviceRegionResult.data ?? []) as ServiceRegionNameRow[],
+      serviceRegionIds,
     ),
     specialtyNames: getLookupNames(
       (specialtyResult.data ?? []) as LookupNameRow[],
@@ -369,7 +412,15 @@ export default async function PublicProviderProfilePage({
             <h2 className="text-xl font-semibold text-stone-950">
               Service details
             </h2>
-            <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <div className="mt-6 grid gap-6 md:grid-cols-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+                  Service regions
+                </h3>
+                <div className="mt-3">
+                  <TagList items={provider.serviceRegionNames} />
+                </div>
+              </div>
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
                   Languages
@@ -445,7 +496,12 @@ export default async function PublicProviderProfilePage({
               <DetailItem label="Email" value={provider.email} />
               <DetailItem label="Phone" value={provider.phone} />
               <DetailItem label="Website" value={provider.website_url} />
-              <DetailItem label="Service area" value={provider.service_area} />
+              {provider.serviceRegionNames.length === 0 ? (
+                <DetailItem
+                  label="Service area"
+                  value={provider.service_area}
+                />
+              ) : null}
               <DetailItem
                 label="Years experience"
                 value={provider.years_experience}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccountSettingsForm } from "@/components/settings/account-settings-form";
+import { ProviderServiceRegionsForm } from "@/components/settings/provider-service-regions-form";
 import {
   ProviderProfileForm,
   type ProviderProfileCategoryOption,
@@ -9,6 +10,10 @@ import {
 } from "@/components/providers/provider-profile-form";
 import { requireProfileCapability } from "@/lib/auth/session";
 import { getDashboardPathForRole } from "@/lib/auth/roles";
+import type {
+  CanadianSubdivisionOption,
+  ServiceRegionOption,
+} from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type AccountProfileRow = {
@@ -36,6 +41,10 @@ type ProviderLanguageRow = {
 
 type ProviderSpecialtyRow = {
   specialty_id: string;
+};
+
+type ProviderServiceRegionRow = {
+  service_region_id: string;
 };
 
 async function getAccountProfile(userId: string) {
@@ -131,6 +140,37 @@ async function getProviderLookups() {
   };
 }
 
+async function getProviderRegionSettings(providerProfileId: string | null) {
+  const supabase = await getServerSupabaseClient();
+  const [subdivisionsResult, regionsResult, selectedRegionsResult] =
+    await Promise.all([
+      supabase
+        .from("canadian_subdivisions")
+        .select("code,name,kind")
+        .order("display_order"),
+      supabase
+        .from("service_regions")
+        .select("id,name,province_code,slug")
+        .eq("is_active", true)
+        .order("name"),
+      providerProfileId
+        ? supabase
+            .from("provider_service_regions")
+            .select("service_region_id")
+            .eq("provider_profile_id", providerProfileId)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+  return {
+    regions: (regionsResult.data ?? []) as ServiceRegionOption[],
+    selectedRegionIds: (
+      (selectedRegionsResult.data ?? []) as ProviderServiceRegionRow[]
+    ).map((row) => row.service_region_id),
+    subdivisions: (subdivisionsResult.data ??
+      []) as CanadianSubdivisionOption[],
+  };
+}
+
 export default async function SettingsPage() {
   const profile = await requireProfileCapability("manage_account_settings");
   const isProvider = profile.role === "provider";
@@ -145,6 +185,9 @@ export default async function SettingsPage() {
           specialties: [],
         }),
   ]);
+  const providerRegionSettings = isProvider
+    ? await getProviderRegionSettings(providerProfile?.id ?? null)
+    : { regions: [], selectedRegionIds: [], subdivisions: [] };
   const displayName =
     accountProfile?.full_name ??
     providerProfile?.display_name ??
@@ -166,7 +209,10 @@ export default async function SettingsPage() {
     { href: "#profile", label: "Profile" },
     { href: "#communication", label: "Communication" },
     ...(isProvider
-      ? [{ href: "#provider-business", label: "Provider business" }]
+      ? [
+          { href: "#service-areas", label: "Service areas" },
+          { href: "#provider-business", label: "Provider business" },
+        ]
       : []),
     { href: "#security", label: "Security" },
   ];
@@ -251,6 +297,17 @@ export default async function SettingsPage() {
                   {providerProfile.rejection_reason}
                 </p>
               ) : null}
+
+              <div className="mt-6">
+                <ProviderServiceRegionsForm
+                  providerProfileId={providerProfile?.id ?? null}
+                  regions={providerRegionSettings.regions}
+                  selectedRegionIds={
+                    providerRegionSettings.selectedRegionIds
+                  }
+                  subdivisions={providerRegionSettings.subdivisions}
+                />
+              </div>
 
               <div className="mt-6">
                 <ProviderProfileForm

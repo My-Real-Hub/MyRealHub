@@ -311,6 +311,33 @@ set
   submitted_at = excluded.submitted_at,
   approved_at = excluded.approved_at;
 
+insert into public.provider_service_regions (
+  provider_profile_id,
+  service_region_id
+)
+select
+  seed_provider_regions.provider_profile_id::uuid,
+  service_regions.id
+from (
+  values
+    ('10000000-0000-4000-8000-000000000001', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000002', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000003', 'on-hamilton-and-halton'),
+    ('10000000-0000-4000-8000-000000000004', 'on-ottawa-region'),
+    ('10000000-0000-4000-8000-000000000005', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000006', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000007', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000007', 'on-durham-region'),
+    ('10000000-0000-4000-8000-000000000008', 'on-hamilton-and-halton'),
+    ('10000000-0000-4000-8000-000000000009', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000010', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000011', 'on-greater-toronto-area'),
+    ('10000000-0000-4000-8000-000000000012', 'on-greater-toronto-area')
+) as seed_provider_regions(provider_profile_id, service_region_slug)
+join public.service_regions
+  on service_regions.slug = seed_provider_regions.service_region_slug
+on conflict (provider_profile_id, service_region_id) do nothing;
+
 insert into public.provider_languages (provider_profile_id, language_id)
 select
   seed_provider_languages.provider_profile_id::uuid,
