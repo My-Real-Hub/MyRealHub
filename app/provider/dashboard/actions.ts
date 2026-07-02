@@ -304,6 +304,7 @@ export async function saveProviderProfile(
   }
 
   revalidatePath("/provider/dashboard");
+  revalidatePath("/settings");
   revalidatePath("/admin/dashboard");
   revalidatePath(`/admin/dashboard/providers/${providerProfile.id}`);
   revalidatePath(`/providers/${slug}`);
