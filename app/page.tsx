@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { ProviderPreviewCard } from "@/components/providers/provider-preview-card";
+import { ProviderRegionFilterFields } from "@/components/providers/provider-region-filter-fields";
 import { featuredProviders, serviceCategories } from "@/lib/service-directory";
+import type {
+  CanadianSubdivisionOption,
+  ServiceRegionOption,
+} from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type HomepageCategoryRow = {
@@ -18,7 +23,12 @@ function getFallbackCategories() {
 async function getHomepageData() {
   try {
     const supabase = await getServerSupabaseClient();
-    const [categoriesResult, providersResult] = await Promise.all([
+    const [
+      categoriesResult,
+      providersResult,
+      subdivisionsResult,
+      serviceRegionsResult,
+    ] = await Promise.all([
       supabase
         .from("categories")
         .select("id,name")
@@ -28,6 +38,15 @@ async function getHomepageData() {
         .from("provider_profiles")
         .select("id", { count: "exact", head: true })
         .eq("status", "active"),
+      supabase
+        .from("canadian_subdivisions")
+        .select("code,name,kind")
+        .order("display_order"),
+      supabase
+        .from("service_regions")
+        .select("id,name,province_code,slug")
+        .eq("is_active", true)
+        .order("name"),
     ]);
     const fallbackCategories = getFallbackCategories();
     const categories =
@@ -43,18 +62,27 @@ async function getHomepageData() {
     return {
       activeProviderCount: providersResult.count ?? featuredProviders.length,
       categories,
+      regions: (serviceRegionsResult.data ?? []) as ServiceRegionOption[],
+      subdivisions: (subdivisionsResult.data ??
+        []) as CanadianSubdivisionOption[],
     };
   } catch {
     return {
       activeProviderCount: featuredProviders.length,
       categories: getFallbackCategories(),
+      regions: [] as ServiceRegionOption[],
+      subdivisions: [] as CanadianSubdivisionOption[],
     };
   }
 }
 
 export default async function Home() {
-  const { activeProviderCount, categories: homepageCategories } =
-    await getHomepageData();
+  const {
+    activeProviderCount,
+    categories: homepageCategories,
+    regions,
+    subdivisions,
+  } = await getHomepageData();
 
   return (
     <>
@@ -76,7 +104,7 @@ export default async function Home() {
             <form
               action="/search"
               method="get"
-              className="mt-8 grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 lg:grid-cols-[1fr_1fr_auto]"
+              className="mt-8 grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]"
             >
               <label htmlFor="homepage-category" className="sr-only">
                 Service category
@@ -94,15 +122,10 @@ export default async function Home() {
                 ))}
               </select>
 
-              <label htmlFor="homepage-location" className="sr-only">
-                Location
-              </label>
-              <input
-                id="homepage-location"
-                name="location"
-                type="search"
-                placeholder="City, province, or service area"
-                className="h-12 min-w-0 rounded-md border border-stone-200 bg-white px-4 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+              <ProviderRegionFilterFields
+                regions={regions}
+                subdivisions={subdivisions}
+                variant="homepage"
               />
 
               <button
@@ -129,8 +152,8 @@ export default async function Home() {
               </div>
             </div>
             <p className="mt-6 text-sm leading-6 text-stone-300">
-              Compare service categories, locations, and provider summaries
-              from a focused real estate services directory.
+              Compare service categories, Canadian regions, and provider
+              summaries from a focused real estate services directory.
             </p>
           </div>
         </div>

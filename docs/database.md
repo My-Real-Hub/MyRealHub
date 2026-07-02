@@ -59,6 +59,11 @@ Providers do not store language names directly.
 belong to a category, and the category link is nullable so specialties can
 survive category deletion.
 
+`public.canadian_subdivisions` contains the fixed list of Canada's ten
+provinces and three territories. `public.service_regions` contains the
+provider-selectable service areas grouped by those subdivisions. Service
+regions cannot point outside the Canadian preset.
+
 ## Join Tables
 
 `public.provider_languages` connects provider listings to languages. It is a
@@ -70,9 +75,15 @@ same provider-language pair from being inserted twice.
 also many-to-many and uses a composite primary key to prevent duplicate
 provider-specialty pairs.
 
+`public.provider_service_regions` connects provider listings to Canadian
+service regions. Its composite primary key prevents duplicates, and a database
+trigger enforces a maximum of two regions for each provider. Providers replace
+their selections through an authenticated, atomic database function so a
+failed update cannot leave a partially saved selection.
+
 These join tables make it possible to filter provider search results by
-language and specialty without storing arrays or comma-separated strings on
-provider profiles.
+language, specialty, and service region without storing arrays or
+comma-separated strings on provider profiles.
 
 ## Saved Providers
 
@@ -113,6 +124,8 @@ The MVP schema supports searching providers by:
   `provider_profiles.province_state`.
 - Language through `provider_languages.language_id`.
 - Specialty through `provider_specialties.specialty_id`.
+- Canadian service region through
+  `provider_service_regions.service_region_id`.
 - Profile status through `provider_profiles.status`.
 
 Indexes are included for common filters and relationship lookups.
