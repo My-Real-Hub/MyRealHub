@@ -1,4 +1,5 @@
 import { normalizeEmail, validateEmail } from "@/lib/auth/validation";
+import { PROFILE_BIO_MAX_LENGTH } from "@/lib/settings/profile";
 
 export type ProviderProfileStatus =
   | "draft"
@@ -128,6 +129,10 @@ export function validateProviderProfileFormValues(
     if (!values.bio) {
       errors.bio = "Bio is required.";
     }
+  }
+
+  if (values.bio.length > PROFILE_BIO_MAX_LENGTH) {
+    errors.bio = `Bio must be ${PROFILE_BIO_MAX_LENGTH} characters or fewer.`;
   }
 
   if (values.email || requiresCompleteProfile) {

@@ -5,13 +5,7 @@ import {
   rejectContactRequest,
   respondToContactRequest,
 } from "@/app/provider/dashboard/actions";
-import {
-  ProviderProfileForm,
-  type ProviderProfileCategoryOption,
-  type ProviderProfileFormData,
-  type ProviderProfileLanguageOption,
-  type ProviderProfileSpecialtyOption,
-} from "@/components/providers/provider-profile-form";
+import type { ProviderProfileFormData } from "@/components/providers/provider-profile-form";
 import { requireProfileRole } from "@/lib/auth/session";
 import {
   CONTACT_REQUESTS_PER_PAGE,
@@ -138,9 +132,8 @@ const statusContent: Record<DashboardStatus, StatusContent> = {
 const dashboardNavItems = [
   { href: "#overview", label: "Overview" },
   { href: "#consumer-tools", label: "Find services" },
-  { href: "#profile", label: "Profile" },
   { href: "#inquiries", label: "Inquiries" },
-  { href: "#settings", label: "Settings" },
+  { href: "/settings", label: "Settings" },
 ];
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -373,34 +366,6 @@ async function getProviderProfile(userId: string) {
     specialtyIds: ((specialtyRows.data ?? []) as ProviderSpecialtyRow[]).map(
       (row) => row.specialty_id,
     ),
-  };
-}
-
-async function getProviderProfileLookups() {
-  const supabase = await getServerSupabaseClient();
-  const [categoriesResult, languagesResult, specialtiesResult] =
-    await Promise.all([
-      supabase
-        .from("categories")
-        .select("id,name,slug")
-        .eq("is_active", true)
-        .order("name"),
-      supabase
-        .from("languages")
-        .select("id,name,slug")
-        .eq("is_active", true)
-        .order("name"),
-      supabase
-        .from("specialties")
-        .select("id,category_id,name,slug")
-        .eq("is_active", true)
-        .order("name"),
-    ]);
-
-  return {
-    categories: (categoriesResult.data ?? []) as ProviderProfileCategoryOption[],
-    languages: (languagesResult.data ?? []) as ProviderProfileLanguageOption[],
-    specialties: (specialtiesResult.data ?? []) as ProviderProfileSpecialtyOption[],
   };
 }
 
@@ -966,9 +931,8 @@ export default async function ProviderDashboardPage({
       : null;
   const profile = await requireProfileRole("provider");
   const providerProfile = await getProviderProfile(profile.id);
-  const [inquirySummary, lookups, contactPage] = await Promise.all([
+  const [inquirySummary, contactPage] = await Promise.all([
     getInquirySummary(providerProfile?.id ?? null),
-    getProviderProfileLookups(),
     getContactRequestPageData({
       providerProfileId: providerProfile?.id ?? null,
       requestedPage: requestedContactPage,
@@ -1039,6 +1003,12 @@ export default async function ProviderDashboardPage({
                   className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
                 >
                   Consumer dashboard
+                </Link>
+                <Link
+                  href="/settings"
+                  className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+                >
+                  Settings
                 </Link>
               </div>
             </div>
@@ -1167,73 +1137,14 @@ export default async function ProviderDashboardPage({
             </article>
           </div>
 
-          <div className="grid gap-6">
-            <article
-              id="profile"
-              className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-                    Profile editing
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-stone-950">
-                    Listing workspace
-                  </h2>
-                </div>
-                <span className="w-fit rounded-md bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
-                  {status.label}
-                </span>
-              </div>
-
-              <div className="mt-6">
-                <ProviderProfileForm
-                  profile={providerProfile}
-                  categories={lookups.categories}
-                  languages={lookups.languages}
-                  specialties={lookups.specialties}
-                  accountId={profile.id}
-                  accountEmail={profile.email}
-                  accountFullName={profile.fullName}
-                />
-              </div>
-            </article>
-
-            <article
-              id="inquiries"
-              className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-            >
-              <ContactRequestInbox
-                action={contactAction}
-                contactPage={contactPage}
-              />
-            </article>
-          </div>
-
           <article
-            id="settings"
+            id="inquiries"
             className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
           >
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-              Settings
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-stone-950">
-              Account and listing controls
-            </h2>
-            <div className="mt-6 grid gap-3 md:grid-cols-3">
-              {[
-                "Profile visibility",
-                "Notification preferences",
-                "Approval history",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm font-semibold text-stone-700"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
+            <ContactRequestInbox
+              action={contactAction}
+              contactPage={contactPage}
+            />
           </article>
         </div>
       </div>

@@ -488,7 +488,7 @@ export default async function UserDashboardPage({
               { href: "#overview", label: "Overview" },
               { href: "#saved-providers", label: "Saved providers" },
               { href: "#sent-messages", label: "Sent messages" },
-              { href: "#account-settings", label: "Account settings" },
+              { href: "/settings", label: "Settings" },
             ].map((item) => (
               <a
                 key={item.href}
@@ -524,12 +524,20 @@ export default async function UserDashboardPage({
                   service-seeker activity from one place.
                 </p>
               </div>
-              <Link
-                href="/search"
-                className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-              >
-                Search providers
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/search"
+                  className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                >
+                  Search providers
+                </Link>
+                <Link
+                  href="/settings"
+                  className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950"
+                >
+                  Settings
+                </Link>
+              </div>
             </div>
           </header>
 
@@ -639,53 +647,6 @@ export default async function UserDashboardPage({
 
           <SentMessagesSection sentMessages={sentMessages} />
 
-          <article
-            id="account-settings"
-            className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-          >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-                  Account settings
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-stone-950">
-                  Profile and preferences
-                </h2>
-              </div>
-              <span className="w-fit rounded-md bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
-                Placeholder
-              </span>
-            </div>
-
-            <dl className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-md border border-stone-200 p-4">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-                  Name
-                </dt>
-                <dd className="mt-2 break-words text-sm font-semibold text-stone-950">
-                  {profile.fullName ?? "Not added"}
-                </dd>
-              </div>
-              <div className="rounded-md border border-stone-200 p-4">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-                  Email
-                </dt>
-                <dd className="mt-2 break-words text-sm font-semibold text-stone-950">
-                  {profile.email ?? "Not added"}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="mt-5 rounded-md border border-dashed border-stone-300 px-4 py-5">
-              <p className="text-sm font-semibold text-stone-950">
-                Account editing is coming later.
-              </p>
-              <p className="mt-2 text-sm leading-6 text-stone-600">
-                This area will hold account details, notification preferences,
-                and saved-provider settings in a future ticket.
-              </p>
-            </div>
-          </article>
         </div>
       </div>
     </section>

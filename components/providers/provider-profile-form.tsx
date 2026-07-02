@@ -60,8 +60,13 @@ type ProviderProfileFormProps = {
   languages: ProviderProfileLanguageOption[];
   specialties: ProviderProfileSpecialtyOption[];
   accountId: string;
+  accountBio?: string | null;
   accountEmail: string | null;
   accountFullName: string | null;
+  accountPhone?: string | null;
+  accountProfileImagePath?: string | null;
+  accountProfileImageUrl?: string | null;
+  manageSharedFieldsExternally?: boolean;
 };
 
 type UploadStatus = {
@@ -210,8 +215,13 @@ export function ProviderProfileForm({
   languages,
   specialties,
   accountId,
+  accountBio = null,
   accountEmail,
   accountFullName,
+  accountPhone = null,
+  accountProfileImagePath = null,
+  accountProfileImageUrl = null,
+  manageSharedFieldsExternally = false,
 }: ProviderProfileFormProps) {
   const [state, formAction, pending] = useActionState(
     saveProviderProfile,
@@ -231,9 +241,15 @@ export function ProviderProfileForm({
   >(null);
   const [languageSearch, setLanguageSearch] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
-  const [imagePath, setImagePath] = useState(profile?.profile_image_path ?? "");
+  const [imagePath, setImagePath] = useState(
+    manageSharedFieldsExternally
+      ? accountProfileImagePath ?? profile?.profile_image_path ?? ""
+      : profile?.profile_image_path ?? "",
+  );
   const [imagePreviewUrl, setImagePreviewUrl] = useState(
-    profile?.profile_image_url ?? "",
+    manageSharedFieldsExternally
+      ? accountProfileImageUrl ?? profile?.profile_image_url ?? ""
+      : profile?.profile_image_url ?? "",
   );
   const [objectPreviewUrl, setObjectPreviewUrl] = useState("");
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({
@@ -403,6 +419,30 @@ export function ProviderProfileForm({
   return (
     <form action={formAction} className="grid gap-6" noValidate>
       <input name="profileImagePath" type="hidden" value={imagePath} />
+      {manageSharedFieldsExternally ? (
+        <>
+          <input
+            name="fullName"
+            type="hidden"
+            value={accountFullName ?? profile?.display_name ?? ""}
+          />
+          <input
+            name="bio"
+            type="hidden"
+            value={accountBio ?? profile?.bio ?? ""}
+          />
+          <input
+            name="email"
+            type="hidden"
+            value={accountEmail ?? profile?.email ?? ""}
+          />
+          <input
+            name="phone"
+            type="hidden"
+            value={accountPhone ?? profile?.phone ?? ""}
+          />
+        </>
+      ) : null}
       {selectedLanguageIds.map((languageId) => (
         <input key={languageId} name="languageIds" type="hidden" value={languageId} />
       ))}
@@ -415,7 +455,29 @@ export function ProviderProfileForm({
         </p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[18rem_1fr] lg:items-start">
+      {manageSharedFieldsExternally ? (
+        <section className="grid gap-4">
+          <SectionHeading
+            title="Business identity"
+            description="Add the business name shown on your public provider listing."
+          />
+          <label htmlFor="provider-business-name" className={labelClassName}>
+            Business name
+            <input
+              id="provider-business-name"
+              name="businessName"
+              type="text"
+              autoComplete="organization"
+              defaultValue={profile?.business_name ?? ""}
+              className={inputClassName(Boolean(fieldErrors.businessName))}
+              aria-invalid={Boolean(fieldErrors.businessName)}
+              required
+            />
+            <FieldError message={fieldErrors.businessName} />
+          </label>
+        </section>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[18rem_1fr] lg:items-start">
         <div className="grid gap-4">
           <div className="overflow-hidden rounded-lg border border-stone-200 bg-stone-100">
             <div className="grid aspect-square place-items-center">
@@ -505,7 +567,8 @@ export function ProviderProfileForm({
             <FieldError message={fieldErrors.bio} />
           </label>
         </div>
-      </div>
+        </div>
+      )}
 
       <section className={sectionClassName}>
         <SectionHeading
@@ -576,40 +639,50 @@ export function ProviderProfileForm({
 
       <section className={sectionClassName}>
         <SectionHeading
-          title="Contact"
-          description="These contact details are used for inquiries from potential clients."
+          title={
+            manageSharedFieldsExternally ? "Business website" : "Contact"
+          }
+          description={
+            manageSharedFieldsExternally
+              ? "Add the website associated with your provider listing."
+              : "These contact details are used for inquiries from potential clients."
+          }
         />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label htmlFor="provider-email" className={labelClassName}>
-            Email
-            <input
-              id="provider-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              defaultValue={profile?.email ?? accountEmail ?? ""}
-              className={inputClassName(Boolean(fieldErrors.email))}
-              aria-invalid={Boolean(fieldErrors.email)}
-              required
-            />
-            <FieldError message={fieldErrors.email} />
-          </label>
+          {!manageSharedFieldsExternally ? (
+            <>
+              <label htmlFor="provider-email" className={labelClassName}>
+                Email
+                <input
+                  id="provider-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  defaultValue={profile?.email ?? accountEmail ?? ""}
+                  className={inputClassName(Boolean(fieldErrors.email))}
+                  aria-invalid={Boolean(fieldErrors.email)}
+                  required
+                />
+                <FieldError message={fieldErrors.email} />
+              </label>
 
-          <label htmlFor="provider-phone" className={labelClassName}>
-            Phone
-            <input
-              id="provider-phone"
-              name="phone"
-              type="tel"
-              autoComplete="tel"
-              defaultValue={profile?.phone ?? ""}
-              className={inputClassName(Boolean(fieldErrors.phone))}
-              aria-invalid={Boolean(fieldErrors.phone)}
-              required
-            />
-            <FieldError message={fieldErrors.phone} />
-          </label>
+              <label htmlFor="provider-phone" className={labelClassName}>
+                Phone
+                <input
+                  id="provider-phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  defaultValue={profile?.phone ?? ""}
+                  className={inputClassName(Boolean(fieldErrors.phone))}
+                  aria-invalid={Boolean(fieldErrors.phone)}
+                  required
+                />
+                <FieldError message={fieldErrors.phone} />
+              </label>
+            </>
+          ) : null}
 
           <label htmlFor="provider-website" className={labelClassName}>
             Website

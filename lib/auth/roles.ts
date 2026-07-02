@@ -10,6 +10,7 @@ export const DEFAULT_PROFILE_ROLE: SignUpRole = "user";
 
 export const PROFILE_CAPABILITIES = [
   "consume_services",
+  "manage_account_settings",
   "manage_provider_profile",
   "administer_platform",
 ] as const;
@@ -17,8 +18,12 @@ export const PROFILE_CAPABILITIES = [
 export type ProfileCapability = (typeof PROFILE_CAPABILITIES)[number];
 
 const CAPABILITIES_BY_ROLE: Record<ProfileRole, ProfileCapability[]> = {
-  user: ["consume_services"],
-  provider: ["consume_services", "manage_provider_profile"],
+  user: ["consume_services", "manage_account_settings"],
+  provider: [
+    "consume_services",
+    "manage_account_settings",
+    "manage_provider_profile",
+  ],
   admin: ["administer_platform"],
 };
 
@@ -33,6 +38,7 @@ const PROTECTED_ROUTE_CAPABILITIES: Array<{
   prefix: string;
 }> = [
   { prefix: "/dashboard", capability: "consume_services" },
+  { prefix: "/settings", capability: "manage_account_settings" },
   { prefix: "/provider", capability: "manage_provider_profile" },
   { prefix: "/admin", capability: "administer_platform" },
 ];
