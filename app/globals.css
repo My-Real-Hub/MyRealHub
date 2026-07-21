@@ -22,3 +22,42 @@ body {
   background: #a7f3d0;
   color: #064e3b;
 }
+
+.leaflet-container {
+  z-index: 0;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.leaflet-container img.leaflet-tile,
+.leaflet-container img.leaflet-marker-icon,
+.leaflet-container img.leaflet-marker-shadow {
+  max-width: none !important;
+}
+
+.myrealhub-map-pin-container {
+  border: 0;
+  background: transparent;
+}
+
+.myrealhub-map-pin {
+  position: relative;
+  display: block;
+  width: 30px;
+  height: 30px;
+  transform: rotate(-45deg);
+  border: 3px solid white;
+  border-radius: 50% 50% 50% 0;
+  background: #047857;
+  box-shadow: 0 4px 10px rgb(28 25 23 / 30%);
+}
+
+.myrealhub-map-pin::after {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: white;
+  content: "";
+}

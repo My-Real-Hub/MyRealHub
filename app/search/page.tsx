@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ProviderRegionFilterFields } from "@/components/providers/provider-region-filter-fields";
+import { ProviderLocationSearchFields } from "@/components/providers/provider-location-search-fields";
 import { SaveProviderButton } from "@/components/providers/save-provider-button";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { getSavedProviderIds } from "@/lib/saved-providers";
@@ -887,7 +887,13 @@ function ProviderResultCard({
   );
 }
 
-function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+function EmptyState({
+  hasFilters,
+  regionName,
+}: {
+  hasFilters: boolean;
+  regionName: string | null;
+}) {
   return (
     <div className="rounded-lg border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
       <h2 className="text-xl font-semibold text-stone-950">
@@ -895,7 +901,9 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
       </h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-600">
         {hasFilters
-          ? "No active providers match those filters yet. Try clearing one filter or choosing another region."
+          ? regionName
+            ? `No active providers currently serve ${regionName}. Try another location or clear a filter.`
+            : "No active providers match those filters yet. Try clearing one filter or choosing another region."
           : "No active providers are listed yet. Approved provider profiles will appear here."}
       </p>
       {hasFilters ? (
@@ -923,6 +931,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           specialty.category_id === searchData.filters.categoryId,
       )
     : searchData.specialties;
+  const selectedSubdivision =
+    searchData.subdivisions.find(
+      (subdivision) =>
+        subdivision.code === searchData.filters.provinceCode,
+    ) ?? null;
+  const selectedServiceRegion =
+    searchData.serviceRegions.find(
+      (region) => region.id === searchData.filters.regionId,
+    ) ?? null;
 
   return (
     <section className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -935,8 +952,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             Find active real estate service providers
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-stone-600">
-            Choose a province or territory, then narrow to a service region,
-            profession, language, or specialty.
+            Enter a Canadian address or place the map pin to find providers
+            serving that property or project location.
           </p>
         </div>
         <Link
@@ -951,14 +968,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         {searchData.filters.keyword ? (
           <input type="hidden" name="q" value={searchData.filters.keyword} />
         ) : null}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:items-end">
-          <ProviderRegionFilterFields
-            initialProvinceCode={searchData.filters.provinceCode}
-            initialRegionId={searchData.filters.regionId}
-            regions={searchData.serviceRegions}
-            subdivisions={searchData.subdivisions}
-          />
+        <ProviderLocationSearchFields
+          initialProvinceCode={searchData.filters.provinceCode}
+          initialProvinceName={selectedSubdivision?.name ?? null}
+          initialRegionId={searchData.filters.regionId}
+          initialRegionName={selectedServiceRegion?.name ?? null}
+        />
 
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
           <FilterSelect
             id="provider-category"
             name="category"
@@ -1065,7 +1082,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ))
         ) : (
           <div className="lg:col-span-2">
-            <EmptyState hasFilters={activeFilterCount > 0} />
+            <EmptyState
+              hasFilters={activeFilterCount > 0}
+              regionName={selectedServiceRegion?.name ?? null}
+            />
           </div>
         )}
       </div>
