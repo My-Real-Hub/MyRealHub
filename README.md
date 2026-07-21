@@ -38,6 +38,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-publishable-or-anon-key
 
 Find these in Supabase Dashboard > Project Settings > API.
 
+Address search and map tiles have safe development defaults. Before
+production, replace `GEOCODER_USER_AGENT` with a value that identifies your
+deployed application and contact URL. `GEOCODER_BASE_URL`,
+`NEXT_PUBLIC_MAP_TILE_URL`, and `NEXT_PUBLIC_MAP_ATTRIBUTION` can point to
+self-hosted or contracted services.
+
 ## Start The App
 
 ```bash
@@ -131,6 +137,9 @@ The MVP database migration creates:
 - `specialties`
 - `provider_languages`
 - `provider_specialties`
+- `canadian_subdivisions`
+- `service_regions`
+- `provider_service_regions`
 - `saved_providers`
 - `contact_requests`
 

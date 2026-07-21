@@ -62,7 +62,9 @@ survive category deletion.
 `public.canadian_subdivisions` contains the fixed list of Canada's ten
 provinces and three territories. `public.service_regions` contains the
 provider-selectable service areas grouped by those subdivisions. Service
-regions cannot point outside the Canadian preset.
+regions cannot point outside the Canadian preset. Each service region also
+stores a representative latitude and longitude plus Canadian locality aliases
+used to match geocoded project locations to the preset region list.
 
 ## Join Tables
 
@@ -127,6 +129,12 @@ The MVP schema supports searching providers by:
 - Canadian service region through
   `provider_service_regions.service_region_id`.
 - Profile status through `provider_profiles.status`.
+
+Address and map-pin searches resolve to a Canadian province and one of these
+service regions before the provider query runs. The entered address and exact
+coordinates are transient search inputs: they are not stored in the database,
+placed in the results URL, or exposed to providers. Only the matched province
+code and service-region ID are submitted as search filters.
 
 Indexes are included for common filters and relationship lookups.
 
