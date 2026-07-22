@@ -31,6 +31,7 @@ type SentContactRequestRow = {
   sender_name: string;
   sender_email: string;
   sender_phone: string | null;
+  subject: string;
   message: string;
   provider_response: string | null;
   status: ContactRequestStatus;
@@ -76,6 +77,7 @@ const sentContactRequestColumns = [
   "sender_name",
   "sender_email",
   "sender_phone",
+  "subject",
   "message",
   "provider_response",
   "status",
@@ -403,6 +405,9 @@ function SentMessagesSection({
                 <SentMessageStatusBadge status={request.status} />
               </div>
 
+              <p className="mt-4 text-sm font-semibold text-stone-950">
+                {request.subject}
+              </p>
               <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-stone-700">
                 {request.message}
               </p>

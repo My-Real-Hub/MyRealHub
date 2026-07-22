@@ -27,9 +27,12 @@ type FormStatus = {
 
 type SignUpFormProps = {
   initialRole?: SignUpRole;
+  reason?: string | null;
+  redirectTo?: string | null;
 };
 
 type LoginFormProps = {
+  reason?: string | null;
   redirectTo?: string | null;
 };
 
@@ -83,8 +86,35 @@ function inputClassName(hasError: boolean) {
   return `${fieldClassName} ${hasError ? errorFieldClassName : ""}`;
 }
 
+function getAuthHref(
+  pathname: "/login" | "/signup",
+  {
+    reason,
+    redirectTo,
+  }: {
+    reason?: string | null;
+    redirectTo?: string | null;
+  },
+) {
+  const params = new URLSearchParams();
+
+  if (redirectTo) {
+    params.set("next", redirectTo);
+  }
+
+  if (reason) {
+    params.set("reason", reason);
+  }
+
+  const queryString = params.toString();
+
+  return `${pathname}${queryString ? `?${queryString}` : ""}`;
+}
+
 export function SignUpForm({
   initialRole = DEFAULT_PROFILE_ROLE,
+  reason = null,
+  redirectTo = null,
 }: SignUpFormProps) {
   const router = useRouter();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
@@ -132,7 +162,7 @@ export function SignUpForm({
       }
 
       if (data.session) {
-        router.push(getDashboardPathForRole(initialRole));
+        router.push(redirectTo ?? getDashboardPathForRole(initialRole));
         router.refresh();
         return;
       }
@@ -235,7 +265,10 @@ export function SignUpForm({
 
       <p className="mt-5 text-sm text-stone-600">
         Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-emerald-800">
+        <Link
+          href={getAuthHref("/login", { reason, redirectTo })}
+          className="font-semibold text-emerald-800"
+        >
           Log in
         </Link>
       </p>
@@ -243,7 +276,7 @@ export function SignUpForm({
   );
 }
 
-export function LoginForm({ redirectTo }: LoginFormProps) {
+export function LoginForm({ reason = null, redirectTo = null }: LoginFormProps) {
   const router = useRouter();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
@@ -356,7 +389,10 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
 
       <p className="mt-5 text-sm text-stone-600">
         New here?{" "}
-        <Link href="/signup" className="font-semibold text-emerald-800">
+        <Link
+          href={getAuthHref("/signup", { reason, redirectTo })}
+          className="font-semibold text-emerald-800"
+        >
           Create an account
         </Link>
       </p>

@@ -63,6 +63,7 @@ type ContactRequestRow = {
   sender_name: string;
   sender_email: string;
   sender_phone: string | null;
+  subject: string;
   message: string;
   provider_response: string | null;
   status: ContactRequestStatus;
@@ -375,6 +376,7 @@ const contactRequestColumns = [
   "sender_name",
   "sender_email",
   "sender_phone",
+  "subject",
   "message",
   "provider_response",
   "status",
@@ -653,7 +655,10 @@ function ContactRequestListItem({
         </div>
         <ContactRequestStatusBadge status={request.status} />
       </div>
-      <p className="mt-3 line-clamp-2 text-sm leading-6 text-stone-700">
+      <p className="mt-3 text-sm font-semibold text-stone-950">
+        {request.subject}
+      </p>
+      <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-700">
         {request.message}
       </p>
       <p className="mt-3 text-xs font-medium uppercase tracking-wide text-stone-500">
@@ -736,6 +741,14 @@ function ContactRequestDetail({
       </div>
 
       <dl className="mt-5 grid gap-3 border-t border-stone-200 pt-5 text-sm md:grid-cols-2">
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+            Subject
+          </dt>
+          <dd className="mt-1 font-medium text-stone-900">
+            {request.subject}
+          </dd>
+        </div>
         <div>
           <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
             Sent

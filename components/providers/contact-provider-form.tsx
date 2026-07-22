@@ -4,10 +4,11 @@ import { useActionState, useEffect, useRef } from "react";
 import { submitContactRequest } from "@/app/providers/contact-actions";
 
 type ContactProviderFormProps = {
-  providerId: string;
-  returnPath: string;
   defaultEmail?: string;
   defaultName?: string;
+  defaultSubject?: string;
+  providerId: string;
+  returnPath: string;
 };
 
 const inputBaseClassName =
@@ -65,10 +66,11 @@ function StatusMessage({
 }
 
 export function ContactProviderForm({
-  providerId,
-  returnPath,
   defaultEmail = "",
   defaultName = "",
+  defaultSubject = "",
+  providerId,
+  returnPath,
 }: ContactProviderFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(
@@ -148,6 +150,26 @@ export function ContactProviderForm({
           aria-invalid={Boolean(fieldErrors.phone)}
         />
         <FieldError message={fieldErrors.phone} />
+      </div>
+
+      <div className="grid gap-2">
+        <label
+          htmlFor="contact-subject"
+          className="text-sm font-semibold text-stone-900"
+        >
+          Subject
+        </label>
+        <input
+          id="contact-subject"
+          name="subject"
+          type="text"
+          defaultValue={defaultSubject}
+          required
+          maxLength={160}
+          className={inputClassName(Boolean(fieldErrors.subject))}
+          aria-invalid={Boolean(fieldErrors.subject)}
+        />
+        <FieldError message={fieldErrors.subject} />
       </div>
 
       <div className="grid gap-2">
