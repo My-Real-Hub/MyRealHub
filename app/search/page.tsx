@@ -771,6 +771,15 @@ function FilterSummary({
   );
 }
 
+function getContactLoginHref(returnPath: string) {
+  const params = new URLSearchParams({
+    next: returnPath,
+    reason: "contact-provider",
+  });
+
+  return `/login?${params.toString()}`;
+}
+
 function ProviderResultCard({
   isSignedIn,
   provider,
@@ -783,6 +792,7 @@ function ProviderResultCard({
   const providerName = getProviderName(provider);
   const profileImageUrl = getPublicProfileImageUrl(provider.profile_image_url);
   const providerHref = `/providers/${provider.slug || provider.id}`;
+  const contactHref = `${providerHref}#contact`;
   const visibleTags = [
     ...provider.languageNames.slice(0, 2),
     ...provider.specialtyNames.slice(0, 3),
@@ -867,14 +877,12 @@ function ProviderResultCard({
         >
           View profile
         </Link>
-        {provider.email ? (
-          <a
-            href={`mailto:${provider.email}`}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
-          >
-            Contact
-          </a>
-        ) : null}
+        <Link
+          href={isSignedIn ? contactHref : getContactLoginHref(contactHref)}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
+        >
+          {isSignedIn ? "Contact" : "Log in to contact"}
+        </Link>
         <SaveProviderButton
           isSaved={provider.isSaved}
           isSignedIn={isSignedIn}

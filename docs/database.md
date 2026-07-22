@@ -99,23 +99,26 @@ than edited.
 
 ## Contact Requests
 
-`public.contact_requests` stores basic contact form submissions sent to
-providers. Each request belongs to a provider profile and may optionally belong
-to a sender profile through `sender_user_id`.
+`public.contact_requests` stores in-app contact requests sent to providers.
+Each new request belongs to a provider profile and to the authenticated sender
+profile through `sender_user_id`.
 
-`sender_user_id` is nullable so the schema can support guest contact forms in
-the future. Sender name, email, optional phone, message, status, and timestamps
-are stored with each request.
+New contact requests can only be inserted by authenticated `user` or `provider`
+accounts. RLS requires `sender_user_id` to match `auth.uid()`, requires the
+recipient provider profile to be active, and prevents providers from contacting
+their own provider profile. Sender name, email, optional phone, subject,
+message, status, and timestamps are stored with each request.
 
 Contact request status values:
 
 - `new`
 - `read`
 - `responded`
+- `rejected`
 - `archived`
 
-This table stores contact records only. It does not send email and it is not a
-full messaging system.
+This table stores the default in-app conversation record for a provider
+inquiry. It does not send email.
 
 ## Search Support
 

@@ -87,6 +87,23 @@ function getDisplayValue(value: string | number | null) {
   return value === null || value === "" ? "Not added" : String(value);
 }
 
+function getContactReturnPath(provider: PublicProviderProfile) {
+  return `/providers/${provider.slug || provider.id}#contact`;
+}
+
+function getDefaultContactSubject(providerName: string) {
+  return `Inquiry for ${providerName}`.slice(0, 160);
+}
+
+function getContactAuthHref(pathname: "/login" | "/signup", returnPath: string) {
+  const params = new URLSearchParams({
+    next: returnPath,
+    reason: "contact-provider",
+  });
+
+  return `${pathname}?${params.toString()}`;
+}
+
 function getPublicProfileImageUrl(value: string | null) {
   if (!value) {
     return null;
@@ -318,6 +335,34 @@ function DetailItem({
   );
 }
 
+function ContactSignInPrompt({ returnPath }: { returnPath: string }) {
+  return (
+    <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4">
+      <p className="text-sm font-semibold text-emerald-950">
+        Log in to contact this provider
+      </p>
+      <p className="mt-2 text-sm leading-6 text-emerald-900">
+        Contact requests are sent inside MyRealHub, so providers can respond to
+        a verified sender account.
+      </p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <Link
+          href={getContactAuthHref("/login", returnPath)}
+          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+        >
+          Log in
+        </Link>
+        <Link
+          href={getContactAuthHref("/signup", returnPath)}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-emerald-200 bg-white px-4 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+        >
+          Create account
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default async function PublicProviderProfilePage({
   params,
 }: PublicProviderProfilePageProps) {
@@ -347,6 +392,7 @@ export default async function PublicProviderProfilePage({
     getProviderRatingData(provider.id, currentProfile?.id ?? null),
   ]);
   const returnPath = `/providers/${provider.slug || provider.id}`;
+  const contactReturnPath = getContactReturnPath(provider);
   const isOwnProviderProfile = currentProfile?.id === provider.user_id;
   const canConsumeServices = hasProfileCapability(
     currentProfile?.role,
@@ -442,19 +488,30 @@ export default async function PublicProviderProfilePage({
         </div>
 
         <aside className="grid gap-6 lg:sticky lg:top-28">
-          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+          <article
+            id="contact"
+            className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+          >
             <h2 className="text-xl font-semibold text-stone-950">Contact</h2>
             <div className="mt-5 grid gap-4">
               {isOwnProviderProfile ? (
                 <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
                   You cannot contact your own provider profile.
                 </p>
+              ) : !currentProfile ? (
+                <ContactSignInPrompt returnPath={contactReturnPath} />
+              ) : !canConsumeServices ? (
+                <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
+                  Contact requests are available to users and service
+                  providers.
+                </p>
               ) : (
                 <ContactProviderForm
+                  defaultEmail={currentProfile.email ?? ""}
+                  defaultName={currentProfile.fullName ?? ""}
+                  defaultSubject={getDefaultContactSubject(providerName)}
                   providerId={provider.id}
-                  returnPath={returnPath}
-                  defaultName={currentProfile?.fullName ?? ""}
-                  defaultEmail={currentProfile?.email ?? ""}
+                  returnPath={contactReturnPath}
                 />
               )}
               <div className="border-t border-stone-200 pt-4">

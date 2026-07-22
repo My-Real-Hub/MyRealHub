@@ -419,25 +419,26 @@ insert into public.contact_requests (
   sender_name,
   sender_email,
   sender_phone,
+  subject,
   message,
   status
 )
 values
-  ('40000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', '416-555-1101', 'I am buying my first condo and would like to book a consultation.', 'new'),
-  ('40000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', '647-555-1102', 'Can you help compare pre-approval options this week?', 'read'),
-  ('40000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', null, 'Taylor Guest', 'taylor.guest@example.com', '905-555-1103', 'I need a home inspection for a townhouse in Hamilton.', 'responded'),
-  ('40000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', null, 'I need closing cost information for a condo purchase.', 'archived'),
-  ('40000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000005', null, 'Sam Patel', 'sam.patel@example.com', '289-555-1105', 'Please send pricing for a residential appraisal in Vaughan.', 'new'),
-  ('40000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', '647-555-1106', 'I am looking for landlord insurance for a duplex.', 'read'),
-  ('40000000-0000-4000-8000-000000000007', '10000000-0000-4000-8000-000000000007', null, 'Casey Morgan', 'casey.morgan@example.com', null, 'Can you quote a kitchen refresh before listing?', 'new'),
-  ('40000000-0000-4000-8000-000000000008', '10000000-0000-4000-8000-000000000008', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', '416-555-1108', 'I need listing photos for a Burlington condo.', 'responded'),
-  ('40000000-0000-4000-8000-000000000009', '10000000-0000-4000-8000-000000000009', null, 'Jordan Ellis', 'jordan.ellis@example.com', '437-555-1109', 'Do you offer vacant staging packages in Markham?', 'new'),
-  ('40000000-0000-4000-8000-000000000010', '10000000-0000-4000-8000-000000000010', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', null, 'I have a rental property and need monthly management.', 'read'),
-  ('40000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000011', null, 'Riley Brooks', 'riley.brooks@example.com', '905-555-1111', 'Can you help with a local move next month?', 'new'),
-  ('40000000-0000-4000-8000-000000000012', '10000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', '416-555-1112', 'I need move-out cleaning for a two-bedroom condo.', 'responded'),
-  ('40000000-0000-4000-8000-000000000013', '10000000-0000-4000-8000-000000000001', null, 'Alex Nguyen', 'alex.nguyen@example.com', '416-555-1113', 'I am interested in investment properties near transit.', 'new'),
-  ('40000000-0000-4000-8000-000000000014', '10000000-0000-4000-8000-000000000002', null, 'Morgan Reed', 'morgan.reed@example.com', '647-555-1114', 'Can you explain options for self-employed income?', 'archived'),
-  ('40000000-0000-4000-8000-000000000015', '10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', '647-555-1115', 'Do you inspect new construction homes?', 'read')
+  ('40000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', '416-555-1101', 'First condo consultation', 'I am buying my first condo and would like to book a consultation.', 'new'),
+  ('40000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', '647-555-1102', 'Mortgage pre-approval options', 'Can you help compare pre-approval options this week?', 'read'),
+  ('40000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', null, 'Taylor Guest', 'taylor.guest@example.com', '905-555-1103', 'Townhouse inspection', 'I need a home inspection for a townhouse in Hamilton.', 'responded'),
+  ('40000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', null, 'Closing cost information', 'I need closing cost information for a condo purchase.', 'archived'),
+  ('40000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000005', null, 'Sam Patel', 'sam.patel@example.com', '289-555-1105', 'Residential appraisal pricing', 'Please send pricing for a residential appraisal in Vaughan.', 'new'),
+  ('40000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', '647-555-1106', 'Landlord insurance quote', 'I am looking for landlord insurance for a duplex.', 'read'),
+  ('40000000-0000-4000-8000-000000000007', '10000000-0000-4000-8000-000000000007', null, 'Casey Morgan', 'casey.morgan@example.com', null, 'Kitchen refresh quote', 'Can you quote a kitchen refresh before listing?', 'new'),
+  ('40000000-0000-4000-8000-000000000008', '10000000-0000-4000-8000-000000000008', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', '416-555-1108', 'Listing photos', 'I need listing photos for a Burlington condo.', 'responded'),
+  ('40000000-0000-4000-8000-000000000009', '10000000-0000-4000-8000-000000000009', null, 'Jordan Ellis', 'jordan.ellis@example.com', '437-555-1109', 'Vacant staging packages', 'Do you offer vacant staging packages in Markham?', 'new'),
+  ('40000000-0000-4000-8000-000000000010', '10000000-0000-4000-8000-000000000010', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', null, 'Rental property management', 'I have a rental property and need monthly management.', 'read'),
+  ('40000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000011', null, 'Riley Brooks', 'riley.brooks@example.com', '905-555-1111', 'Local move quote', 'Can you help with a local move next month?', 'new'),
+  ('40000000-0000-4000-8000-000000000012', '10000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000013', 'Hannah Lee', 'hannah.lee@example.com', '416-555-1112', 'Move-out cleaning', 'I need move-out cleaning for a two-bedroom condo.', 'responded'),
+  ('40000000-0000-4000-8000-000000000013', '10000000-0000-4000-8000-000000000001', null, 'Alex Nguyen', 'alex.nguyen@example.com', '416-555-1113', 'Investment property search', 'I am interested in investment properties near transit.', 'new'),
+  ('40000000-0000-4000-8000-000000000014', '10000000-0000-4000-8000-000000000002', null, 'Morgan Reed', 'morgan.reed@example.com', '647-555-1114', 'Self-employed mortgage options', 'Can you explain options for self-employed income?', 'archived'),
+  ('40000000-0000-4000-8000-000000000015', '10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000014', 'Jacob Wilson', 'jacob.wilson@example.com', '647-555-1115', 'New construction inspection', 'Do you inspect new construction homes?', 'read')
 on conflict (id) do update
 set
   provider_profile_id = excluded.provider_profile_id,
@@ -445,5 +446,6 @@ set
   sender_name = excluded.sender_name,
   sender_email = excluded.sender_email,
   sender_phone = excluded.sender_phone,
+  subject = excluded.subject,
   message = excluded.message,
   status = excluded.status;

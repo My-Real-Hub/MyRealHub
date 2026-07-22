@@ -8,7 +8,7 @@ import { isProviderProfileId } from "@/lib/providers/slug";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 export type ContactProviderFieldErrors = Partial<
-  Record<"name" | "email" | "phone" | "message", string>
+  Record<"name" | "email" | "phone" | "subject" | "message", string>
 >;
 
 export type ContactProviderFormState = {
@@ -31,6 +31,14 @@ function getSafeReturnPath(value: string) {
   return value;
 }
 
+function getRevalidationPath(returnPath: string) {
+  try {
+    return new URL(returnPath, "https://myrealhub.local").pathname;
+  } catch {
+    return "/search";
+  }
+}
+
 function hasFieldErrors(errors: ContactProviderFieldErrors) {
   return Object.values(errors).some(Boolean);
 }
@@ -39,6 +47,7 @@ function validateContactRequest(values: {
   name: string;
   email: string;
   phone: string;
+  subject: string;
   message: string;
 }) {
   const errors: ContactProviderFieldErrors = {};
@@ -56,6 +65,12 @@ function validateContactRequest(values: {
 
   if (values.phone.length > 40) {
     errors.phone = "Phone must be 40 characters or fewer.";
+  }
+
+  if (!values.subject) {
+    errors.subject = "Subject is required.";
+  } else if (values.subject.length > 160) {
+    errors.subject = "Subject must be 160 characters or fewer.";
   }
 
   if (!values.message) {
@@ -89,6 +104,7 @@ export async function submitContactRequest(
     name: getFormString(formData, "name"),
     email: normalizeEmail(getFormString(formData, "email")),
     phone: getFormString(formData, "phone"),
+    subject: getFormString(formData, "subject"),
     message: getFormString(formData, "message"),
   };
   const fieldErrors = validateContactRequest(values);
@@ -113,6 +129,14 @@ export async function submitContactRequest(
     getActiveProvider(providerId),
     getCurrentProfile(),
   ]);
+
+  if (!currentProfile) {
+    return {
+      status: "error",
+      message: "Log in or create an account to contact this provider.",
+      fieldErrors: {},
+    };
+  }
 
   if (!activeProvider) {
     return {
@@ -144,10 +168,11 @@ export async function submitContactRequest(
   const supabase = await getServerSupabaseClient();
   const { error } = await supabase.from("contact_requests").insert({
     provider_profile_id: providerId,
-    sender_user_id: currentProfile?.id ?? null,
+    sender_user_id: currentProfile.id,
     sender_name: values.name,
     sender_email: values.email,
     sender_phone: values.phone || null,
+    subject: values.subject,
     message: values.message,
   });
 
@@ -159,7 +184,7 @@ export async function submitContactRequest(
     };
   }
 
-  revalidatePath(returnPath);
+  revalidatePath(getRevalidationPath(returnPath));
   revalidatePath("/provider/dashboard");
 
   return {
