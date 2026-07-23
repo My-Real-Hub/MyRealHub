@@ -1,5 +1,19 @@
 export const CONTACT_REQUESTS_PER_PAGE = 10;
 
+export const CONTACT_DELIVERY_METHODS = ["in_app", "email"] as const;
+
+export type ContactDeliveryMethod = (typeof CONTACT_DELIVERY_METHODS)[number];
+
+export const CONTACT_EMAIL_DELIVERY_STATUSES = [
+  "not_requested",
+  "pending",
+  "sent",
+  "failed",
+] as const;
+
+export type ContactEmailDeliveryStatus =
+  (typeof CONTACT_EMAIL_DELIVERY_STATUSES)[number];
+
 export type ContactRequestStatus =
   | "new"
   | "read"
@@ -33,6 +47,50 @@ export const contactRequestStatusClassNames = {
   rejected: "border-red-200 bg-red-50 text-red-800",
   archived: "border-stone-200 bg-stone-100 text-stone-700",
 } satisfies Record<ContactRequestStatus, string>;
+
+export const contactDeliveryMethodLabels = {
+  in_app: "In-app messaging",
+  email: "Direct-to-email relay",
+} satisfies Record<ContactDeliveryMethod, string>;
+
+export const contactEmailDeliveryStatusLabels = {
+  not_requested: "Not requested",
+  pending: "Pending",
+  sent: "Sent",
+  failed: "Failed",
+} satisfies Record<ContactEmailDeliveryStatus, string>;
+
+export const contactEmailDeliveryStatusClassNames = {
+  not_requested: "border-stone-200 bg-stone-100 text-stone-700",
+  pending: "border-amber-200 bg-amber-50 text-amber-900",
+  sent: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  failed: "border-red-200 bg-red-50 text-red-800",
+} satisfies Record<ContactEmailDeliveryStatus, string>;
+
+export function isContactDeliveryMethod(
+  value: unknown,
+): value is ContactDeliveryMethod {
+  return (
+    typeof value === "string" &&
+    CONTACT_DELIVERY_METHODS.includes(value as ContactDeliveryMethod)
+  );
+}
+
+export function getContactDeliveryMethod(
+  value: string | null | undefined,
+): ContactDeliveryMethod {
+  return isContactDeliveryMethod(value) ? value : "in_app";
+}
+
+export function getContactEmailDeliveryStatus(
+  value: string | null | undefined,
+): ContactEmailDeliveryStatus {
+  return CONTACT_EMAIL_DELIVERY_STATUSES.includes(
+    value as ContactEmailDeliveryStatus,
+  )
+    ? (value as ContactEmailDeliveryStatus)
+    : "not_requested";
+}
 
 export function getContactRequestStatusFilter(value: string | undefined) {
   const status = contactRequestStatusFilters.find(

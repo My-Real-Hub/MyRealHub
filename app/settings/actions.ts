@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireProfileCapability } from "@/lib/auth/session";
 import { normalizeEmail, validateEmail } from "@/lib/auth/validation";
+import {
+  isContactDeliveryMethod,
+  type ContactDeliveryMethod,
+} from "@/lib/contact-requests";
 import { PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
 import { isProviderProfileId } from "@/lib/providers/slug";
 import { MAX_PROVIDER_SERVICE_REGIONS } from "@/lib/service-regions";
@@ -28,6 +32,16 @@ export type ProviderServiceRegionsFormState = {
   fieldError: string;
 };
 
+export type ProviderCommunicationPreferencesFieldErrors = Partial<
+  Record<"contactDeliveryMethod" | "notificationEmail", string>
+>;
+
+export type ProviderCommunicationPreferencesFormState = {
+  status: "idle" | "success" | "error";
+  message: string;
+  fieldErrors: ProviderCommunicationPreferencesFieldErrors;
+};
+
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -42,7 +56,17 @@ function getFormStrings(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
+function getFormBoolean(formData: FormData, key: string) {
+  return formData.get(key) === "on";
+}
+
 function hasFieldErrors(errors: AccountSettingsFieldErrors) {
+  return Object.values(errors).some(Boolean);
+}
+
+function hasProviderCommunicationPreferencesFieldErrors(
+  errors: ProviderCommunicationPreferencesFieldErrors,
+) {
   return Object.values(errors).some(Boolean);
 }
 
@@ -261,5 +285,106 @@ export async function saveProviderServiceRegions(
     status: "success",
     message: "Service regions saved.",
     fieldError: "",
+  };
+}
+
+export async function saveProviderCommunicationPreferences(
+  _previousState: ProviderCommunicationPreferencesFormState,
+  formData: FormData,
+): Promise<ProviderCommunicationPreferencesFormState> {
+  const profile = await requireProfileCapability("manage_provider_profile");
+  const contactDeliveryMethodValue = getFormString(
+    formData,
+    "contactDeliveryMethod",
+  );
+  const contactDeliveryMethod: ContactDeliveryMethod | null =
+    isContactDeliveryMethod(contactDeliveryMethodValue)
+      ? contactDeliveryMethodValue
+      : null;
+  const values = {
+    acceptNewInquiries: getFormBoolean(formData, "acceptNewInquiries"),
+    contactDeliveryMethod,
+    newMessageEmailEnabled: getFormBoolean(
+      formData,
+      "newMessageEmailEnabled",
+    ),
+    notificationEmail: normalizeEmail(
+      getFormString(formData, "notificationEmail"),
+    ),
+  };
+  const fieldErrors: ProviderCommunicationPreferencesFieldErrors = {};
+
+  if (!values.contactDeliveryMethod) {
+    fieldErrors.contactDeliveryMethod = "Choose a contact delivery method.";
+  }
+
+  if (
+    values.notificationEmail ||
+    (values.acceptNewInquiries && values.contactDeliveryMethod === "email") ||
+    values.newMessageEmailEnabled
+  ) {
+    const notificationEmailError = validateEmail(values.notificationEmail);
+
+    if (notificationEmailError) {
+      fieldErrors.notificationEmail = notificationEmailError;
+    }
+  }
+
+  if (hasProviderCommunicationPreferencesFieldErrors(fieldErrors)) {
+    return {
+      status: "error",
+      message: "Please fix the highlighted fields.",
+      fieldErrors,
+    };
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { data: providerProfile, error: providerProfileError } = await supabase
+    .from("provider_profiles")
+    .select("id,slug")
+    .eq("user_id", profile.id)
+    .maybeSingle();
+
+  if (providerProfileError || !providerProfile) {
+    return {
+      status: "error",
+      message:
+        "Create and save your provider listing before changing inquiry preferences.",
+      fieldErrors: {},
+    };
+  }
+
+  const { error } = await supabase.rpc(
+    "update_provider_communication_preferences",
+    {
+      target_accept_new_inquiries: values.acceptNewInquiries,
+      target_contact_delivery_method:
+        values.contactDeliveryMethod ?? "in_app",
+      target_new_message_email_enabled: values.newMessageEmailEnabled,
+      target_notification_email: values.notificationEmail || null,
+      target_provider_profile_id: providerProfile.id,
+    },
+  );
+
+  if (error) {
+    return {
+      status: "error",
+      message:
+        "Inquiry preferences could not be saved. Please review the fields and try again.",
+      fieldErrors: {},
+    };
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/provider/dashboard");
+  revalidatePath("/search");
+  revalidatePath(`/providers/${providerProfile.slug}`);
+
+  return {
+    status: "success",
+    message: values.acceptNewInquiries
+      ? "Inquiry preferences saved."
+      : "Inquiry preferences saved. New inquiries are currently disabled.",
+    fieldErrors: {},
   };
 }

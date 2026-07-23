@@ -41,13 +41,13 @@ type ProviderProfileRow = {
   business_name: string | null;
   display_name: string | null;
   bio: string | null;
-  email: string | null;
   phone: string | null;
   city: string | null;
   province_state: string | null;
   country: string | null;
   service_area: string | null;
   profile_image_url: string | null;
+  accept_new_inquiries: boolean | null;
 };
 
 type ProviderRelationRow = {
@@ -92,13 +92,13 @@ const providerSelectColumns = [
   "business_name",
   "display_name",
   "bio",
-  "email",
   "phone",
   "city",
   "province_state",
   "country",
   "service_area",
   "profile_image_url",
+  "accept_new_inquiries",
 ].join(",");
 
 function getSearchParam(value: string | string[] | undefined) {
@@ -192,7 +192,6 @@ function getProviderName(provider: ProviderSearchResult) {
   return (
     provider.business_name ??
     provider.display_name ??
-    provider.email ??
     "Provider profile"
   );
 }
@@ -793,6 +792,7 @@ function ProviderResultCard({
   const profileImageUrl = getPublicProfileImageUrl(provider.profile_image_url);
   const providerHref = `/providers/${provider.slug || provider.id}`;
   const contactHref = `${providerHref}#contact`;
+  const acceptsNewInquiries = provider.accept_new_inquiries ?? true;
   const visibleTags = [
     ...provider.languageNames.slice(0, 2),
     ...provider.specialtyNames.slice(0, 3),
@@ -877,12 +877,18 @@ function ProviderResultCard({
         >
           View profile
         </Link>
-        <Link
-          href={isSignedIn ? contactHref : getContactLoginHref(contactHref)}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
-        >
-          {isSignedIn ? "Contact" : "Log in to contact"}
-        </Link>
+        {acceptsNewInquiries ? (
+          <Link
+            href={isSignedIn ? contactHref : getContactLoginHref(contactHref)}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
+          >
+            {isSignedIn ? "Contact" : "Log in to contact"}
+          </Link>
+        ) : (
+          <span className="inline-flex h-10 items-center justify-center rounded-md border border-stone-200 bg-stone-50 px-4 text-sm font-semibold text-stone-500">
+            Inquiries paused
+          </span>
+        )}
         <SaveProviderButton
           isSaved={provider.isSaved}
           isSignedIn={isSignedIn}

@@ -48,7 +48,7 @@ export default async function LogInPage({ searchParams }: LoginPageProps) {
         ) : null}
         {showContactPrompt ? (
           <p className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-900">
-            Log in to send this provider an in-app contact request. We&apos;ll
+            Log in to send this provider a contact request. We&apos;ll
             bring you back to their profile after you sign in.
           </p>
         ) : null}
