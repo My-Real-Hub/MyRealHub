@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccountSettingsForm } from "@/components/settings/account-settings-form";
+import { ProviderCommunicationPreferencesForm } from "@/components/settings/provider-communication-preferences-form";
 import { ProviderServiceRegionsForm } from "@/components/settings/provider-service-regions-form";
 import {
   ProviderProfileForm,
@@ -10,6 +11,10 @@ import {
 } from "@/components/providers/provider-profile-form";
 import { requireProfileCapability } from "@/lib/auth/session";
 import { getDashboardPathForRole } from "@/lib/auth/roles";
+import {
+  getContactDeliveryMethod,
+  type ContactDeliveryMethod,
+} from "@/lib/contact-requests";
 import type {
   CanadianSubdivisionOption,
   ServiceRegionOption,
@@ -27,6 +32,9 @@ type AccountProfileRow = {
 };
 
 type ProviderProfileRow = ProviderProfileFormData & {
+  accept_new_inquiries: boolean | null;
+  contact_delivery_method: string | null;
+  new_message_email_enabled: boolean | null;
   rejection_reason: string | null;
 };
 
@@ -45,6 +53,17 @@ type ProviderSpecialtyRow = {
 
 type ProviderServiceRegionRow = {
   service_region_id: string;
+};
+
+type ProviderNotificationPreferenceRow = {
+  notification_email: string | null;
+};
+
+type ProviderCommunicationSettings = {
+  acceptNewInquiries: boolean;
+  contactDeliveryMethod: ContactDeliveryMethod;
+  newMessageEmailEnabled: boolean;
+  notificationEmail: string;
 };
 
 async function getAccountProfile(userId: string) {
@@ -78,6 +97,9 @@ async function getProviderProfile(userId: string) {
         "profile_image_path",
         "profile_image_url",
         "status",
+        "accept_new_inquiries",
+        "contact_delivery_method",
+        "new_message_email_enabled",
         "rejection_reason",
       ].join(","),
     )
@@ -140,6 +162,46 @@ async function getProviderLookups() {
   };
 }
 
+async function getProviderCommunicationSettings({
+  accountEmail,
+  providerProfile,
+}: {
+  accountEmail: string | null;
+  providerProfile: ProviderProfileRow | null;
+}): Promise<ProviderCommunicationSettings> {
+  if (!providerProfile) {
+    return {
+      acceptNewInquiries: true,
+      contactDeliveryMethod: "in_app",
+      newMessageEmailEnabled: false,
+      notificationEmail: accountEmail ?? "",
+    };
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { data } = await supabase
+    .from("provider_notification_preferences")
+    .select("notification_email")
+    .eq("provider_profile_id", providerProfile.id)
+    .maybeSingle();
+  const notificationPreference =
+    (data ?? null) as ProviderNotificationPreferenceRow | null;
+
+  return {
+    acceptNewInquiries: providerProfile.accept_new_inquiries ?? true,
+    contactDeliveryMethod: getContactDeliveryMethod(
+      providerProfile.contact_delivery_method,
+    ),
+    newMessageEmailEnabled:
+      providerProfile.new_message_email_enabled ?? false,
+    notificationEmail:
+      notificationPreference?.notification_email ??
+      providerProfile.email ??
+      accountEmail ??
+      "",
+  };
+}
+
 async function getProviderRegionSettings(providerProfileId: string | null) {
   const supabase = await getServerSupabaseClient();
   const [subdivisionsResult, regionsResult, selectedRegionsResult] =
@@ -194,6 +256,12 @@ export default async function SettingsPage() {
     profile.fullName;
   const email =
     accountProfile?.email ?? providerProfile?.email ?? profile.email;
+  const providerCommunicationSettings = isProvider
+    ? await getProviderCommunicationSettings({
+        accountEmail: email,
+        providerProfile,
+      })
+    : null;
   const phone = accountProfile?.phone ?? providerProfile?.phone ?? null;
   const bio = accountProfile?.bio ?? providerProfile?.bio ?? null;
   const avatarPath =
@@ -210,6 +278,7 @@ export default async function SettingsPage() {
     { href: "#communication", label: "Communication" },
     ...(isProvider
       ? [
+          { href: "#provider-communication", label: "Inquiry settings" },
           { href: "#service-areas", label: "Service areas" },
           { href: "#provider-business", label: "Provider business" },
         ]
@@ -272,6 +341,24 @@ export default async function SettingsPage() {
             phone={phone}
             roleLabel={isProvider ? "Provider" : "User"}
           />
+
+          {isProvider && providerCommunicationSettings ? (
+            <ProviderCommunicationPreferencesForm
+              acceptNewInquiries={
+                providerCommunicationSettings.acceptNewInquiries
+              }
+              contactDeliveryMethod={
+                providerCommunicationSettings.contactDeliveryMethod
+              }
+              newMessageEmailEnabled={
+                providerCommunicationSettings.newMessageEmailEnabled
+              }
+              notificationEmail={
+                providerCommunicationSettings.notificationEmail
+              }
+              providerProfileId={providerProfile?.id ?? null}
+            />
+          ) : null}
 
           {isProvider ? (
             <article

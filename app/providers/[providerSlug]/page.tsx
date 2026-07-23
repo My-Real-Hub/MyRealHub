@@ -26,7 +26,6 @@ type ProviderProfileRow = {
   display_name: string | null;
   bio: string | null;
   phone: string | null;
-  email: string | null;
   website_url: string | null;
   city: string | null;
   province_state: string | null;
@@ -35,6 +34,8 @@ type ProviderProfileRow = {
   years_experience: number | null;
   license_number: string | null;
   profile_image_url: string | null;
+  accept_new_inquiries: boolean | null;
+  contact_delivery_method: string | null;
 };
 
 type LookupNameRow = {
@@ -68,7 +69,6 @@ function getProviderName(provider: PublicProviderProfile) {
   return (
     provider.business_name ??
     provider.display_name ??
-    provider.email ??
     "Provider profile"
   );
 }
@@ -154,7 +154,6 @@ async function getPublicProviderProfile(identifier: string) {
         "display_name",
         "bio",
         "phone",
-        "email",
         "website_url",
         "city",
         "province_state",
@@ -163,6 +162,8 @@ async function getPublicProviderProfile(identifier: string) {
         "years_experience",
         "license_number",
         "profile_image_url",
+        "accept_new_inquiries",
+        "contact_delivery_method",
       ].join(","),
     )
     .eq("status", "active");
@@ -342,8 +343,8 @@ function ContactSignInPrompt({ returnPath }: { returnPath: string }) {
         Log in to contact this provider
       </p>
       <p className="mt-2 text-sm leading-6 text-emerald-900">
-        Contact requests are sent inside MyRealHub, so providers can respond to
-        a verified sender account.
+        Contact requests require a verified MyRealHub sender account so
+        providers can respond safely.
       </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
@@ -360,6 +361,15 @@ function ContactSignInPrompt({ returnPath }: { returnPath: string }) {
         </Link>
       </div>
     </div>
+  );
+}
+
+function ContactUnavailableNotice() {
+  return (
+    <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
+      This provider is not accepting new inquiries right now. You can still
+      save their profile and check back later.
+    </p>
   );
 }
 
@@ -394,6 +404,7 @@ export default async function PublicProviderProfilePage({
   const returnPath = `/providers/${provider.slug || provider.id}`;
   const contactReturnPath = getContactReturnPath(provider);
   const isOwnProviderProfile = currentProfile?.id === provider.user_id;
+  const acceptsNewInquiries = provider.accept_new_inquiries ?? true;
   const canConsumeServices = hasProfileCapability(
     currentProfile?.role,
     "consume_services",
@@ -498,6 +509,8 @@ export default async function PublicProviderProfilePage({
                 <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
                   You cannot contact your own provider profile.
                 </p>
+              ) : !acceptsNewInquiries ? (
+                <ContactUnavailableNotice />
               ) : !currentProfile ? (
                 <ContactSignInPrompt returnPath={contactReturnPath} />
               ) : !canConsumeServices ? (
@@ -550,7 +563,14 @@ export default async function PublicProviderProfilePage({
             <h2 className="text-xl font-semibold text-stone-950">Details</h2>
             <dl className="mt-5 grid gap-4">
               <DetailItem label="Profession" value={provider.categoryName} />
-              <DetailItem label="Email" value={provider.email} />
+              <DetailItem
+                label="Inquiries"
+                value={
+                  acceptsNewInquiries
+                    ? "Available through secure contact"
+                    : "Paused by provider"
+                }
+              />
               <DetailItem label="Phone" value={provider.phone} />
               <DetailItem label="Website" value={provider.website_url} />
               {provider.serviceRegionNames.length === 0 ? (

@@ -46,6 +46,13 @@ Provider profile images are stored in Supabase Storage in the
 for display and `profile_image_path` for the storage object path. Uploads are
 restricted to authenticated users writing inside their own user-id folder.
 
+Provider inquiry preferences are stored on `public.provider_profiles` using
+non-sensitive public listing fields: `accept_new_inquiries`,
+`contact_delivery_method`, and `new_message_email_enabled`. The provider's
+private notification address is stored separately in
+`public.provider_notification_preferences`, which is protected by RLS and is not
+available to anonymous public listing reads.
+
 ## Lookup Tables
 
 `public.categories` stores the controlled list of service professions, such as
@@ -83,6 +90,11 @@ trigger enforces a maximum of two regions for each provider. Providers replace
 their selections through an authenticated, atomic database function so a
 failed update cannot leave a partially saved selection.
 
+`public.provider_notification_preferences` stores private provider notification
+addresses for inquiry relay and message-alert emails. Providers can select and
+update their own row, admins can manage all rows, and anonymous users have no
+access.
+
 These join tables make it possible to filter provider search results by
 language, specialty, and service region without storing arrays or
 comma-separated strings on provider profiles.
@@ -99,15 +111,17 @@ than edited.
 
 ## Contact Requests
 
-`public.contact_requests` stores in-app contact requests sent to providers.
+`public.contact_requests` stores contact requests sent to providers.
 Each new request belongs to a provider profile and to the authenticated sender
 profile through `sender_user_id`.
 
 New contact requests can only be inserted by authenticated `user` or `provider`
 accounts. RLS requires `sender_user_id` to match `auth.uid()`, requires the
-recipient provider profile to be active, and prevents providers from contacting
-their own provider profile. Sender name, email, optional phone, subject,
-message, status, and timestamps are stored with each request.
+recipient provider profile to be active and accepting new inquiries, requires
+the inserted delivery method to match the provider's current preference, and
+prevents providers from contacting their own provider profile. Sender name,
+email, optional phone, subject, message, delivery method, email delivery status,
+request status, and timestamps are stored with each request.
 
 Contact request status values:
 
@@ -117,8 +131,23 @@ Contact request status values:
 - `rejected`
 - `archived`
 
-This table stores the default in-app conversation record for a provider
-inquiry. It does not send email.
+Contact delivery methods:
+
+- `in_app`: creates the default website conversation in the provider inbox.
+- `email`: creates the inquiry record and securely relays the message to the
+  provider's private notification address without exposing that address to the
+  sender or public profile surfaces.
+
+Email delivery status values:
+
+- `not_requested`
+- `pending`
+- `sent`
+- `failed`
+
+The application records email relay or alert delivery outcomes on the contact
+request. Failed direct-email relays are surfaced to the sender, while failed
+in-app alert emails do not disable the in-app conversation.
 
 ## Search Support
 

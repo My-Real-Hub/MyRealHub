@@ -9,6 +9,9 @@ import type { ProviderProfileFormData } from "@/components/providers/provider-pr
 import { requireProfileRole } from "@/lib/auth/session";
 import {
   CONTACT_REQUESTS_PER_PAGE,
+  contactDeliveryMethodLabels,
+  contactEmailDeliveryStatusClassNames,
+  contactEmailDeliveryStatusLabels,
   contactRequestStatusClassNames,
   contactRequestStatusFilters,
   contactRequestStatusLabels,
@@ -16,6 +19,8 @@ import {
   getPaginationItems,
   getPositivePage,
   getQueryValue,
+  type ContactDeliveryMethod,
+  type ContactEmailDeliveryStatus,
   type ContactRequestStatus,
   type ContactRequestStatusFilter,
 } from "@/lib/contact-requests";
@@ -65,6 +70,10 @@ type ContactRequestRow = {
   sender_phone: string | null;
   subject: string;
   message: string;
+  delivery_method: ContactDeliveryMethod;
+  email_delivery_status: ContactEmailDeliveryStatus;
+  email_delivery_error: string | null;
+  email_delivered_at: string | null;
   provider_response: string | null;
   status: ContactRequestStatus;
   read_at: string | null;
@@ -378,6 +387,10 @@ const contactRequestColumns = [
   "sender_phone",
   "subject",
   "message",
+  "delivery_method",
+  "email_delivery_status",
+  "email_delivery_error",
+  "email_delivered_at",
   "provider_response",
   "status",
   "read_at",
@@ -500,6 +513,20 @@ function ContactRequestStatusBadge({
       className={`w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${contactRequestStatusClassNames[status]}`}
     >
       {contactRequestStatusLabels[status]}
+    </span>
+  );
+}
+
+function EmailDeliveryStatusBadge({
+  status,
+}: {
+  status: ContactEmailDeliveryStatus;
+}) {
+  return (
+    <span
+      className={`w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${contactEmailDeliveryStatusClassNames[status]}`}
+    >
+      Email {contactEmailDeliveryStatusLabels[status]}
     </span>
   );
 }
@@ -653,10 +680,20 @@ function ContactRequestListItem({
             {request.sender_email}
           </p>
         </div>
-        <ContactRequestStatusBadge status={request.status} />
+        <div className="flex flex-wrap gap-2">
+          <ContactRequestStatusBadge status={request.status} />
+          {request.email_delivery_status === "failed" ? (
+            <EmailDeliveryStatusBadge
+              status={request.email_delivery_status}
+            />
+          ) : null}
+        </div>
       </div>
       <p className="mt-3 text-sm font-semibold text-stone-950">
         {request.subject}
+      </p>
+      <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+        {contactDeliveryMethodLabels[request.delivery_method]}
       </p>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-700">
         {request.message}
@@ -765,7 +802,38 @@ function ContactRequestDetail({
             {formatDate(request.updated_at)}
           </dd>
         </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+            Delivery
+          </dt>
+          <dd className="mt-1 font-medium text-stone-900">
+            {contactDeliveryMethodLabels[request.delivery_method]}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+            Email delivery
+          </dt>
+          <dd className="mt-1 flex flex-wrap gap-2 font-medium text-stone-900">
+            <EmailDeliveryStatusBadge
+              status={request.email_delivery_status}
+            />
+            {request.email_delivered_at ? (
+              <span>{formatDate(request.email_delivered_at)}</span>
+            ) : null}
+          </dd>
+        </div>
       </dl>
+
+      {request.email_delivery_status === "failed" ? (
+        <p
+          className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
+          role="status"
+        >
+          {request.email_delivery_error ??
+            "Email delivery failed. The inquiry is still available in MyRealHub."}
+        </p>
+      ) : null}
 
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-stone-950">Message</h3>

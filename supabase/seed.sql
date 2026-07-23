@@ -311,6 +311,24 @@ set
   submitted_at = excluded.submitted_at,
   approved_at = excluded.approved_at;
 
+insert into public.provider_notification_preferences (
+  provider_profile_id,
+  notification_email
+)
+select
+  provider_profiles.id,
+  lower(
+    nullif(
+      btrim(coalesce(provider_profiles.email, profiles.email, '')),
+      ''
+    )
+  )
+from public.provider_profiles
+left join public.profiles
+  on profiles.id = provider_profiles.user_id
+on conflict (provider_profile_id) do update
+set notification_email = excluded.notification_email;
+
 insert into public.provider_service_regions (
   provider_profile_id,
   service_region_id
