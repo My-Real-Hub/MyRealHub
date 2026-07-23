@@ -330,16 +330,13 @@ export async function markContactRequestRead(formData: FormData) {
     redirectToContactRequestOutcome(formData, "not-found");
   }
 
-  const now = new Date().toISOString();
   const supabase = await getServerSupabaseClient();
-  const { error } = await supabase
-    .from("contact_requests")
-    .update({
-      status: "read",
-      read_at: now,
-    })
-    .eq("id", requestId)
-    .eq("status", "new");
+  const { error } = await supabase.rpc(
+    "mark_contact_request_conversation_read",
+    {
+      target_contact_request_id: requestId,
+    },
+  );
 
   if (error) {
     redirectToContactRequestOutcome(formData, "error");
@@ -366,20 +363,11 @@ export async function respondToContactRequest(formData: FormData) {
     redirectToContactRequestOutcome(formData, "response-too-long");
   }
 
-  const now = new Date().toISOString();
   const supabase = await getServerSupabaseClient();
-  const { error } = await supabase
-    .from("contact_requests")
-    .update({
-      status: "responded",
-      provider_response: providerResponse,
-      read_at: now,
-      responded_at: now,
-      rejected_at: null,
-      archived_at: null,
-    })
-    .eq("id", requestId)
-    .neq("status", "archived");
+  const { error } = await supabase.rpc("send_contact_request_message", {
+    message_body: providerResponse,
+    target_contact_request_id: requestId,
+  });
 
   if (error) {
     redirectToContactRequestOutcome(formData, "error");
@@ -402,20 +390,15 @@ export async function rejectContactRequest(formData: FormData) {
     redirectToContactRequestOutcome(formData, "response-too-long");
   }
 
-  const now = new Date().toISOString();
   const supabase = await getServerSupabaseClient();
-  const { error } = await supabase
-    .from("contact_requests")
-    .update({
-      status: "rejected",
-      provider_response: providerResponse || null,
-      read_at: now,
-      responded_at: null,
-      rejected_at: now,
-      archived_at: null,
-    })
-    .eq("id", requestId)
-    .neq("status", "archived");
+  const { error } = await supabase.rpc(
+    "update_contact_request_conversation_status",
+    {
+      target_contact_request_id: requestId,
+      target_provider_note: providerResponse || null,
+      target_status: "rejected",
+    },
+  );
 
   if (error) {
     redirectToContactRequestOutcome(formData, "error");
@@ -433,16 +416,15 @@ export async function archiveContactRequest(formData: FormData) {
     redirectToContactRequestOutcome(formData, "not-found");
   }
 
-  const now = new Date().toISOString();
   const supabase = await getServerSupabaseClient();
-  const { error } = await supabase
-    .from("contact_requests")
-    .update({
-      status: "archived",
-      read_at: now,
-      archived_at: now,
-    })
-    .eq("id", requestId);
+  const { error } = await supabase.rpc(
+    "update_contact_request_conversation_status",
+    {
+      target_contact_request_id: requestId,
+      target_provider_note: null,
+      target_status: "archived",
+    },
+  );
 
   if (error) {
     redirectToContactRequestOutcome(formData, "error");

@@ -121,7 +121,8 @@ recipient provider profile to be active and accepting new inquiries, requires
 the inserted delivery method to match the provider's current preference, and
 prevents providers from contacting their own provider profile. Sender name,
 email, optional phone, subject, message, delivery method, email delivery status,
-request status, and timestamps are stored with each request.
+request status, latest-message timestamp, participant read timestamps, and
+audit timestamps are stored with each request.
 
 Contact request status values:
 
@@ -148,6 +149,29 @@ Email delivery status values:
 The application records email relay or alert delivery outcomes on the contact
 request. Failed direct-email relays are surfaced to the sender, while failed
 in-app alert emails do not disable the in-app conversation.
+
+`public.contact_request_messages` stores the message thread for each contact
+request. It keeps a sender profile reference when one is available plus
+name/avatar/email snapshots needed to render the conversation history if a
+profile later changes. Provider message snapshots intentionally do not expose
+the provider notification email address.
+
+Message RLS is participant-only: authenticated users can select messages only
+when they are the request sender or they own the recipient provider profile.
+Message writes, read-state updates, rejection, and deletion flow through
+security-definer RPCs that re-check participant authorization server-side:
+
+- `send_contact_request_message`
+- `mark_contact_request_conversation_read`
+- `update_contact_request_conversation_status`
+
+The `contact_request_latest_messages` security-invoker view exposes only the
+latest message that the current participant is already allowed to read.
+
+Provider inbox screens group multiple contact requests from the same sender to
+the same provider profile into one message board. The individual
+`contact_requests` rows remain intact for status, delivery, and audit history;
+the UI merges their `contact_request_messages` in chronological order.
 
 ## Search Support
 
