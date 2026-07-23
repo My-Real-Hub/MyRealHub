@@ -1,150 +1,18 @@
 import Link from "next/link";
+import { ConversationCenter } from "@/components/messages/conversation-center";
 import { SavedProviderCard } from "@/components/providers/saved-provider-card";
 import { requireProfileCapability } from "@/lib/auth/session";
-import {
-  CONTACT_REQUESTS_PER_PAGE,
-  contactDeliveryMethodLabels,
-  contactEmailDeliveryStatusClassNames,
-  contactEmailDeliveryStatusLabels,
-  contactRequestStatusClassNames,
-  contactRequestStatusFilters,
-  contactRequestStatusLabels,
-  getContactRequestStatusFilter,
-  getPaginationItems,
-  getPositivePage,
-  getQueryValue,
-  type ContactDeliveryMethod,
-  type ContactEmailDeliveryStatus,
-  type ContactRequestStatus,
-  type ContactRequestStatusFilter,
-} from "@/lib/contact-requests";
+import { getQueryValue } from "@/lib/contact-requests";
+import { getConsumerConversationCenterData } from "@/lib/messages";
 import { getSavedProviderData } from "@/lib/saved-providers";
-import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type UserDashboardPageProps = {
   searchParams: Promise<UserDashboardSearchParams>;
 };
 
 type UserDashboardSearchParams = {
-  messagePage?: string | string[];
-  messageStatus?: string | string[];
+  message?: string | string[];
 };
-
-type SentContactRequestRow = {
-  id: string;
-  provider_profile_id: string;
-  sender_name: string;
-  sender_email: string;
-  sender_phone: string | null;
-  subject: string;
-  message: string;
-  delivery_method: ContactDeliveryMethod;
-  email_delivery_status: ContactEmailDeliveryStatus;
-  email_delivery_error: string | null;
-  email_delivered_at: string | null;
-  provider_response: string | null;
-  status: ContactRequestStatus;
-  read_at: string | null;
-  responded_at: string | null;
-  rejected_at: string | null;
-  archived_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type SentContactProviderRow = {
-  id: string;
-  slug: string;
-  business_name: string | null;
-  display_name: string | null;
-  city: string | null;
-  province_state: string | null;
-  country: string | null;
-};
-
-type SentContactRequest = SentContactRequestRow & {
-  provider: SentContactProviderRow | null;
-};
-
-type SentContactRequestPageData = {
-  rows: SentContactRequest[];
-  total: number;
-  page: number;
-  totalPages: number;
-  statusFilter: ContactRequestStatusFilter;
-};
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-const sentContactRequestColumns = [
-  "id",
-  "provider_profile_id",
-  "sender_name",
-  "sender_email",
-  "sender_phone",
-  "subject",
-  "message",
-  "delivery_method",
-  "email_delivery_status",
-  "email_delivery_error",
-  "email_delivered_at",
-  "provider_response",
-  "status",
-  "read_at",
-  "responded_at",
-  "rejected_at",
-  "archived_at",
-  "created_at",
-  "updated_at",
-].join(",");
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return "Not recorded";
-  }
-
-  return dateFormatter.format(new Date(value));
-}
-
-function getProviderName(provider: SentContactProviderRow | null) {
-  return provider?.business_name ?? provider?.display_name ?? "Provider profile";
-}
-
-function getProviderLocation(provider: SentContactProviderRow | null) {
-  const parts = [
-    provider?.city,
-    provider?.province_state,
-    provider?.country,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(", ") : "Location not available";
-}
-
-function getSentMessagesHref({
-  page = 1,
-  statusFilter = "all",
-}: {
-  page?: number;
-  statusFilter?: ContactRequestStatusFilter;
-}) {
-  const params = new URLSearchParams();
-
-  if (statusFilter !== "all") {
-    params.set("messageStatus", statusFilter);
-  }
-
-  if (page > 1) {
-    params.set("messagePage", String(page));
-  }
-
-  const queryString = params.toString();
-
-  return `/dashboard${queryString ? `?${queryString}` : ""}#sent-messages`;
-}
 
 function EmptySavedProviders() {
   return (
@@ -166,360 +34,18 @@ function EmptySavedProviders() {
   );
 }
 
-async function getSentContactRequestPageData({
-  requestedPage,
-  statusFilter,
-  userId,
-}: {
-  requestedPage: number;
-  statusFilter: ContactRequestStatusFilter;
-  userId: string;
-}): Promise<SentContactRequestPageData> {
-  const supabase = await getServerSupabaseClient();
-  let countQuery = supabase
-    .from("contact_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("sender_user_id", userId);
-
-  if (statusFilter !== "all") {
-    countQuery = countQuery.eq("status", statusFilter);
-  }
-
-  const { count } = await countQuery;
-  const total = count ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / CONTACT_REQUESTS_PER_PAGE));
-  const page = Math.min(requestedPage, totalPages);
-  const rangeStart = (page - 1) * CONTACT_REQUESTS_PER_PAGE;
-  const rangeEnd = rangeStart + CONTACT_REQUESTS_PER_PAGE - 1;
-  let requestQuery = supabase
-    .from("contact_requests")
-    .select(sentContactRequestColumns)
-    .eq("sender_user_id", userId)
-    .order("created_at", { ascending: false })
-    .range(rangeStart, rangeEnd);
-
-  if (statusFilter !== "all") {
-    requestQuery = requestQuery.eq("status", statusFilter);
-  }
-
-  const { data } = await requestQuery;
-  const rows = (data ?? []) as unknown as SentContactRequestRow[];
-  const providerIds = Array.from(
-    new Set(rows.map((row) => row.provider_profile_id)),
-  );
-  const { data: providers } =
-    providerIds.length > 0
-      ? await supabase
-          .from("provider_profiles")
-          .select("id,slug,business_name,display_name,city,province_state,country")
-          .in("id", providerIds)
-      : { data: [] };
-  const providerMap = new Map(
-    ((providers ?? []) as SentContactProviderRow[]).map((provider) => [
-      provider.id,
-      provider,
-    ]),
-  );
-
-  return {
-    rows: rows.map((row) => ({
-      ...row,
-      provider: providerMap.get(row.provider_profile_id) ?? null,
-    })),
-    total,
-    page,
-    totalPages,
-    statusFilter,
-  };
-}
-
-async function getSentContactRequestTotal(userId: string) {
-  const supabase = await getServerSupabaseClient();
-  const { count } = await supabase
-    .from("contact_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("sender_user_id", userId);
-
-  return count ?? 0;
-}
-
-function SentMessageStatusBadge({ status }: { status: ContactRequestStatus }) {
-  return (
-    <span
-      className={`w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${contactRequestStatusClassNames[status]}`}
-    >
-      {contactRequestStatusLabels[status]}
-    </span>
-  );
-}
-
-function SentEmailDeliveryStatusBadge({
-  status,
-}: {
-  status: ContactEmailDeliveryStatus;
-}) {
-  return (
-    <span
-      className={`w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${contactEmailDeliveryStatusClassNames[status]}`}
-    >
-      Email {contactEmailDeliveryStatusLabels[status]}
-    </span>
-  );
-}
-
-function SentMessageFilters({
-  selectedStatus,
-}: {
-  selectedStatus: ContactRequestStatusFilter;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2" aria-label="Sent message filters">
-      {contactRequestStatusFilters.map((option) => {
-        const isSelected = option.value === selectedStatus;
-
-        return (
-          <Link
-            key={option.value}
-            href={getSentMessagesHref({
-              page: 1,
-              statusFilter: option.value,
-            })}
-            aria-current={isSelected ? "page" : undefined}
-            className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
-              isSelected
-                ? "border-stone-950 bg-stone-950 text-white"
-                : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
-            }`}
-          >
-            {option.label}
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
-
-function SentMessagePagination({
-  sentMessages,
-}: {
-  sentMessages: SentContactRequestPageData;
-}) {
-  if (sentMessages.totalPages <= 1) {
-    return null;
-  }
-
-  const previousPage = Math.max(1, sentMessages.page - 1);
-  const nextPage = Math.min(sentMessages.totalPages, sentMessages.page + 1);
-
-  return (
-    <nav
-      className="mt-5 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:items-center sm:justify-between"
-      aria-label="Sent message pagination"
-    >
-      <Link
-        href={getSentMessagesHref({
-          page: previousPage,
-          statusFilter: sentMessages.statusFilter,
-        })}
-        aria-disabled={sentMessages.page === 1}
-        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
-          sentMessages.page === 1 ? "pointer-events-none opacity-50" : ""
-        }`}
-      >
-        Previous
-      </Link>
-
-      <div className="flex flex-wrap gap-2">
-        {getPaginationItems(sentMessages.page, sentMessages.totalPages).map(
-          (pageNumber) => {
-            if (typeof pageNumber !== "number") {
-              return (
-                <span
-                  key={pageNumber}
-                  className="inline-flex size-9 items-center justify-center text-xs font-semibold text-stone-400"
-                >
-                  ...
-                </span>
-              );
-            }
-
-            const isCurrent = pageNumber === sentMessages.page;
-
-            return (
-              <Link
-                key={pageNumber}
-                href={getSentMessagesHref({
-                  page: pageNumber,
-                  statusFilter: sentMessages.statusFilter,
-                })}
-                aria-current={isCurrent ? "page" : undefined}
-                className={`inline-flex size-9 items-center justify-center rounded-md border text-xs font-semibold transition ${
-                  isCurrent
-                    ? "border-stone-950 bg-stone-950 text-white"
-                    : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
-                }`}
-              >
-                {pageNumber}
-              </Link>
-            );
-          },
-        )}
-      </div>
-
-      <Link
-        href={getSentMessagesHref({
-          page: nextPage,
-          statusFilter: sentMessages.statusFilter,
-        })}
-        aria-disabled={sentMessages.page === sentMessages.totalPages}
-        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
-          sentMessages.page === sentMessages.totalPages
-            ? "pointer-events-none opacity-50"
-            : ""
-        }`}
-      >
-        Next
-      </Link>
-    </nav>
-  );
-}
-
-function SentMessagesSection({
-  sentMessages,
-}: {
-  sentMessages: SentContactRequestPageData;
-}) {
-  return (
-    <article
-      id="sent-messages"
-      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-    >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Sent messages
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-stone-950">
-            Contact requests you sent
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
-            Track whether providers have read, responded to, rejected, or deleted
-            your requests.
-          </p>
-        </div>
-        <SentMessageFilters selectedStatus={sentMessages.statusFilter} />
-      </div>
-
-      <div className="mt-6 grid gap-4">
-        {sentMessages.rows.length > 0 ? (
-          sentMessages.rows.map((request) => (
-            <div
-              key={request.id}
-              className="rounded-md border border-stone-200 px-4 py-4"
-            >
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-stone-950">
-                    {getProviderName(request.provider)}
-                  </p>
-                  <p className="mt-1 text-sm text-stone-600">
-                    {getProviderLocation(request.provider)}
-                  </p>
-                  <p className="mt-1 text-xs font-medium uppercase tracking-wide text-stone-500">
-                    Sent {formatDate(request.created_at)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <SentMessageStatusBadge status={request.status} />
-                  {request.email_delivery_status === "failed" ? (
-                    <SentEmailDeliveryStatusBadge
-                      status={request.email_delivery_status}
-                    />
-                  ) : null}
-                </div>
-              </div>
-
-              <p className="mt-4 text-sm font-semibold text-stone-950">
-                {request.subject}
-              </p>
-              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-                {contactDeliveryMethodLabels[request.delivery_method]}
-              </p>
-              <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-stone-700">
-                {request.message}
-              </p>
-
-              {request.email_delivery_status === "failed" ? (
-                <p
-                  className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
-                  role="status"
-                >
-                  {request.email_delivery_error ??
-                    "Email delivery failed. The inquiry is still saved in MyRealHub."}
-                </p>
-              ) : null}
-
-              {request.provider_response ? (
-                <div className="mt-4 rounded-md border border-stone-200 bg-stone-50 px-4 py-3">
-                  <p className="text-sm font-semibold text-stone-950">
-                    Provider response
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-stone-700">
-                    {request.provider_response}
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-4 rounded-md border border-dashed border-stone-300 px-4 py-3 text-sm leading-6 text-stone-600">
-                  No provider response yet.
-                </p>
-              )}
-
-              {request.provider?.slug ? (
-                <Link
-                  href={`/providers/${request.provider.slug}`}
-                  className="mt-4 inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-                >
-                  View provider
-                </Link>
-              ) : null}
-            </div>
-          ))
-        ) : (
-          <div className="rounded-md border border-dashed border-stone-300 px-4 py-8 text-center">
-            <p className="text-sm font-semibold text-stone-950">
-              No sent messages found
-            </p>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              Messages you send from provider profiles will appear here.
-            </p>
-          </div>
-        )}
-      </div>
-
-      <SentMessagePagination sentMessages={sentMessages} />
-    </article>
-  );
-}
-
 export default async function UserDashboardPage({
   searchParams,
 }: UserDashboardPageProps) {
   const query = await searchParams;
-  const sentMessageStatusFilter = getContactRequestStatusFilter(
-    getQueryValue(query.messageStatus),
-  );
-  const requestedSentMessagePage = getPositivePage(
-    getQueryValue(query.messagePage),
-  );
+  const selectedConversationId = getQueryValue(query.message) ?? null;
   const profile = await requireProfileCapability("consume_services");
-  const [savedProviderData, sentMessages, sentMessageTotal] = await Promise.all([
+  const [savedProviderData, conversationData] = await Promise.all([
     getSavedProviderData(profile.id),
-    getSentContactRequestPageData({
-      requestedPage: requestedSentMessagePage,
-      statusFilter: sentMessageStatusFilter,
-      userId: profile.id,
+    getConsumerConversationCenterData({
+      profile,
+      selectedConversationId,
     }),
-    getSentContactRequestTotal(profile.id),
   ]);
   const displayName = profile.fullName ?? profile.email ?? "MyRealHub user";
   const isProvider = profile.role === "provider";
@@ -539,7 +65,7 @@ export default async function UserDashboardPage({
             {[
               { href: "#overview", label: "Overview" },
               { href: "#saved-providers", label: "Saved providers" },
-              { href: "#sent-messages", label: "Sent messages" },
+              { href: "#sent-messages", label: "Messages" },
               { href: "/settings", label: "Settings" },
             ].map((item) => (
               <a
@@ -608,25 +134,23 @@ export default async function UserDashboardPage({
 
             <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-medium text-stone-500">
-                Sent messages
+                Conversations
               </p>
               <p className="mt-3 text-3xl font-semibold text-stone-950">
-                {sentMessageTotal}
+                {conversationData.total}
               </p>
               <p className="mt-2 text-sm leading-6 text-stone-600">
-                Contact requests sent to providers.
+                Provider conversations in your message history.
               </p>
             </article>
 
             <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-medium text-stone-500">
-                Hidden saved items
-              </p>
+              <p className="text-sm font-medium text-stone-500">Unread</p>
               <p className="mt-3 text-3xl font-semibold text-stone-950">
-                {savedProviderData.unavailableCount}
+                {conversationData.unreadCount}
               </p>
               <p className="mt-2 text-sm leading-6 text-stone-600">
-                Saved providers that are no longer publicly active.
+                Conversations with new provider activity.
               </p>
             </article>
 
@@ -697,8 +221,7 @@ export default async function UserDashboardPage({
             </div>
           </article>
 
-          <SentMessagesSection sentMessages={sentMessages} />
-
+          <ConversationCenter data={conversationData} />
         </div>
       </div>
     </section>
