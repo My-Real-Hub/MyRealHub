@@ -1,10 +1,23 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   createLookupItem,
   setLookupActive,
+  updateFeedbackSubmission,
   updateLookupItem,
 } from "@/app/admin/dashboard/actions";
 import { requireProfileRole } from "@/lib/auth/session";
+import {
+  FEEDBACK_SCREENSHOTS_BUCKET,
+  FEEDBACK_STATUSES,
+  FEEDBACK_TYPES,
+  feedbackStatusLabels,
+  feedbackTypeLabels,
+  isPlatformFeedbackStatus,
+  isPlatformFeedbackType,
+  type PlatformFeedbackStatus,
+  type PlatformFeedbackType,
+} from "@/lib/feedback";
 import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -35,6 +48,9 @@ type ProviderSummaryRow = {
 type AdminDashboardSearchParams = {
   status?: string | string[];
   page?: string | string[];
+  feedbackAction?: string | string[];
+  feedbackStatus?: string | string[];
+  feedbackType?: string | string[];
   lookup?: string | string[];
   lookupAction?: string | string[];
   categoriesSearch?: string | string[];
@@ -61,12 +77,50 @@ type LookupAction =
   | "error";
 
 type DashboardCountKey =
-  | "providers"
+  | "userAccounts"
+  | "providerAccounts"
+  | "providerProfiles"
   | "pending"
   | "active"
+  | "newFeedback"
   | "categories"
   | "languages"
   | "specialties";
+
+type FeedbackStatusFilter = PlatformFeedbackStatus | "all";
+type FeedbackTypeFilter = PlatformFeedbackType | "all";
+type FeedbackAction = "updated" | "invalid" | "error";
+
+type AdminGrowthCountsRow = {
+  user_count: number | string;
+  provider_count: number | string;
+  admin_count: number | string;
+  provider_profile_count: number | string;
+  active_provider_profile_count: number | string;
+  feedback_count: number | string;
+  new_feedback_count: number | string;
+};
+
+type FeedbackQueueRow = {
+  id: string;
+  type: PlatformFeedbackType;
+  title: string;
+  description: string;
+  current_page_url: string;
+  reporter_user_id: string | null;
+  reporter_name: string | null;
+  reporter_email: string | null;
+  screenshot_path: string | null;
+  screenshotUrl: string | null;
+  status: PlatformFeedbackStatus;
+  internal_notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type FeedbackQueueRpcRow = Omit<FeedbackQueueRow, "screenshotUrl">;
 
 const providerStatusFilters = [
   "all",
@@ -173,6 +227,7 @@ const selectClassName =
 
 const dashboardNavItems = [
   { href: "#providers", label: "Providers" },
+  { href: "#feedback", label: "Feedback" },
   { href: "#categories", label: "Categories" },
   { href: "#languages", label: "Languages" },
   { href: "#specialties", label: "Specialties" },
@@ -192,6 +247,37 @@ const statusClassNames: Record<ProviderProfileStatus, string> = {
   active: "border-emerald-200 bg-emerald-50 text-emerald-900",
   inactive: "border-stone-200 bg-stone-100 text-stone-700",
   rejected: "border-red-200 bg-red-50 text-red-800",
+};
+
+const feedbackStatusClassNames: Record<PlatformFeedbackStatus, string> = {
+  new: "border-sky-200 bg-sky-50 text-sky-900",
+  reviewing: "border-amber-200 bg-amber-50 text-amber-900",
+  planned: "border-violet-200 bg-violet-50 text-violet-900",
+  resolved: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  closed: "border-stone-200 bg-stone-100 text-stone-700",
+};
+
+const feedbackTypeClassNames: Record<PlatformFeedbackType, string> = {
+  bug: "border-red-200 bg-red-50 text-red-800",
+  suggestion: "border-emerald-200 bg-emerald-50 text-emerald-900",
+};
+
+const feedbackActionMessages: Record<
+  FeedbackAction,
+  { tone: "success" | "error"; message: string }
+> = {
+  updated: {
+    tone: "success",
+    message: "Feedback updated.",
+  },
+  invalid: {
+    tone: "error",
+    message: "Choose a valid status and keep internal notes under 3,000 characters.",
+  },
+  error: {
+    tone: "error",
+    message: "Feedback could not be updated. Please try again.",
+  },
 };
 
 const providerStatusFilterOptions: Array<{
@@ -224,12 +310,28 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 function formatDate(value: string | null) {
   if (!value) {
     return "Not recorded";
   }
 
   return dateFormatter.format(new Date(value));
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  return dateTimeFormatter.format(new Date(value));
 }
 
 function getProviderName(provider: ProviderSummaryRow) {
@@ -265,6 +367,30 @@ function getLookupAction(value: string | string[] | undefined) {
   return lookupAction && lookupAction in lookupActionMessages
     ? (lookupAction as LookupAction)
     : null;
+}
+
+function getFeedbackAction(value: string | string[] | undefined) {
+  const feedbackAction = getQueryValue(value);
+
+  return feedbackAction && feedbackAction in feedbackActionMessages
+    ? (feedbackAction as FeedbackAction)
+    : null;
+}
+
+function getFeedbackStatusFilter(
+  value: string | string[] | undefined,
+): FeedbackStatusFilter {
+  const status = getQueryValue(value);
+
+  return isPlatformFeedbackStatus(status) ? status : "all";
+}
+
+function getFeedbackTypeFilter(
+  value: string | string[] | undefined,
+): FeedbackTypeFilter {
+  const type = getQueryValue(value);
+
+  return isPlatformFeedbackType(type) ? type : "all";
 }
 
 function getLookupSearch(value: string | string[] | undefined) {
@@ -388,6 +514,35 @@ function appendLookupParams(
   });
 }
 
+function appendFeedbackParams(
+  params: URLSearchParams,
+  statusFilter: FeedbackStatusFilter,
+  typeFilter: FeedbackTypeFilter,
+) {
+  if (statusFilter !== "all") {
+    params.set("feedbackStatus", statusFilter);
+  }
+
+  if (typeFilter !== "all") {
+    params.set("feedbackType", typeFilter);
+  }
+}
+
+function getFeedbackDashboardHref({
+  statusFilter,
+  typeFilter,
+}: {
+  statusFilter: FeedbackStatusFilter;
+  typeFilter: FeedbackTypeFilter;
+}) {
+  const params = new URLSearchParams();
+  appendFeedbackParams(params, statusFilter, typeFilter);
+
+  const queryString = params.toString();
+
+  return `/admin/dashboard${queryString ? `?${queryString}` : ""}#feedback`;
+}
+
 function getLookupDashboardHref({
   kind,
   lookupStates,
@@ -486,6 +641,88 @@ async function getProviderCountByStatus(status: ProviderProfileStatus) {
   return count ?? 0;
 }
 
+function getCountValue(value: number | string | null | undefined) {
+  const normalizedValue =
+    typeof value === "number" ? value : Number.parseInt(value ?? "0", 10);
+
+  return Number.isFinite(normalizedValue) ? normalizedValue : 0;
+}
+
+function getDefaultGrowthCounts(): AdminGrowthCountsRow {
+  return {
+    user_count: 0,
+    provider_count: 0,
+    admin_count: 0,
+    provider_profile_count: 0,
+    active_provider_profile_count: 0,
+    feedback_count: 0,
+    new_feedback_count: 0,
+  };
+}
+
+async function getAdminGrowthCounts(): Promise<AdminGrowthCountsRow> {
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase.rpc(
+    "get_admin_platform_growth_counts",
+  );
+
+  if (error) {
+    console.error("Unable to load admin growth counts", error);
+
+    return getDefaultGrowthCounts();
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+
+  return row ? (row as AdminGrowthCountsRow) : getDefaultGrowthCounts();
+}
+
+async function addFeedbackScreenshotUrls(
+  rows: FeedbackQueueRpcRow[],
+): Promise<FeedbackQueueRow[]> {
+  const supabase = await getServerSupabaseClient();
+
+  return Promise.all(
+    rows.map(async (row) => {
+      if (!row.screenshot_path) {
+        return {
+          ...row,
+          screenshotUrl: null,
+        };
+      }
+
+      const { data, error } = await supabase.storage
+        .from(FEEDBACK_SCREENSHOTS_BUCKET)
+        .createSignedUrl(row.screenshot_path, 60 * 60);
+
+      return {
+        ...row,
+        screenshotUrl: error ? null : data?.signedUrl ?? null,
+      };
+    }),
+  );
+}
+
+async function getFeedbackQueueData(
+  statusFilter: FeedbackStatusFilter,
+  typeFilter: FeedbackTypeFilter,
+) {
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_admin_platform_feedback", {
+    result_limit: 50,
+    target_status: statusFilter === "all" ? null : statusFilter,
+    target_type: typeFilter === "all" ? null : typeFilter,
+  });
+
+  if (error) {
+    console.error("Unable to load admin feedback queue", error);
+
+    return [];
+  }
+
+  return addFeedbackScreenshotUrls((data ?? []) as FeedbackQueueRpcRow[]);
+}
+
 async function getProviderPageData(
   statusFilter: ProviderStatusFilter,
   requestedPage: number,
@@ -577,21 +814,27 @@ async function getLookupPageData<Row extends LookupRow | SpecialtyLookupRow>({
 
 async function getAdminDashboardData({
   statusFilter,
+  feedbackStatusFilter,
+  feedbackTypeFilter,
   page,
   lookupStates,
 }: {
   statusFilter: ProviderStatusFilter;
+  feedbackStatusFilter: FeedbackStatusFilter;
+  feedbackTypeFilter: FeedbackTypeFilter;
   page: number;
   lookupStates: LookupSearchStates;
 }) {
   const supabase = await getServerSupabaseClient();
   const [
-    providers,
+    growthCounts,
+    providerProfiles,
     pending,
     active,
     categories,
     languages,
     specialties,
+    feedbackQueue,
     pendingProviders,
     providerPage,
     categoryPage,
@@ -599,12 +842,14 @@ async function getAdminDashboardData({
     specialtyPage,
     categoryOptions,
   ] = await Promise.all([
+    getAdminGrowthCounts(),
     getTableCount("provider_profiles"),
     getProviderCountByStatus("pending_approval"),
     getProviderCountByStatus("active"),
     getTableCount("categories"),
     getTableCount("languages"),
     getTableCount("specialties"),
+    getFeedbackQueueData(feedbackStatusFilter, feedbackTypeFilter),
     supabase
       .from("provider_profiles")
       .select(providerSummaryColumns)
@@ -640,14 +885,19 @@ async function getAdminDashboardData({
 
   return {
     counts: {
-      providers,
+      userAccounts: getCountValue(growthCounts.user_count),
+      providerAccounts: getCountValue(growthCounts.provider_count),
+      providerProfiles:
+        getCountValue(growthCounts.provider_profile_count) || providerProfiles,
       pending,
-      active,
+      active: getCountValue(growthCounts.active_provider_profile_count) || active,
+      newFeedback: getCountValue(growthCounts.new_feedback_count),
       categories,
       languages,
       specialties,
     } satisfies Record<DashboardCountKey, number>,
     pendingProviders: (pendingProviders.data ?? []) as unknown as ProviderSummaryRow[],
+    feedbackQueue,
     providerPage,
     categoryPage,
     languagePage,
@@ -812,6 +1062,370 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
         Next
       </Link>
     </nav>
+  );
+}
+
+function FeedbackStatusBadge({ status }: { status: PlatformFeedbackStatus }) {
+  return (
+    <span
+      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${feedbackStatusClassNames[status]}`}
+    >
+      {feedbackStatusLabels[status]}
+    </span>
+  );
+}
+
+function FeedbackTypeBadge({ type }: { type: PlatformFeedbackType }) {
+  return (
+    <span
+      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${feedbackTypeClassNames[type]}`}
+    >
+      {feedbackTypeLabels[type]}
+    </span>
+  );
+}
+
+function FeedbackActionMessage({
+  message,
+}: {
+  message: { tone: "success" | "error"; message: string } | null;
+}) {
+  if (!message) {
+    return null;
+  }
+
+  const className =
+    message.tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      : "border-red-200 bg-red-50 text-red-800";
+
+  return (
+    <p
+      className={`mt-5 rounded-md border px-4 py-3 text-sm leading-6 ${className}`}
+      role={message.tone === "error" ? "alert" : "status"}
+      aria-live="polite"
+    >
+      {message.message}
+    </p>
+  );
+}
+
+function FeedbackFilterLink({
+  href,
+  isSelected,
+  children,
+}: {
+  href: string;
+  isSelected: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={isSelected ? "page" : undefined}
+      className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
+        isSelected
+          ? "border-stone-950 bg-stone-950 text-white"
+          : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function FeedbackFilters({
+  statusFilter,
+  typeFilter,
+}: {
+  statusFilter: FeedbackStatusFilter;
+  typeFilter: FeedbackTypeFilter;
+}) {
+  return (
+    <div className="mt-6 grid gap-4 rounded-md border border-stone-200 bg-stone-50 p-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+          Status
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <FeedbackFilterLink
+            href={getFeedbackDashboardHref({
+              statusFilter: "all",
+              typeFilter,
+            })}
+            isSelected={statusFilter === "all"}
+          >
+            All statuses
+          </FeedbackFilterLink>
+          {FEEDBACK_STATUSES.map((status) => (
+            <FeedbackFilterLink
+              key={status}
+              href={getFeedbackDashboardHref({
+                statusFilter: status,
+                typeFilter,
+              })}
+              isSelected={statusFilter === status}
+            >
+              {feedbackStatusLabels[status]}
+            </FeedbackFilterLink>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+          Type
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <FeedbackFilterLink
+            href={getFeedbackDashboardHref({
+              statusFilter,
+              typeFilter: "all",
+            })}
+            isSelected={typeFilter === "all"}
+          >
+            All feedback
+          </FeedbackFilterLink>
+          {FEEDBACK_TYPES.map((type) => (
+            <FeedbackFilterLink
+              key={type}
+              href={getFeedbackDashboardHref({
+                statusFilter,
+                typeFilter: type,
+              })}
+              isSelected={typeFilter === type}
+            >
+              {feedbackTypeLabels[type]}
+            </FeedbackFilterLink>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeedbackQueueSection({
+  rows,
+  statusFilter,
+  typeFilter,
+  actionMessage,
+}: {
+  rows: FeedbackQueueRow[];
+  statusFilter: FeedbackStatusFilter;
+  typeFilter: FeedbackTypeFilter;
+  actionMessage: { tone: "success" | "error"; message: string } | null;
+}) {
+  const queueLabel =
+    rows.length === 1 ? "1 submission" : `${rows.length} submissions`;
+
+  return (
+    <article
+      id="feedback"
+      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            Feedback
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-stone-950">
+            Bug reports and suggestions
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
+            Review user-submitted feedback, keep internal notes, and move items
+            through the product queue.
+          </p>
+        </div>
+        <span className="w-fit rounded-md bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-900">
+          {queueLabel}
+        </span>
+      </div>
+
+      <FeedbackActionMessage message={actionMessage} />
+
+      <FeedbackFilters statusFilter={statusFilter} typeFilter={typeFilter} />
+
+      <div className="mt-6 grid gap-3">
+        {rows.length > 0 ? (
+          rows.map((feedback) => (
+            <details
+              key={feedback.id}
+              className="group rounded-md border border-stone-200 bg-white px-4 py-3"
+            >
+              <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between [&::-webkit-details-marker]:hidden">
+                <div className="flex items-start gap-3">
+                  <span
+                    className="mt-1 text-stone-400 transition group-open:rotate-90"
+                    aria-hidden="true"
+                  >
+                    &gt;
+                  </span>
+                  <div>
+                    <div className="flex flex-wrap gap-2">
+                      <FeedbackTypeBadge type={feedback.type} />
+                      <FeedbackStatusBadge status={feedback.status} />
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-stone-950">
+                      {feedback.title}
+                    </p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      Submitted {formatDateTime(feedback.created_at)}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-sm font-medium text-stone-900">
+                    {feedback.reporter_name ?? "Deleted account"}
+                  </p>
+                  <p className="mt-1 break-words text-xs text-stone-500">
+                    {feedback.reporter_email ?? "No email snapshot"}
+                  </p>
+                </div>
+              </summary>
+
+              <div className="mt-4 grid gap-4 border-t border-stone-200 pt-4">
+                <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                      Description
+                    </h3>
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-stone-700">
+                      {feedback.description}
+                    </p>
+                  </div>
+                  <div className="grid gap-3 rounded-md bg-stone-50 p-4 text-sm text-stone-700">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        Page
+                      </p>
+                      <a
+                        href={feedback.current_page_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 block break-all font-medium text-emerald-800 hover:text-emerald-900"
+                      >
+                        {feedback.current_page_url}
+                      </a>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        Screenshot
+                      </p>
+                      {feedback.screenshotUrl ? (
+                        <a
+                          href={feedback.screenshotUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 inline-flex font-semibold text-emerald-800 hover:text-emerald-900"
+                        >
+                          View screenshot
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-stone-500">
+                          {feedback.screenshot_path
+                            ? "Screenshot unavailable"
+                            : "No screenshot attached"}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        Last updated
+                      </p>
+                      <p className="mt-1">{formatDateTime(feedback.updated_at)}</p>
+                    </div>
+                    {feedback.reviewed_at ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                          Reviewed
+                        </p>
+                        <p className="mt-1">
+                          {formatDateTime(feedback.reviewed_at)}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <form
+                  action={updateFeedbackSubmission}
+                  className="grid gap-4 rounded-md border border-stone-200 bg-stone-50 p-4"
+                >
+                  <input name="feedbackId" type="hidden" value={feedback.id} />
+                  <input
+                    name="returnFeedbackStatus"
+                    type="hidden"
+                    value={statusFilter}
+                  />
+                  <input
+                    name="returnFeedbackType"
+                    type="hidden"
+                    value={typeFilter}
+                  />
+                  <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
+                    <label
+                      htmlFor={`feedback-${feedback.id}-status`}
+                      className="grid gap-2 text-sm font-medium text-stone-800"
+                    >
+                      Status
+                      <select
+                        id={`feedback-${feedback.id}-status`}
+                        name="status"
+                        defaultValue={feedback.status}
+                        className={selectClassName}
+                      >
+                        {FEEDBACK_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {feedbackStatusLabels[status]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label
+                      htmlFor={`feedback-${feedback.id}-notes`}
+                      className="grid gap-2 text-sm font-medium text-stone-800"
+                    >
+                      Internal notes
+                      <textarea
+                        id={`feedback-${feedback.id}-notes`}
+                        name="internalNotes"
+                        defaultValue={feedback.internal_notes ?? ""}
+                        maxLength={3000}
+                        placeholder="Add internal triage notes for other admins."
+                        className={textareaClassName}
+                      />
+                    </label>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="h-10 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                    >
+                      Save feedback
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </details>
+          ))
+        ) : (
+          <div className="rounded-md border border-dashed border-stone-300 px-4 py-8 text-center">
+            <p className="text-sm font-medium text-stone-700">
+              No feedback matches these filters.
+            </p>
+            <Link
+              href={getFeedbackDashboardHref({
+                statusFilter: "all",
+                typeFilter: "all",
+              })}
+              className="mt-3 inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+            >
+              Clear filters
+            </Link>
+          </div>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -1355,12 +1969,17 @@ export default async function AdminDashboardPage({
   const profile = await requireProfileRole("admin");
   const query = await searchParams;
   const statusFilter = getProviderStatusFilter(query.status);
+  const feedbackStatusFilter = getFeedbackStatusFilter(query.feedbackStatus);
+  const feedbackTypeFilter = getFeedbackTypeFilter(query.feedbackType);
+  const feedbackAction = getFeedbackAction(query.feedbackAction);
   const providerPageNumber = getProviderPageNumber(query.page);
   const lookupStates = getLookupSearchStates(query);
   const activeLookupKind = getLookupKind(query.lookup);
   const activeLookupAction = getLookupAction(query.lookupAction);
   const dashboardData = await getAdminDashboardData({
     statusFilter,
+    feedbackStatusFilter,
+    feedbackTypeFilter,
     page: providerPageNumber,
     lookupStates,
   });
@@ -1407,8 +2026,8 @@ export default async function AdminDashboardPage({
                   Platform operations
                 </h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                  Review provider status and directory lookup data from one
-                  admin workspace.
+                  Review provider status, platform feedback, and directory
+                  lookup data from one admin workspace.
                 </p>
               </div>
               <Link
@@ -1422,12 +2041,27 @@ export default async function AdminDashboardPage({
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <CountCard
+              label="User accounts"
+              value={dashboardData.counts.userAccounts}
+            />
+            <CountCard
+              label="Provider accounts"
+              value={dashboardData.counts.providerAccounts}
+            />
+            <CountCard
               label="Pending approval"
               value={dashboardData.counts.pending}
               tone="dark"
             />
-            <CountCard label="Providers" value={dashboardData.counts.providers} />
             <CountCard label="Active listings" value={dashboardData.counts.active} />
+            <CountCard
+              label="Provider profiles"
+              value={dashboardData.counts.providerProfiles}
+            />
+            <CountCard
+              label="New feedback"
+              value={dashboardData.counts.newFeedback}
+            />
             <CountCard label="Categories" value={dashboardData.counts.categories} />
             <CountCard label="Languages" value={dashboardData.counts.languages} />
             <CountCard label="Specialties" value={dashboardData.counts.specialties} />
@@ -1496,6 +2130,15 @@ export default async function AdminDashboardPage({
               <ProviderPagination providerPage={dashboardData.providerPage} />
             </div>
           </article>
+
+          <FeedbackQueueSection
+            rows={dashboardData.feedbackQueue}
+            statusFilter={feedbackStatusFilter}
+            typeFilter={feedbackTypeFilter}
+            actionMessage={
+              feedbackAction ? feedbackActionMessages[feedbackAction] : null
+            }
+          />
 
           <div className="grid gap-6 xl:grid-cols-2">
             <LookupManagementSection

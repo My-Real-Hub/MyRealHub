@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FeedbackLink } from "@/components/feedback/feedback-link";
 
 const footerLinks = [
   { href: "/", label: "Home" },
@@ -32,6 +33,7 @@ export function SiteFooter() {
               {link.label}
             </Link>
           ))}
+          <FeedbackLink className="transition hover:text-stone-950" />
         </nav>
       </div>
     </footer>
