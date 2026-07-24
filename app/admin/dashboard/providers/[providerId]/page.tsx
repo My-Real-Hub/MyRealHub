@@ -7,6 +7,7 @@ import {
   rejectProviderProfile,
   setProviderActive,
   setProviderInactive,
+  setProviderRatingModerationStatus,
 } from "@/app/admin/dashboard/actions";
 import { requireProfileRole } from "@/lib/auth/session";
 import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
@@ -57,6 +58,23 @@ type ProviderReviewProfile = ProviderDetailRow & {
   specialtyNames: string[];
 };
 
+type ProviderRatingModerationStatus = "visible" | "hidden" | "removed";
+
+type AdminProviderRatingRow = {
+  id: string;
+  provider_profile_id: string;
+  rater_user_id: string;
+  reviewer_name: string | null;
+  reviewer_email: string | null;
+  rating: number;
+  review: string | null;
+  moderation_status: ProviderRatingModerationStatus;
+  moderated_at: string | null;
+  moderated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 const statusLabels: Record<ProviderProfileStatus, string> = {
   draft: "Draft",
   pending_approval: "Pending approval",
@@ -71,6 +89,18 @@ const statusClassNames: Record<ProviderProfileStatus, string> = {
   active: "border-emerald-200 bg-emerald-50 text-emerald-900",
   inactive: "border-stone-200 bg-stone-100 text-stone-700",
   rejected: "border-red-200 bg-red-50 text-red-800",
+};
+
+const ratingStatusLabels: Record<ProviderRatingModerationStatus, string> = {
+  visible: "Visible",
+  hidden: "Hidden",
+  removed: "Removed",
+};
+
+const ratingStatusClassNames: Record<ProviderRatingModerationStatus, string> = {
+  visible: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  hidden: "border-amber-200 bg-amber-50 text-amber-900",
+  removed: "border-stone-200 bg-stone-100 text-stone-700",
 };
 
 const reviewMessages: Record<
@@ -92,6 +122,21 @@ const reviewMessages: Record<
   active: {
     tone: "success",
     message: "Provider set active. The profile is visible publicly again.",
+  },
+  "rating-hidden": {
+    tone: "success",
+    message:
+      "Rating hidden. It is excluded from public reviews and aggregate ratings.",
+  },
+  "rating-removed": {
+    tone: "success",
+    message:
+      "Rating marked removed. It is excluded from public reviews and aggregate ratings.",
+  },
+  "rating-visible": {
+    tone: "success",
+    message:
+      "Rating made visible. It now contributes to public reviews and aggregate ratings.",
   },
   "missing-rejection-reason": {
     tone: "error",
@@ -242,12 +287,39 @@ async function getProviderReviewProfile(providerId: string) {
   } satisfies ProviderReviewProfile;
 }
 
+async function getProviderRatings(providerId: string) {
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_admin_provider_ratings", {
+    target_provider_profile_id: providerId,
+  });
+
+  if (error) {
+    return [] as AdminProviderRatingRow[];
+  }
+
+  return (data ?? []) as AdminProviderRatingRow[];
+}
+
 function StatusBadge({ status }: { status: ProviderProfileStatus }) {
   return (
     <span
       className={`inline-flex w-fit rounded-md border px-3 py-1 text-sm font-semibold ${statusClassNames[status]}`}
     >
       {statusLabels[status]}
+    </span>
+  );
+}
+
+function RatingStatusBadge({
+  status,
+}: {
+  status: ProviderRatingModerationStatus;
+}) {
+  return (
+    <span
+      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${ratingStatusClassNames[status]}`}
+    >
+      {ratingStatusLabels[status]}
     </span>
   );
 }
@@ -287,6 +359,25 @@ function TagList({ items }: { items: string[] }) {
         </span>
       ))}
     </div>
+  );
+}
+
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-base"
+      aria-label={`${rating} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map((value) => (
+        <span
+          key={value}
+          aria-hidden="true"
+          className={value <= rating ? "text-amber-400" : "text-stone-300"}
+        >
+          ★
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -403,6 +494,135 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
   );
 }
 
+function RatingModerationButton({
+  label,
+  providerId,
+  ratingId,
+  status,
+  tone,
+}: {
+  label: string;
+  providerId: string;
+  ratingId: string;
+  status: ProviderRatingModerationStatus;
+  tone: "primary" | "neutral" | "danger";
+}) {
+  const className =
+    tone === "primary"
+      ? "bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-100"
+      : tone === "danger"
+        ? "border border-red-200 text-red-700 hover:border-red-300 hover:bg-red-50 focus:ring-red-100"
+        : "border border-stone-300 text-stone-800 hover:border-stone-950 hover:text-stone-950 focus:ring-stone-100";
+
+  return (
+    <form action={setProviderRatingModerationStatus}>
+      <input name="providerId" type="hidden" value={providerId} />
+      <input name="ratingId" type="hidden" value={ratingId} />
+      <input name="moderationStatus" type="hidden" value={status} />
+      <button
+        type="submit"
+        className={`h-9 rounded-md px-3 text-xs font-semibold transition focus:outline-none focus:ring-4 ${className}`}
+      >
+        {label}
+      </button>
+    </form>
+  );
+}
+
+function RatingModerationPanel({
+  providerId,
+  ratings,
+}: {
+  providerId: string;
+  ratings: AdminProviderRatingRow[];
+}) {
+  return (
+    <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            Rating moderation
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-stone-950">
+            Reviews and ratings
+          </h2>
+        </div>
+        <p className="text-sm text-stone-500">
+          {ratings.length} rating{ratings.length === 1 ? "" : "s"}
+        </p>
+      </div>
+
+      {ratings.length === 0 ? (
+        <p className="mt-6 rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm leading-6 text-stone-600">
+          This provider has not received ratings yet.
+        </p>
+      ) : (
+        <div className="mt-6 grid gap-4">
+          {ratings.map((rating) => (
+            <section
+              key={rating.id}
+              className="rounded-md border border-stone-200 bg-stone-50 p-4"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-stone-950">
+                      {rating.reviewer_name ?? "MyRealHub member"}
+                    </p>
+                    <RatingStatusBadge status={rating.moderation_status} />
+                  </div>
+                  <p className="mt-1 text-sm text-stone-500">
+                    {rating.reviewer_email ?? "No reviewer email"} ·{" "}
+                    {formatDate(rating.updated_at)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <StarRating rating={rating.rating} />
+                  <span>{rating.rating}/5</span>
+                </div>
+              </div>
+
+              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-stone-700">
+                {rating.review ?? "No written review."}
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-stone-200 pt-4">
+                {rating.moderation_status !== "visible" ? (
+                  <RatingModerationButton
+                    label="Make visible"
+                    providerId={providerId}
+                    ratingId={rating.id}
+                    status="visible"
+                    tone="primary"
+                  />
+                ) : null}
+                {rating.moderation_status !== "hidden" ? (
+                  <RatingModerationButton
+                    label="Hide"
+                    providerId={providerId}
+                    ratingId={rating.id}
+                    status="hidden"
+                    tone="neutral"
+                  />
+                ) : null}
+                {rating.moderation_status !== "removed" ? (
+                  <RatingModerationButton
+                    label="Mark removed"
+                    providerId={providerId}
+                    ratingId={rating.id}
+                    status="removed"
+                    tone="danger"
+                  />
+                ) : null}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
 export default async function AdminProviderReviewPage({
   params,
   searchParams,
@@ -411,7 +631,10 @@ export default async function AdminProviderReviewPage({
 
   const { providerId } = await params;
   const query = await searchParams;
-  const provider = await getProviderReviewProfile(providerId);
+  const [provider, ratings] = await Promise.all([
+    getProviderReviewProfile(providerId),
+    getProviderRatings(providerId),
+  ]);
 
   if (!provider) {
     notFound();
@@ -524,6 +747,11 @@ export default async function AdminProviderReviewPage({
               </div>
             </div>
           </article>
+
+          <RatingModerationPanel
+            providerId={provider.id}
+            ratings={ratings}
+          />
         </div>
 
         <div className="grid gap-6 lg:sticky lg:top-28">

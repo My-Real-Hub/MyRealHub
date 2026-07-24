@@ -11,6 +11,9 @@ type ReviewOutcome =
   | "rejected"
   | "inactive"
   | "active"
+  | "rating-hidden"
+  | "rating-removed"
+  | "rating-visible"
   | "missing-rejection-reason"
   | "not-updated";
 
@@ -29,6 +32,9 @@ type LookupPayload = Record<string, string | boolean | null>;
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ratingModerationStatuses = ["visible", "hidden", "removed"] as const;
+
+type RatingModerationStatus = (typeof ratingModerationStatuses)[number];
 
 const lookupAnchors: Record<LookupKind, string> = {
   categories: "categories",
@@ -134,6 +140,28 @@ function getProviderId(formData: FormData) {
   return providerId;
 }
 
+function getRatingId(formData: FormData) {
+  const ratingId = getFormString(formData, "ratingId");
+
+  if (!uuidPattern.test(ratingId)) {
+    redirect("/admin/dashboard#providers");
+  }
+
+  return ratingId;
+}
+
+function getRatingModerationStatus(formData: FormData): RatingModerationStatus {
+  const status = getFormString(formData, "moderationStatus");
+
+  if (
+    ratingModerationStatuses.includes(status as RatingModerationStatus)
+  ) {
+    return status as RatingModerationStatus;
+  }
+
+  redirect("/admin/dashboard#providers");
+}
+
 function getProviderReviewPath(providerId: string, outcome: ReviewOutcome) {
   return `/admin/dashboard/providers/${providerId}?review=${outcome}`;
 }
@@ -142,6 +170,31 @@ function revalidateProviderReviewPaths(providerId: string) {
   revalidatePath("/admin/dashboard");
   revalidatePath(`/admin/dashboard/providers/${providerId}`);
   revalidatePath("/search");
+}
+
+function getRatingModerationOutcome(
+  status: RatingModerationStatus,
+): ReviewOutcome {
+  if (status === "hidden") {
+    return "rating-hidden";
+  }
+
+  if (status === "removed") {
+    return "rating-removed";
+  }
+
+  return "rating-visible";
+}
+
+async function getProviderSlug(providerId: string) {
+  const supabase = await getServerSupabaseClient();
+  const { data } = await supabase
+    .from("provider_profiles")
+    .select("slug")
+    .eq("id", providerId)
+    .maybeSingle();
+
+  return typeof data?.slug === "string" ? data.slug : null;
 }
 
 async function updateProviderStatus({
@@ -260,6 +313,46 @@ export async function setProviderActive(formData: FormData) {
 
   redirect(
     getProviderReviewPath(providerId, isUpdated ? "active" : "not-updated"),
+  );
+}
+
+export async function setProviderRatingModerationStatus(formData: FormData) {
+  await requireProfileRole("admin");
+
+  const fallbackProviderId = getProviderId(formData);
+  const ratingId = getRatingId(formData);
+  const moderationStatus = getRatingModerationStatus(formData);
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase.rpc("moderate_provider_rating", {
+    target_rating_id: ratingId,
+    target_status: moderationStatus,
+  });
+
+  if (error) {
+    redirect(getProviderReviewPath(fallbackProviderId, "not-updated"));
+  }
+
+  const moderatedRating = Array.isArray(data) ? data[0] : data;
+  const providerId =
+    moderatedRating &&
+    typeof moderatedRating === "object" &&
+    "provider_profile_id" in moderatedRating &&
+    typeof moderatedRating.provider_profile_id === "string"
+      ? moderatedRating.provider_profile_id
+      : fallbackProviderId;
+  const providerSlug = await getProviderSlug(providerId);
+
+  revalidateProviderReviewPaths(providerId);
+
+  if (providerSlug) {
+    revalidatePath(`/providers/${providerSlug}`);
+  }
+
+  redirect(
+    getProviderReviewPath(
+      providerId,
+      getRatingModerationOutcome(moderationStatus),
+    ),
   );
 }
 
