@@ -67,9 +67,11 @@ type ProviderSearchFilters = {
 };
 
 type ProviderSearchResult = ProviderProfileRow & {
+  averageRating: number;
   categoryName: string | null;
   isSaved: boolean;
   languageNames: string[];
+  ratingCount: number;
   serviceRegionNames: string[];
   specialtyNames: string[];
 };
@@ -100,6 +102,13 @@ const providerSelectColumns = [
   "profile_image_url",
   "accept_new_inquiries",
 ].join(",");
+const ratingValues = [1, 2, 3, 4, 5];
+
+type ProviderRatingSummaryRow = {
+  provider_profile_id: string;
+  average_rating: number | string | null;
+  rating_count: number | string;
+};
 
 function getSearchParam(value: string | string[] | undefined) {
   const rawValue = Array.isArray(value) ? value[0] : value;
@@ -216,6 +225,33 @@ function getProviderInitials(providerName: string) {
     .toUpperCase();
 
   return initials || "MRH";
+}
+
+function getRatingSummaryText(averageRating: number, ratingCount: number) {
+  if (ratingCount === 0) {
+    return "No ratings yet";
+  }
+
+  return `${averageRating.toFixed(1)} (${ratingCount} review${
+    ratingCount === 1 ? "" : "s"
+  })`;
+}
+
+function StarRating({ rating }: { rating: number }) {
+  const roundedRating = Math.round(rating);
+
+  return (
+    <span aria-hidden="true" className="inline-flex items-center gap-0.5">
+      {ratingValues.map((value) => (
+        <span
+          key={value}
+          className={value <= roundedRating ? "text-amber-400" : "text-stone-300"}
+        >
+          ★
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function getPublicProfileImageUrl(value: string | null) {
@@ -589,6 +625,7 @@ async function getSearchData(
     providerLanguagesResult,
     providerSpecialtiesResult,
     providerServiceRegionsResult,
+    providerRatingSummariesResult,
   ] =
     await Promise.all([
       supabase
@@ -604,6 +641,9 @@ async function getSearchData(
         .select("provider_profile_id,service_region_id")
         .in("provider_profile_id", providerIds)
         .order("created_at"),
+      supabase.rpc("get_provider_rating_summaries", {
+        target_provider_profile_ids: providerIds,
+      }),
     ]);
   const savedProviderIds = currentUserId
     ? await getSavedProviderIds(currentUserId, providerIds)
@@ -616,6 +656,7 @@ async function getSearchData(
   const providerServiceRegionRows =
     (providerServiceRegionsResult.data ?? []) as ProviderRelationRow[];
   const languageIdsByProvider = new Map<string, string[]>();
+  const ratingSummariesByProvider = new Map<string, ProviderRatingSummaryRow>();
   const serviceRegionIdsByProvider = new Map<string, string[]>();
   const specialtyIdsByProvider = new Map<string, string[]>();
 
@@ -652,34 +693,46 @@ async function getSearchData(
     ]);
   });
 
+  ((providerRatingSummariesResult.data ?? []) as ProviderRatingSummaryRow[])
+    .forEach((row) => {
+      ratingSummariesByProvider.set(row.provider_profile_id, row);
+    });
+
   return {
     categories,
     errorMessage:
       lookupError ||
       (providerLanguagesResult.error ||
         providerSpecialtiesResult.error ||
-        providerServiceRegionsResult.error
+        providerServiceRegionsResult.error ||
+        providerRatingSummariesResult.error
         ? "Some result details could not be loaded."
         : null),
     filters,
     languages,
-    providers: providers.map((provider) => ({
-      ...provider,
-      categoryName: getCategoryName(categories, provider.category_id),
-      isSaved: savedProviderIds.has(provider.id),
-      languageNames: getNamesById(
-        languages,
-        languageIdsByProvider.get(provider.id) ?? [],
-      ),
-      serviceRegionNames: getNamesById(
-        serviceRegions,
-        serviceRegionIdsByProvider.get(provider.id) ?? [],
-      ),
-      specialtyNames: getNamesById(
-        specialties,
-        specialtyIdsByProvider.get(provider.id) ?? [],
-      ),
-    })),
+    providers: providers.map((provider) => {
+      const ratingSummary = ratingSummariesByProvider.get(provider.id);
+
+      return {
+        ...provider,
+        averageRating: Number(ratingSummary?.average_rating ?? 0),
+        categoryName: getCategoryName(categories, provider.category_id),
+        isSaved: savedProviderIds.has(provider.id),
+        languageNames: getNamesById(
+          languages,
+          languageIdsByProvider.get(provider.id) ?? [],
+        ),
+        ratingCount: Number(ratingSummary?.rating_count ?? 0),
+        serviceRegionNames: getNamesById(
+          serviceRegions,
+          serviceRegionIdsByProvider.get(provider.id) ?? [],
+        ),
+        specialtyNames: getNamesById(
+          specialties,
+          specialtyIdsByProvider.get(provider.id) ?? [],
+        ),
+      };
+    }),
     serviceRegions,
     specialties,
     subdivisions,
@@ -834,6 +887,20 @@ function ProviderResultCard({
           ) : null}
           <p className="mt-2 text-sm font-medium text-stone-700">
             {getProviderLocation(provider)}
+          </p>
+          <p
+            className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-stone-700"
+            aria-label={getRatingSummaryText(
+              provider.averageRating,
+              provider.ratingCount,
+            )}
+          >
+            {provider.ratingCount > 0 ? (
+              <StarRating rating={provider.averageRating} />
+            ) : null}
+            <span>
+              {getRatingSummaryText(provider.averageRating, provider.ratingCount)}
+            </span>
           </p>
         </div>
       </div>

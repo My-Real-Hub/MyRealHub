@@ -65,6 +65,30 @@ type ProviderRatingSummaryRow = {
   rating_count: number | string;
 };
 
+type ProviderRatingModerationStatus = "visible" | "hidden" | "removed";
+
+type CurrentProviderRatingRow = {
+  rating: number | null;
+  review: string | null;
+  moderation_status: ProviderRatingModerationStatus;
+};
+
+type ProviderReviewRow = {
+  id: string;
+  rating: number;
+  review: string | null;
+  reviewer_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+const ratingValues = [1, 2, 3, 4, 5];
+const reviewDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
 function getProviderName(provider: PublicProviderProfile) {
   return (
     provider.business_name ??
@@ -85,6 +109,20 @@ function getLocation(provider: PublicProviderProfile) {
 
 function getDisplayValue(value: string | number | null) {
   return value === null || value === "" ? "Not added" : String(value);
+}
+
+function getRatingSummaryText(averageRating: number, ratingCount: number) {
+  if (ratingCount === 0) {
+    return "No ratings yet";
+  }
+
+  return `${averageRating.toFixed(1)} out of 5 from ${ratingCount} rating${
+    ratingCount === 1 ? "" : "s"
+  }`;
+}
+
+function formatReviewDate(value: string) {
+  return reviewDateFormatter.format(new Date(value));
 }
 
 function getContactReturnPath(provider: PublicProviderProfile) {
@@ -270,32 +308,145 @@ async function getProviderRatingData(
   currentProfileId: string | null,
 ) {
   const supabase = await getServerSupabaseClient();
-  const [summaryResult, currentRatingResult] = await Promise.all([
+  const [summaryResult, currentRatingResult, reviewsResult] = await Promise.all([
     supabase.rpc("get_provider_rating_summary", {
       target_provider_profile_id: providerId,
     }),
     currentProfileId
       ? supabase
           .from("provider_ratings")
-          .select("rating")
+          .select("rating,review,moderation_status")
           .eq("provider_profile_id", providerId)
           .eq("rater_user_id", currentProfileId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase.rpc("get_provider_visible_reviews", {
+      target_provider_profile_id: providerId,
+      result_limit: 10,
+    }),
   ]);
   const summaryData = Array.isArray(summaryResult.data)
     ? summaryResult.data[0]
     : summaryResult.data;
   const summary = (summaryData ?? null) as ProviderRatingSummaryRow | null;
+  const currentRatingRow =
+    (currentRatingResult.data ?? null) as CurrentProviderRatingRow | null;
+  const hasCurrentRating =
+    currentRatingRow !== null &&
+    currentRatingRow.moderation_status !== "removed";
 
   return {
     averageRating: Number(summary?.average_rating ?? 0),
-    currentRating:
-      typeof currentRatingResult.data?.rating === "number"
-        ? currentRatingResult.data.rating
-        : null,
+    currentModerationStatus: hasCurrentRating
+      ? currentRatingRow.moderation_status
+      : null,
+    currentRating: hasCurrentRating ? currentRatingRow.rating : null,
+    currentReview: hasCurrentRating ? currentRatingRow.review : null,
     ratingCount: Number(summary?.rating_count ?? 0),
+    reviews: (reviewsResult.data ?? []) as ProviderReviewRow[],
   };
+}
+
+function StarRating({
+  rating,
+  size = "text-lg",
+}: {
+  rating: number;
+  size?: string;
+}) {
+  const roundedRating = Math.round(rating);
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex items-center gap-0.5 ${size}`}
+    >
+      {ratingValues.map((value) => (
+        <span
+          key={value}
+          className={value <= roundedRating ? "text-amber-400" : "text-stone-300"}
+        >
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function RatingSummary({
+  averageRating,
+  ratingCount,
+}: {
+  averageRating: number;
+  ratingCount: number;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-stone-800">
+      {ratingCount > 0 ? (
+        <StarRating rating={averageRating} />
+      ) : null}
+      <span>{getRatingSummaryText(averageRating, ratingCount)}</span>
+    </div>
+  );
+}
+
+function ProviderReviews({
+  reviews,
+  ratingCount,
+}: {
+  reviews: ProviderReviewRow[];
+  ratingCount: number;
+}) {
+  return (
+    <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-stone-950">Reviews</h2>
+          <p className="mt-2 text-sm leading-6 text-stone-600">
+            {ratingCount > 0
+              ? `${ratingCount} visible rating${ratingCount === 1 ? "" : "s"}`
+              : "No one has rated this provider yet."}
+          </p>
+        </div>
+      </div>
+
+      {reviews.length > 0 ? (
+        <div className="mt-5 grid gap-4">
+          {reviews.map((review) => (
+            <section
+              key={review.id}
+              className="rounded-md border border-stone-200 bg-stone-50 p-4"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-semibold text-stone-950">
+                    {review.reviewer_name ?? "MyRealHub member"}
+                  </p>
+                  <p className="mt-1 text-sm text-stone-500">
+                    {formatReviewDate(review.updated_at ?? review.created_at)}
+                  </p>
+                </div>
+                <div
+                  className="flex items-center gap-2 text-sm font-semibold text-stone-800"
+                  aria-label={`${review.rating} out of 5 stars`}
+                >
+                  <StarRating rating={review.rating} size="text-base" />
+                  <span>{review.rating}/5</span>
+                </div>
+              </div>
+              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-stone-700">
+                {review.review}
+              </p>
+            </section>
+          ))}
+        </div>
+      ) : ratingCount > 0 ? (
+        <p className="mt-5 rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm leading-6 text-stone-600">
+          This provider has ratings, but no written reviews are visible yet.
+        </p>
+      ) : null}
+    </article>
+  );
 }
 
 function TagList({ items }: { items: string[] }) {
@@ -447,13 +598,10 @@ export default async function PublicProviderProfilePage({
                 <p className="mt-4 text-base leading-7 text-stone-600">
                   {location}
                 </p>
-                <p className="mt-3 text-sm font-semibold text-stone-800">
-                  {ratingData.ratingCount > 0
-                    ? `${ratingData.averageRating.toFixed(1)} out of 5 from ${
-                        ratingData.ratingCount
-                      } rating${ratingData.ratingCount === 1 ? "" : "s"}`
-                    : "No ratings yet"}
-                </p>
+                <RatingSummary
+                  averageRating={ratingData.averageRating}
+                  ratingCount={ratingData.ratingCount}
+                />
               </div>
             </div>
           </header>
@@ -496,6 +644,11 @@ export default async function PublicProviderProfilePage({
               </div>
             </div>
           </article>
+
+          <ProviderReviews
+            ratingCount={ratingData.ratingCount}
+            reviews={ratingData.reviews}
+          />
         </div>
 
         <aside className="grid gap-6 lg:sticky lg:top-28">
@@ -550,7 +703,9 @@ export default async function PublicProviderProfilePage({
             <div className="mt-5">
               <ProviderRatingForm
                 canRate={canConsumeServices}
+                currentModerationStatus={ratingData.currentModerationStatus}
                 currentRating={ratingData.currentRating}
+                currentReview={ratingData.currentReview}
                 isSelf={isOwnProviderProfile}
                 isSignedIn={Boolean(currentProfile)}
                 providerId={provider.id}
