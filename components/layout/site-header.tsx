@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AuthMenu } from "@/components/auth/auth-menu";
+import { FeedbackLink } from "@/components/feedback/feedback-link";
 
 const primaryLinks = [
   { href: "/", label: "Home" },
@@ -31,6 +32,7 @@ export function SiteHeader() {
                 {link.label}
               </Link>
             ))}
+            <FeedbackLink className="transition hover:text-stone-950" />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

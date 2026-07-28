@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfileRole } from "@/lib/auth/session";
+import {
+  isPlatformFeedbackStatus,
+  type PlatformFeedbackStatus,
+} from "@/lib/feedback";
 import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -29,6 +33,8 @@ type LookupOutcome =
   | "error";
 
 type LookupPayload = Record<string, string | boolean | null>;
+
+type FeedbackOutcome = "updated" | "invalid" | "error";
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -160,6 +166,54 @@ function getRatingModerationStatus(formData: FormData): RatingModerationStatus {
   }
 
   redirect("/admin/dashboard#providers");
+}
+
+function getFeedbackId(formData: FormData) {
+  const feedbackId = getFormString(formData, "feedbackId");
+
+  if (!uuidPattern.test(feedbackId)) {
+    redirect(getFeedbackDashboardPath("all", "all", "invalid"));
+  }
+
+  return feedbackId;
+}
+
+function getFeedbackStatus(formData: FormData) {
+  const status = getFormString(formData, "status");
+
+  if (!isPlatformFeedbackStatus(status)) {
+    redirect(getFeedbackDashboardPath("all", "all", "invalid"));
+  }
+
+  return status;
+}
+
+function getFeedbackFilter(value: string) {
+  return isPlatformFeedbackStatus(value) ? value : "all";
+}
+
+function getFeedbackTypeFilter(value: string) {
+  return value === "bug" || value === "suggestion" ? value : "all";
+}
+
+function getFeedbackDashboardPath(
+  statusFilter: PlatformFeedbackStatus | "all",
+  typeFilter: "bug" | "suggestion" | "all",
+  outcome: FeedbackOutcome,
+) {
+  const params = new URLSearchParams({
+    feedbackAction: outcome,
+  });
+
+  if (statusFilter !== "all") {
+    params.set("feedbackStatus", statusFilter);
+  }
+
+  if (typeFilter !== "all") {
+    params.set("feedbackType", typeFilter);
+  }
+
+  return `/admin/dashboard?${params.toString()}#feedback`;
 }
 
 function getProviderReviewPath(providerId: string, outcome: ReviewOutcome) {
@@ -354,6 +408,38 @@ export async function setProviderRatingModerationStatus(formData: FormData) {
       getRatingModerationOutcome(moderationStatus),
     ),
   );
+}
+
+export async function updateFeedbackSubmission(formData: FormData) {
+  await requireProfileRole("admin");
+
+  const feedbackId = getFeedbackId(formData);
+  const status = getFeedbackStatus(formData);
+  const internalNotes = getFormString(formData, "internalNotes");
+  const returnStatus = getFeedbackFilter(
+    getFormString(formData, "returnFeedbackStatus"),
+  );
+  const returnType = getFeedbackTypeFilter(
+    getFormString(formData, "returnFeedbackType"),
+  );
+
+  if (internalNotes.length > 3000) {
+    redirect(getFeedbackDashboardPath(returnStatus, returnType, "invalid"));
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { error } = await supabase.rpc("update_platform_feedback", {
+    target_feedback_id: feedbackId,
+    target_internal_notes: internalNotes || null,
+    target_status: status,
+  });
+
+  if (error) {
+    redirect(getFeedbackDashboardPath(returnStatus, returnType, "error"));
+  }
+
+  revalidatePath("/admin/dashboard");
+  redirect(getFeedbackDashboardPath(returnStatus, returnType, "updated"));
 }
 
 export async function createLookupItem(formData: FormData) {
