@@ -167,12 +167,12 @@ export function LocationPickerMap({
       });
       const marker = leaflet
         .marker(point, {
-          alt: "Selected project location",
+          alt: "Selected property location",
           autoPan: true,
           draggable: !disabled,
           icon,
           keyboard: true,
-          title: "Drag to change the project location",
+          title: "Drag to change the property location",
         })
         .addTo(map);
 
@@ -259,7 +259,7 @@ export function LocationPickerMap({
       <div
         ref={containerRef}
         className="myrealhub-location-map h-80 w-full sm:h-96"
-        aria-label="Map for choosing a project location"
+        aria-label="Map for choosing a property location"
       />
       <div
         className="absolute right-3 top-3 z-[500] flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-2"

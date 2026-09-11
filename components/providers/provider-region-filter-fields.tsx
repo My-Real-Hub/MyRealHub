@@ -48,14 +48,18 @@ export function ProviderRegionFilterFields({
   );
   const isHomepage = variant === "homepage";
   const labelClassName = isHomepage
-    ? "min-w-0"
+    ? "flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700"
     : "flex flex-col gap-2 text-sm font-medium text-stone-800";
-  const labelTextClassName = isHomepage ? "sr-only" : "";
+  const labelTextClassName = "";
+  const homepageFocusClassName = "focus:border-teal-700 focus:ring-teal-100";
+  const searchFocusClassName = "focus:border-emerald-700 focus:ring-emerald-100";
   const selectClassName = `${
     isHomepage ? "h-12" : "h-11"
   } w-full min-w-0 rounded-md border ${
-    isHomepage ? "border-stone-200 px-4 text-base" : "border-stone-300 px-3 text-sm"
-  } bg-white text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500`;
+    isHomepage ? "border-stone-300 px-3 text-base" : "border-stone-300 px-3 text-sm"
+  } bg-white text-stone-950 outline-none transition ${
+    isHomepage ? homepageFocusClassName : searchFocusClassName
+  } focus:ring-4 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500`;
   const provinceName = provinceByCode.get(provinceCode);
 
   return (
@@ -85,7 +89,9 @@ export function ProviderRegionFilterFields({
         htmlFor={`${variant}-provider-service-region`}
         className={labelClassName}
       >
-        <span className={labelTextClassName}>Service region</span>
+        <span className={labelTextClassName}>
+          {isHomepage ? "Area" : "Service region"}
+        </span>
         <select
           id={`${variant}-provider-service-region`}
           name="region"
@@ -97,7 +103,9 @@ export function ProviderRegionFilterFields({
           <option value="">
             {provinceName
               ? `All regions in ${provinceName}`
-              : "Select a province or territory first"}
+              : isHomepage
+                ? "Select province first"
+                : "Select a province or territory first"}
           </option>
           {provinceRegions.map((region) => (
             <option key={region.id} value={region.id}>

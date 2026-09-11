@@ -376,7 +376,7 @@ export function ProviderLocationSearchFields({
       <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Project location
+            Property location
           </p>
           <h2 className="mt-2 text-lg font-semibold text-stone-950">
             Search by address or postal code

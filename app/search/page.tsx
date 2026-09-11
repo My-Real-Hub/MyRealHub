@@ -1034,7 +1034,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-stone-600">
             Enter a Canadian address or place the map pin to find providers
-            serving that property or project location.
+            serving that property or selected area.
           </p>
         </div>
         <Link
