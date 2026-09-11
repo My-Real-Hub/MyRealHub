@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AuthMenu } from "@/components/auth/auth-menu";
 import { FeedbackLink } from "@/components/feedback/feedback-link";
+import { AccentColorPicker } from "@/components/layout/accent-color-picker";
 
 const primaryLinks = [
   { href: "/", label: "Home" },
@@ -36,6 +37,7 @@ export function SiteHeader() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <AccentColorPicker />
             <AuthMenu />
           </div>
         </nav>

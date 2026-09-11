@@ -162,6 +162,18 @@ function truncateText(value: string | null, fallback: string, limit = 150) {
     : normalizedValue;
 }
 
+function refineCustomerCopy(value: string | null) {
+  return value
+    ?.replace(
+      /pre-listing improvement\s+[a-z]+/gi,
+      "pre-listing improvements",
+    )
+    .replace(
+      /Repair\s+[a-z]+\s+before listing a property\./gi,
+      "Repairs before listing a property.",
+    ) ?? null;
+}
+
 function getPublicProfileImageUrl(value: string | null) {
   if (!value) {
     return null;
@@ -475,7 +487,7 @@ async function getTopRatedProviderPreviews(): Promise<TopRatedProvider[]> {
           averageRating,
           avatarUrl: getPublicProfileImageUrl(provider.profile_image_url),
           bio: truncateText(
-            provider.bio,
+            refineCustomerCopy(provider.bio),
             provider.service_area ??
               "Profile details, service areas, and contact options are available on this provider profile.",
           ),
@@ -824,12 +836,12 @@ function HowItWorksSection() {
   const steps = [
     {
       description:
-        "Start broad with a profession/category, then narrow by province and service region.",
+        "Start broad with a profession/category, then narrow by province and service area.",
       title: "Choose the service and area",
     },
     {
       description:
-        "On the search page, enter an address or move the map pin so MyRealHub can match the property to a Canadian service region.",
+        "On the search page, enter an address or move the map pin so MyRealHub can match the property to a Canadian service area.",
       title: "Match the property location",
     },
     {

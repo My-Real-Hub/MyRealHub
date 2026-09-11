@@ -12,6 +12,7 @@ type MapCoordinates = {
 };
 
 type LocationPickerMapProps = {
+  className?: string;
   coordinates: MapCoordinates | null;
   disabled?: boolean;
   onCoordinatesChange: (coordinates: MapCoordinates) => void;
@@ -33,6 +34,7 @@ const DEFAULT_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 export function LocationPickerMap({
+  className = "h-64",
   coordinates,
   disabled = false,
   onCoordinatesChange,
@@ -252,23 +254,23 @@ export function LocationPickerMap({
   }
 
   const controlButtonClassName =
-    "rounded-md border border-stone-200 bg-white/95 px-3 py-2 text-sm font-semibold text-stone-800 shadow-sm backdrop-blur transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50";
+    "rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 shadow-sm transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-100 shadow-inner">
+    <div className="relative overflow-hidden rounded-lg border border-stone-300 bg-stone-100 shadow-sm">
       <div
         ref={containerRef}
-        className="myrealhub-location-map h-80 w-full sm:h-96"
+        className={`myrealhub-location-map w-full ${className}`}
         aria-label="Map for choosing a property location"
       />
       <div
-        className="absolute right-3 top-3 z-[500] flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-2"
+        className="absolute right-2 top-2 z-[500] flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1.5"
         aria-label="Map controls"
         onPointerDown={stopMapControlPropagation}
       >
         <button
           type="button"
-          className={`${controlButtonClassName} min-w-10 text-lg leading-none`}
+          className={`${controlButtonClassName} min-w-8 text-base leading-none`}
           onClick={zoomIn}
           disabled={!isMapReady}
           aria-label="Zoom map in"
@@ -277,7 +279,7 @@ export function LocationPickerMap({
         </button>
         <button
           type="button"
-          className={`${controlButtonClassName} min-w-10 text-lg leading-none`}
+          className={`${controlButtonClassName} min-w-8 text-base leading-none`}
           onClick={zoomOut}
           disabled={!isMapReady}
           aria-label="Zoom map out"
@@ -308,13 +310,6 @@ export function LocationPickerMap({
         >
           Canada
         </button>
-      </div>
-      <div
-        className="pointer-events-none absolute bottom-8 left-3 right-3 z-[500] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-medium leading-5 text-stone-700 shadow-sm backdrop-blur sm:bottom-3 sm:right-auto sm:max-w-sm"
-        aria-hidden="true"
-      >
-        Click to place the pin. Drag the map to move around. Scroll, pinch, or
-        double-click to zoom.
       </div>
       {mapError ? (
         <div className="absolute inset-0 grid place-items-center bg-stone-100 p-6 text-center text-sm font-medium text-red-700">
