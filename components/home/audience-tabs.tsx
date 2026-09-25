@@ -31,7 +31,7 @@ const tabs: Array<{
   {
     id: "provider",
     eyebrow: "I am a provider",
-    title: "Claim your place in a focused Canadian services directory.",
+    title: "Claim your place in a focused services directory.",
     description:
       "Create a provider profile, choose the areas you serve, manage inquiries, and show consumers what makes your business easy to trust.",
     primaryHref: "/signup?role=provider",

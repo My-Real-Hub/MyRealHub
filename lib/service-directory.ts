@@ -16,19 +16,19 @@ export const featuredProviders: FeaturedProvider[] = [
   {
     name: "Northline Realty Group",
     category: "Real estate agent",
-    location: "Toronto, ON",
+    location: "Metro area",
     summary: "Residential buying and selling support for first-time movers.",
   },
   {
     name: "ClearPath Mortgage",
     category: "Mortgage broker",
-    location: "Mississauga, ON",
+    location: "Suburban market",
     summary: "Rate comparison and pre-approval guidance for home buyers.",
   },
   {
     name: "Keystone Home Inspections",
     category: "Home inspector",
-    location: "Hamilton, ON",
+    location: "Regional market",
     summary: "Detailed inspections for houses, condos, and investment properties.",
   },
 ];

@@ -724,7 +724,7 @@ export function ProviderProfileForm({
           </label>
 
           <label htmlFor="provider-province" className={labelClassName}>
-            Province
+            State or region
             <input
               id="provider-province"
               name="province"
@@ -745,7 +745,7 @@ export function ProviderProfileForm({
               name="country"
               type="text"
               autoComplete="country-name"
-              defaultValue={profile?.country ?? "Canada"}
+              defaultValue=""
               className={inputClassName(Boolean(fieldErrors.country))}
               aria-invalid={Boolean(fieldErrors.country)}
               required

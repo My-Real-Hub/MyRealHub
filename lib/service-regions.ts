@@ -1,6 +1,6 @@
 export const MAX_PROVIDER_SERVICE_REGIONS = 2;
 
-export type CanadianSubdivisionOption = {
+export type SubdivisionOption = {
   code: string;
   name: string;
   kind: "province" | "territory";

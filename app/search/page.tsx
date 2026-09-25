@@ -3,7 +3,7 @@ import { ProviderLocationSearchFields } from "@/components/providers/provider-lo
 import { SaveProviderButton } from "@/components/providers/save-provider-button";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { getSavedProviderIds } from "@/lib/saved-providers";
-import type { CanadianSubdivisionOption } from "@/lib/service-regions";
+import type { SubdivisionOption } from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type SearchPageSearchParams = {
@@ -84,7 +84,7 @@ type ProviderSearchData = {
   providers: ProviderSearchResult[];
   serviceRegions: ServiceRegionLookupRow[];
   specialties: SpecialtyLookupRow[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 };
 
 const providerSelectColumns = [
@@ -157,7 +157,7 @@ function getSelectedCategoryId(
 
 function resolveSubdivisionCode(
   value: string,
-  subdivisions: CanadianSubdivisionOption[],
+  subdivisions: SubdivisionOption[],
 ) {
   const normalizedValue = normalizeLookupValue(value);
 
@@ -208,11 +208,7 @@ function getProviderName(provider: ProviderSearchResult) {
 }
 
 function getProviderLocation(provider: ProviderSearchResult) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }
@@ -439,7 +435,7 @@ async function getSearchData(
   const serviceRegions = (serviceRegionsResult.data ??
     []) as ServiceRegionLookupRow[];
   const subdivisions = (subdivisionsResult.data ??
-    []) as CanadianSubdivisionOption[];
+    []) as SubdivisionOption[];
   const requestedRegionId = resolveLookupId(
     getSearchParam(query.region),
     serviceRegions,
@@ -551,7 +547,7 @@ async function getSearchData(
     if (!provinceProviderIds.ok) {
       return {
         categories,
-        errorMessage: "Province filter could not be applied.",
+        errorMessage: "Region filter could not be applied.",
         filters,
         languages,
         providers: [],
@@ -837,7 +833,7 @@ function FilterSummary({
   languages: LookupRow[];
   serviceRegions: ServiceRegionLookupRow[];
   specialties: SpecialtyLookupRow[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 }) {
   const selectedAreaLabel = filters.regionId
     ? getCategoryName(serviceRegions, filters.regionId)
@@ -1070,11 +1066,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           specialty.category_id === searchData.filters.categoryId,
       )
     : searchData.specialties;
-  const selectedSubdivision =
-    searchData.subdivisions.find(
-      (subdivision) =>
-        subdivision.code === searchData.filters.provinceCode,
-    ) ?? null;
   const selectedServiceRegion =
     searchData.serviceRegions.find(
       (region) => region.id === searchData.filters.regionId,
@@ -1118,7 +1109,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <ProviderLocationSearchFields
             formId={providerSearchFormId}
             initialProvinceCode={searchData.filters.provinceCode}
-            initialProvinceName={selectedSubdivision?.name ?? null}
             initialRegionId={searchData.filters.regionId}
             initialRegionName={selectedServiceRegion?.name ?? null}
             regionControlId={providerRegionControlId}
@@ -1164,7 +1154,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                   <option value="">All regions</option>
                   {searchData.serviceRegions.map((region) => (
                     <option key={region.id} value={region.id}>
-                      {region.name}, {region.province_code}
+                      {region.name}
                     </option>
                   ))}
                 </FilterSelect>

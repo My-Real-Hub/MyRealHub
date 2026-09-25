@@ -225,7 +225,7 @@ export async function saveProviderServiceRegions(
     return {
       status: "error",
       message: "Service regions could not be saved.",
-      fieldError: "Choose valid Canadian service regions.",
+      fieldError: "Choose valid service regions.",
     };
   }
 
@@ -258,7 +258,7 @@ export async function saveProviderServiceRegions(
       return {
         status: "error",
         message: "Service regions could not be saved.",
-        fieldError: "Choose valid active Canadian service regions.",
+        fieldError: "Choose valid active service regions.",
       };
     }
   }

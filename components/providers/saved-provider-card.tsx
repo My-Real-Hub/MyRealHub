@@ -22,11 +22,7 @@ function getProviderName(provider: SavedProvider["provider"]) {
 }
 
 function getProviderLocation(provider: SavedProvider["provider"]) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }

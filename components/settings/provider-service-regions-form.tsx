@@ -4,15 +4,15 @@ import { useActionState, useMemo, useState } from "react";
 import { saveProviderServiceRegions } from "@/app/settings/actions";
 import {
   MAX_PROVIDER_SERVICE_REGIONS,
-  type CanadianSubdivisionOption,
   type ServiceRegionOption,
+  type SubdivisionOption,
 } from "@/lib/service-regions";
 
 type ProviderServiceRegionsFormProps = {
   providerProfileId: string | null;
   regions: ServiceRegionOption[];
   selectedRegionIds: string[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 };
 
 const initialState = {
@@ -51,16 +51,6 @@ export function ProviderServiceRegionsForm({
   const regionById = useMemo(
     () => new Map(regions.map((region) => [region.id, region])),
     [regions],
-  );
-  const subdivisionByCode = useMemo(
-    () =>
-      new Map(
-        subdivisions.map((subdivision) => [
-          subdivision.code,
-          subdivision,
-        ]),
-      ),
-    [subdivisions],
   );
   const normalizedSearch = regionSearch.trim().toLocaleLowerCase("en-CA");
   const visibleRegions = regions.filter(
@@ -110,7 +100,7 @@ export function ProviderServiceRegionsForm({
             Service areas
           </p>
           <h3 className="mt-2 text-lg font-semibold text-stone-950">
-            Canadian regions you serve
+            Regions you serve
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
             Choose up to {MAX_PROVIDER_SERVICE_REGIONS} regions. These appear
@@ -145,7 +135,7 @@ export function ProviderServiceRegionsForm({
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <label className="grid gap-2 text-sm font-semibold text-stone-900">
-          Province or territory
+          Region group
           <select
             value={provinceCode}
             onChange={(event) => {
@@ -155,16 +145,16 @@ export function ProviderServiceRegionsForm({
             className={inputClassName}
             disabled={!providerProfileId || pending}
           >
-            {subdivisions.map((subdivision) => (
+            {subdivisions.map((subdivision, index) => (
               <option key={subdivision.code} value={subdivision.code}>
-                {subdivision.name}
+                Region group {index + 1}
               </option>
             ))}
           </select>
         </label>
 
         <label className="grid gap-2 text-sm font-semibold text-stone-900">
-          Search this province or territory
+          Search this region group
           <input
             type="search"
             value={regionSearch}
@@ -227,8 +217,7 @@ export function ProviderServiceRegionsForm({
                 className="inline-flex items-center gap-2 rounded-md bg-emerald-100 px-3 py-2 text-sm font-semibold text-emerald-950"
               >
                 <span>
-                  {region.name},{" "}
-                  {subdivisionByCode.get(region.province_code)?.code}
+                  {region.name}
                 </span>
                 <button
                   type="button"

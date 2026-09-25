@@ -2,15 +2,15 @@
 
 import { useMemo, useState } from "react";
 import type {
-  CanadianSubdivisionOption,
   ServiceRegionOption,
+  SubdivisionOption,
 } from "@/lib/service-regions";
 
 type ProviderRegionFilterFieldsProps = {
   initialProvinceCode?: string;
   initialRegionId?: string;
   regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
   variant?: "homepage" | "search";
 };
 
@@ -36,9 +36,9 @@ export function ProviderRegionFilterFields({
   const provinceByCode = useMemo(
     () =>
       new Map(
-        subdivisions.map((subdivision) => [
+        subdivisions.map((subdivision, index) => [
           subdivision.code,
-          subdivision.name,
+          `Region group ${index + 1}`,
         ]),
       ),
     [subdivisions],
@@ -65,7 +65,7 @@ export function ProviderRegionFilterFields({
   return (
     <>
       <label htmlFor={`${variant}-provider-province`} className={labelClassName}>
-        <span className={labelTextClassName}>Province or territory</span>
+        <span className={labelTextClassName}>Region group</span>
         <select
           id={`${variant}-provider-province`}
           name="province"
@@ -76,10 +76,10 @@ export function ProviderRegionFilterFields({
           }}
           className={selectClassName}
         >
-          <option value="">All provinces and territories</option>
-          {subdivisions.map((subdivision) => (
+          <option value="">All region groups</option>
+          {subdivisions.map((subdivision, index) => (
             <option key={subdivision.code} value={subdivision.code}>
-              {subdivision.name}
+              Region group {index + 1}
             </option>
           ))}
         </select>
@@ -104,8 +104,8 @@ export function ProviderRegionFilterFields({
             {provinceName
               ? `All regions in ${provinceName}`
               : isHomepage
-                ? "Select province first"
-                : "Select a province or territory first"}
+                ? "Select region group first"
+                : "Select a region group first"}
           </option>
           {provinceRegions.map((region) => (
             <option key={region.id} value={region.id}>

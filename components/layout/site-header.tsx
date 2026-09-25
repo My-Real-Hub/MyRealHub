@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AuthMenu } from "@/components/auth/auth-menu";
+import { MyRealHubLogo } from "@/components/brand/my-real-hub-logo";
 import { FeedbackLink } from "@/components/feedback/feedback-link";
-import { AccentColorPicker } from "@/components/layout/accent-color-picker";
 
 const primaryLinks = [
   { href: "/", label: "Home" },
@@ -12,11 +12,12 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <Link href="/" className="flex items-center gap-3" aria-label="MyRealHub home">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-700 text-sm font-bold text-white">
-            MRH
-          </span>
-          <span className="text-lg font-semibold text-stone-950">MyRealHub</span>
+        <Link
+          href="/"
+          className="inline-flex rounded-md focus:outline-none focus:ring-4 focus:ring-teal-100"
+          aria-label="MyRealHub home"
+        >
+          <MyRealHubLogo markClassName="size-14" />
         </Link>
 
         <nav
@@ -37,7 +38,6 @@ export function SiteHeader() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <AccentColorPicker />
             <AuthMenu />
           </div>
         </nav>

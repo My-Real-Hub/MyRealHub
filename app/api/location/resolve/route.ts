@@ -8,7 +8,7 @@ import {
 } from "@/lib/location/photon";
 import {
   getServiceRegionMatchRows,
-  matchCanadianServiceRegion,
+  matchServiceRegion,
 } from "@/lib/location/region-matching";
 import type {
   LocationApiErrorCode,
@@ -18,7 +18,7 @@ import type {
 
 const MAX_REQUEST_BYTES = 2_048;
 const MAX_ADDRESS_LENGTH = 120;
-const CANADA_BOUNDS = {
+const SUPPORTED_AREA_BOUNDS = {
   minLatitude: 41.6,
   maxLatitude: 83.2,
   minLongitude: -141.1,
@@ -61,12 +61,12 @@ function isFiniteCoordinate(value: unknown) {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function isWithinCanadaBounds(latitude: number, longitude: number) {
+function isWithinSupportedAreaBounds(latitude: number, longitude: number) {
   return (
-    latitude >= CANADA_BOUNDS.minLatitude &&
-    latitude <= CANADA_BOUNDS.maxLatitude &&
-    longitude >= CANADA_BOUNDS.minLongitude &&
-    longitude <= CANADA_BOUNDS.maxLongitude
+    latitude >= SUPPORTED_AREA_BOUNDS.minLatitude &&
+    latitude <= SUPPORTED_AREA_BOUNDS.maxLatitude &&
+    longitude >= SUPPORTED_AREA_BOUNDS.minLongitude &&
+    longitude <= SUPPORTED_AREA_BOUNDS.maxLongitude
   );
 }
 
@@ -110,7 +110,7 @@ function resolveFeature(
   }
 
   const countryCode = getPhotonProperty(feature, "countrycode") ?? "";
-  const match = matchCanadianServiceRegion(
+  const match = matchServiceRegion(
     {
       ...coordinates,
       countryCode,
@@ -188,7 +188,7 @@ export async function POST(request: Request) {
       }
 
       const features = await autocompletePhotonAddress(locationRequest.query);
-      const rejectedOutsideCanada = features.some(
+      const rejectedOutsideSupportedArea = features.some(
         (feature) =>
           (getPhotonProperty(feature, "countrycode") ?? "").toUpperCase() !==
           "CA",
@@ -216,8 +216,8 @@ export async function POST(request: Request) {
 
       return Response.json(
         {
-          rejectedOutsideCanada:
-            suggestions.length === 0 && rejectedOutsideCanada,
+          rejectedOutsideSupportedArea:
+            suggestions.length === 0 && rejectedOutsideSupportedArea,
           suggestions,
         },
         {
@@ -229,14 +229,14 @@ export async function POST(request: Request) {
     }
 
     if (
-      !isWithinCanadaBounds(
+      !isWithinSupportedAreaBounds(
         locationRequest.latitude,
         locationRequest.longitude,
       )
     ) {
       return errorResponse(
-        "OUTSIDE_CANADA",
-        "Choose a location within Canada.",
+        "OUTSIDE_SUPPORTED_AREA",
+        "Choose a location within the supported service area.",
         422,
       );
     }
@@ -259,8 +259,8 @@ export async function POST(request: Request) {
 
     if (countryCode.toUpperCase() !== "CA") {
       return errorResponse(
-        "OUTSIDE_CANADA",
-        "Choose a location within Canada.",
+        "OUTSIDE_SUPPORTED_AREA",
+        "Choose a location within the supported service area.",
         422,
       );
     }

@@ -18,7 +18,6 @@ import type {
 type ProviderLocationSearchFieldsProps = {
   formId?: string;
   initialProvinceCode: string;
-  initialProvinceName: string | null;
   initialRegionId: string;
   initialRegionName: string | null;
   regionControlId?: string;
@@ -69,7 +68,6 @@ async function resolveLocation(
 
 export function ProviderLocationSearchFields({
   formId,
-  initialProvinceName,
   initialRegionId,
   initialRegionName,
   regionControlId,
@@ -92,13 +90,11 @@ export function ProviderLocationSearchFields({
     initialRegionId && initialRegionName
       ? {
           kind: "resolved",
-          message: `Current search area: ${initialRegionName}${
-            initialProvinceName ? `, ${initialProvinceName}` : ""
-          }.`,
+          message: `Current search area: ${initialRegionName}.`,
         }
       : {
           kind: "idle",
-          message: "Enter a Canadian address or postal code, or place the pin.",
+          message: "Enter an address or postal code, or place the pin.",
         },
   );
   const [isLocatingDevice, setIsLocatingDevice] = useState(false);
@@ -141,7 +137,7 @@ export function ProviderLocationSearchFields({
       autocompleteControllerRef.current = controller;
       setStatus({
         kind: "loading",
-        message: "Searching Canadian addresses...",
+        message: "Searching addresses...",
       });
 
       try {
@@ -164,14 +160,14 @@ export function ProviderLocationSearchFields({
         if (payload.suggestions.length === 0) {
           setStatus({
             kind: "error",
-            message: payload.rejectedOutsideCanada
-              ? "That location is outside Canada. Enter a Canadian address or postal code."
-              : "No Canadian address was found. Check the address or place the map pin.",
+            message: payload.rejectedOutsideSupportedArea
+              ? "That location is outside the supported service area. Enter another address or postal code."
+              : "No address was found. Check the address or place the map pin.",
           });
         } else {
           setStatus({
             kind: "idle",
-            message: `${payload.suggestions.length} Canadian address suggestion${
+            message: `${payload.suggestions.length} address suggestion${
               payload.suggestions.length === 1 ? "" : "s"
             } found.`,
           });
@@ -219,7 +215,7 @@ export function ProviderLocationSearchFields({
     inputRef.current?.setCustomValidity("");
     setStatus({
       kind: "resolved",
-      message: `Matched to ${location.regionName}, ${location.provinceName}.`,
+      message: `Matched to ${location.regionName}.`,
     });
   }
 
@@ -242,8 +238,8 @@ export function ProviderLocationSearchFields({
       kind: "loading",
       message:
         source === "device"
-          ? "Matching your current location to a Canadian service area..."
-          : "Matching the map pin to a Canadian service area...",
+          ? "Matching your current location to a service area..."
+          : "Matching the map pin to a service area...",
     });
 
     try {
@@ -434,14 +430,14 @@ export function ProviderLocationSearchFields({
                     message:
                       nextQuery.trim().length > 0 &&
                       nextQuery.trim().length < 3
-                        ? "Enter at least 3 characters to search Canadian addresses."
+                        ? "Enter at least 3 characters to search addresses."
                         : nextQuery.trim()
                           ? "Searching will begin after you pause typing."
-                          : "Enter a Canadian address or postal code, or place the pin.",
+                          : "Enter an address or postal code, or place the pin.",
                   });
                   event.target.setCustomValidity(
                     nextQuery.trim()
-                      ? "Select a Canadian address suggestion or place the map pin."
+                      ? "Select an address suggestion or place the map pin."
                       : "",
                   );
                 }}
@@ -497,7 +493,7 @@ export function ProviderLocationSearchFields({
                         {suggestion.address}
                       </span>
                       <span className="mt-1 block text-sm text-teal-800">
-                        {suggestion.regionName}, {suggestion.provinceName}
+                        {suggestion.regionName}
                       </span>
                     </button>
                   </li>

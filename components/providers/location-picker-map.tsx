@@ -18,16 +18,16 @@ type LocationPickerMapProps = {
   onCoordinatesChange: (coordinates: MapCoordinates) => void;
 };
 
-const CANADA_CENTER: [number, number] = [56.1304, -106.3468];
-const CANADA_BOUNDS: [[number, number], [number, number]] = [
+const SUPPORTED_AREA_CENTER: [number, number] = [56.1304, -106.3468];
+const SUPPORTED_AREA_BOUNDS: [[number, number], [number, number]] = [
   [41.4, -141.5],
   [83.4, -52],
 ];
-const CANADA_ZOOM = 3;
-const TORONTO_CENTER: [number, number] = [43.6532, -79.3832];
-const TORONTO_ZOOM = 11;
-const ONTARIO_CENTER: [number, number] = [50.0007, -85.0002];
-const ONTARIO_ZOOM = 5;
+const SUPPORTED_AREA_ZOOM = 3;
+const DEFAULT_LOCAL_CENTER: [number, number] = [43.6532, -79.3832];
+const DEFAULT_LOCAL_ZOOM = 11;
+const PRIMARY_AREA_CENTER: [number, number] = [50.0007, -85.0002];
+const PRIMARY_AREA_ZOOM = 5;
 const SELECTED_LOCATION_ZOOM = 13;
 const DEFAULT_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const DEFAULT_ATTRIBUTION =
@@ -75,27 +75,27 @@ export function LocationPickerMap({
         const map = leaflet
           .map(containerRef.current, {
             boxZoom: true,
-            center: TORONTO_CENTER,
+            center: DEFAULT_LOCAL_CENTER,
             doubleClickZoom: "center",
             dragging: true,
             inertia: true,
             keyboard: true,
             keyboardPanDelta: 120,
-            maxBounds: CANADA_BOUNDS,
+            maxBounds: SUPPORTED_AREA_BOUNDS,
             maxBoundsViscosity: 0.65,
-            minZoom: CANADA_ZOOM,
+            minZoom: SUPPORTED_AREA_ZOOM,
             scrollWheelZoom: "center",
             touchZoom: "center",
             wheelDebounceTime: 30,
             wheelPxPerZoomLevel: 90,
             worldCopyJump: true,
-            zoom: TORONTO_ZOOM,
+            zoom: DEFAULT_LOCAL_ZOOM,
             zoomAnimation: true,
             zoomControl: false,
             zoomDelta: 0.5,
             zoomSnap: 0.5,
           })
-          .setView(TORONTO_CENTER, TORONTO_ZOOM);
+          .setView(DEFAULT_LOCAL_CENTER, DEFAULT_LOCAL_ZOOM);
         const tileUrl =
           process.env.NEXT_PUBLIC_MAP_TILE_URL?.trim() || DEFAULT_TILE_URL;
         const attribution =
@@ -214,27 +214,27 @@ export function LocationPickerMap({
     mapRef.current?.zoomOut(0.5);
   }
 
-  function resetToCanada() {
-    mapRef.current?.setView(CANADA_CENTER, CANADA_ZOOM, {
+  function resetToSupportedArea() {
+    mapRef.current?.setView(SUPPORTED_AREA_CENTER, SUPPORTED_AREA_ZOOM, {
       animate: true,
     });
   }
 
-  function resetToToronto() {
-    mapRef.current?.setView(TORONTO_CENTER, TORONTO_ZOOM, {
+  function resetToDefaultLocalArea() {
+    mapRef.current?.setView(DEFAULT_LOCAL_CENTER, DEFAULT_LOCAL_ZOOM, {
       animate: true,
     });
   }
 
-  function resetToOntario() {
-    mapRef.current?.setView(ONTARIO_CENTER, ONTARIO_ZOOM, {
+  function resetToPrimaryArea() {
+    mapRef.current?.setView(PRIMARY_AREA_CENTER, PRIMARY_AREA_ZOOM, {
       animate: true,
     });
   }
 
   function recenterSelectedLocation() {
     if (!coordinates) {
-      resetToToronto();
+      resetToDefaultLocalArea();
       return;
     }
 
@@ -297,18 +297,18 @@ export function LocationPickerMap({
         <button
           type="button"
           className={controlButtonClassName}
-          onClick={resetToOntario}
+          onClick={resetToPrimaryArea}
           disabled={!isMapReady}
         >
-          Ontario
+          Primary area
         </button>
         <button
           type="button"
           className={controlButtonClassName}
-          onClick={resetToCanada}
+          onClick={resetToSupportedArea}
           disabled={!isMapReady}
         >
-          Canada
+          All areas
         </button>
       </div>
       {mapError ? (

@@ -186,11 +186,7 @@ function getProviderName(provider: ProviderReviewProfile) {
 }
 
 function getLocation(provider: ProviderReviewProfile) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }
@@ -748,8 +744,7 @@ export default async function AdminProviderReviewPage({
                 <DetailItem label="Phone" value={provider.phone} />
                 <DetailItem label="Website" value={provider.website_url} />
                 <DetailItem label="City" value={provider.city} />
-                <DetailItem label="Province" value={provider.province_state} />
-                <DetailItem label="Country" value={provider.country} />
+                <DetailItem label="State or region" value={provider.province_state} />
                 <DetailItem label="Service area" value={provider.service_area} />
                 <DetailItem
                   label="Years experience"

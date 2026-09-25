@@ -98,11 +98,7 @@ function getProviderName(provider: PublicProviderProfile) {
 }
 
 function getLocation(provider: PublicProviderProfile) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }
@@ -170,7 +166,7 @@ function getLookupNames(rows: LookupNameRow[], ids: string[]) {
 
 function getServiceRegionNames(rows: ServiceRegionNameRow[], ids: string[]) {
   const lookup = new Map(
-    rows.map((row) => [row.id, `${row.name}, ${row.province_code}`]),
+    rows.map((row) => [row.id, row.name]),
   );
 
   return ids

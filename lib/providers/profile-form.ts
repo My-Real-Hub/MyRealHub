@@ -159,7 +159,7 @@ export function validateProviderProfileFormValues(
     }
 
     if (!values.province) {
-      errors.province = "Province is required.";
+      errors.province = "State or region is required.";
     }
 
     if (!values.country) {

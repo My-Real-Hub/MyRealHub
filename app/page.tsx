@@ -5,8 +5,8 @@ import { AudienceTabs } from "@/components/home/audience-tabs";
 import { ProviderRegionFilterFields } from "@/components/providers/provider-region-filter-fields";
 import { featuredProviders, serviceCategories } from "@/lib/service-directory";
 import type {
-  CanadianSubdivisionOption,
   ServiceRegionOption,
+  SubdivisionOption,
 } from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -49,15 +49,6 @@ type HomepageCategory = {
   slug: string;
 };
 
-type PopularRegion = {
-  href: string;
-  id: string;
-  name: string;
-  providerCount: number;
-  provinceCode: string;
-  provinceName: string;
-};
-
 type TopRatedProvider = {
   averageRating: number;
   avatarUrl: string | null;
@@ -74,11 +65,9 @@ type TopRatedProvider = {
 };
 
 type HomepageShellData = {
-  activeProviderCount: number;
   categories: HomepageCategory[];
-  popularRegions: PopularRegion[];
   regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 };
 
 const categoryIcons: Record<string, string> = {
@@ -94,8 +83,17 @@ const categoryIcons: Record<string, string> = {
   stager: "✧",
 };
 
-const numberFormatter = new Intl.NumberFormat("en-US");
 const ratingValues = [1, 2, 3, 4, 5];
+const featuredCategoryOrder = [
+  "real-estate-agent",
+  "home-inspector",
+  "mortgage-broker",
+  "real-estate-lawyer",
+  "appraiser",
+  "property-manager",
+  "contractor",
+  "cleaner",
+];
 
 function slugify(value: string) {
   return value
@@ -104,10 +102,6 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
-}
-
-function formatCount(value: number) {
-  return numberFormatter.format(value);
 }
 
 function getFallbackCategories(): HomepageCategory[] {
@@ -129,11 +123,7 @@ function getProviderName(provider: HomepageProviderRow) {
 }
 
 function getProviderLocation(provider: HomepageProviderRow) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location available on profile";
 }
@@ -207,15 +197,6 @@ function getCategoryHref(categoryId: string, categoryName: string) {
     : `/search?service=${encodeURIComponent(categoryName)}`;
 }
 
-function getRegionHref(region: ServiceRegionOption) {
-  const params = new URLSearchParams({
-    province: region.province_code,
-    region: region.id,
-  });
-
-  return `/search?${params.toString()}#provider-search-address`;
-}
-
 function getCategoryCards(
   categories: HomepageCategoryRow[],
   providers: HomepageProviderRow[],
@@ -251,48 +232,18 @@ function getCategoryCards(
   );
 }
 
-function getPopularRegions({
-  providerRegionRows,
-  regions,
-  subdivisions,
-}: {
-  providerRegionRows: HomepageProviderRegionRow[];
-  regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
-}) {
-  const providerCountByRegion = new Map<string, number>();
-  const provinceNameByCode = new Map(
-    subdivisions.map((subdivision) => [subdivision.code, subdivision.name]),
+function getFeaturedCategories(categories: HomepageCategory[]) {
+  const orderBySlug = new Map(
+    featuredCategoryOrder.map((slug, index) => [slug, index]),
   );
 
-  providerRegionRows.forEach((row) => {
-    providerCountByRegion.set(
-      row.service_region_id,
-      (providerCountByRegion.get(row.service_region_id) ?? 0) + 1,
-    );
-  });
-
-  const regionsWithCounts = regions.map((region) => ({
-    href: getRegionHref(region),
-    id: region.id,
-    name: region.name,
-    providerCount: providerCountByRegion.get(region.id) ?? 0,
-    provinceCode: region.province_code,
-    provinceName:
-      provinceNameByCode.get(region.province_code) ?? region.province_code,
-  }));
-  const popularRegions = regionsWithCounts
-    .filter((region) => region.providerCount > 0)
+  return categories
+    .filter((category) => orderBySlug.has(category.slug))
     .sort(
-      (firstRegion, secondRegion) =>
-        secondRegion.providerCount - firstRegion.providerCount ||
-        firstRegion.name.localeCompare(secondRegion.name),
-    )
-    .slice(0, 6);
-
-  return popularRegions.length > 0
-    ? popularRegions
-    : regionsWithCounts.slice(0, 6);
+      (firstCategory, secondCategory) =>
+        (orderBySlug.get(firstCategory.slug) ?? Number.MAX_SAFE_INTEGER) -
+        (orderBySlug.get(secondCategory.slug) ?? Number.MAX_SAFE_INTEGER),
+    );
 }
 
 async function getHomepageShellData(): Promise<HomepageShellData> {
@@ -325,37 +276,18 @@ async function getHomepageShellData(): Promise<HomepageShellData> {
     ]);
     const categories = (categoriesResult.data ?? []) as HomepageCategoryRow[];
     const providers = (providersResult.data ?? []) as unknown as HomepageProviderRow[];
-    const activeProviderIds = providers.map((provider) => provider.id);
     const subdivisions = (subdivisionsResult.data ??
-      []) as CanadianSubdivisionOption[];
+      []) as SubdivisionOption[];
     const regions = (serviceRegionsResult.data ?? []) as ServiceRegionOption[];
-    const providerRegionRows =
-      activeProviderIds.length > 0
-        ? await supabase
-            .from("provider_service_regions")
-            .select("provider_profile_id,service_region_id")
-            .in("provider_profile_id", activeProviderIds)
-            .then(
-              ({ data }) => (data ?? []) as HomepageProviderRegionRow[],
-            )
-        : [];
 
     return {
-      activeProviderCount: providers.length,
       categories: getCategoryCards(categories, providers),
-      popularRegions: getPopularRegions({
-        providerRegionRows,
-        regions,
-        subdivisions,
-      }),
       regions,
       subdivisions,
     };
   } catch {
     return {
-      activeProviderCount: featuredProviders.length,
       categories: getFallbackCategories(),
-      popularRegions: [],
       regions: [],
       subdivisions: [],
     };
@@ -566,13 +498,13 @@ function HeroSearchForm({
 }: {
   categories: HomepageCategory[];
   regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 }) {
   return (
     <form
       action="/search"
       method="get"
-      className="mt-8 rounded-lg border border-stone-300 bg-white p-4 shadow-sm"
+      className="mt-8 rounded-lg border border-white/70 bg-white/95 p-4 shadow-lg shadow-stone-950/15 backdrop-blur"
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <label
@@ -635,24 +567,6 @@ function HeroSearchForm({
   );
 }
 
-function ActivityStatCard({
-  detail,
-  label,
-  value,
-}: {
-  detail: string;
-  label: string;
-  value: number;
-}) {
-  return (
-    <article className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-      <p className="text-3xl font-semibold text-stone-950">{formatCount(value)}</p>
-      <p className="mt-1 text-sm font-semibold text-stone-800">{label}</p>
-      <p className="mt-2 text-sm leading-6 text-stone-600">{detail}</p>
-    </article>
-  );
-}
-
 function ServiceCategoryCard({ category }: { category: HomepageCategory }) {
   return (
     <Link
@@ -682,32 +596,6 @@ function ServiceCategoryCard({ category }: { category: HomepageCategory }) {
       </p>
       <span className="mt-auto pt-5 text-sm font-semibold text-teal-800">
         Search service
-      </span>
-    </Link>
-  );
-}
-
-function PopularRegionCard({ region }: { region: PopularRegion }) {
-  return (
-    <Link
-      href={region.href}
-      className="group rounded-lg border border-stone-200 bg-[#fbfaf7] p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5 hover:border-teal-700 hover:bg-white hover:shadow-md focus:outline-none focus:ring-4 focus:ring-teal-100"
-    >
-      <p className="text-sm font-semibold uppercase text-teal-700">
-        {region.provinceName}
-      </p>
-      <h3 className="mt-2 text-lg font-semibold text-stone-950">
-        {region.name}
-      </h3>
-      <p className="mt-3 text-sm leading-6 text-stone-600">
-        {region.providerCount > 0
-          ? `${region.providerCount} provider${
-              region.providerCount === 1 ? "" : "s"
-            } available in this area.`
-          : "Browse providers and coverage details for this area."}
-      </p>
-      <span className="mt-5 inline-flex text-sm font-semibold text-teal-800">
-        Browse area
       </span>
     </Link>
   );
@@ -836,12 +724,12 @@ function HowItWorksSection() {
   const steps = [
     {
       description:
-        "Start broad with a profession/category, then narrow by province and service area.",
+        "Start broad with a profession/category, then narrow by service area.",
       title: "Choose the service and area",
     },
     {
       description:
-        "On the search page, enter an address or move the map pin so MyRealHub can match the property to a Canadian service area.",
+        "On the search page, enter an address or move the map pin so MyRealHub can match the property to a service area.",
       title: "Match the property location",
     },
     {
@@ -883,105 +771,58 @@ function HowItWorksSection() {
   );
 }
 
-function HeroVisualPanel({
-  activeProviderCount,
-}: {
-  activeProviderCount: number;
-}) {
-  return (
-    <aside className="lg:pl-4">
-      <figure className="overflow-hidden rounded-lg border border-stone-300 bg-white shadow-sm">
-        <Image
-          src="/images/landing-hero.png"
-          alt="Real estate service planning materials with a map on a tablet"
-          width={1680}
-          height={945}
-          priority
-          className="h-72 w-full object-cover sm:h-96 lg:h-[31rem]"
-        />
-        <figcaption className="border-t border-stone-200 p-5">
-          <div>
-            <p className="text-sm font-semibold text-stone-500">
-              Active directory
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-stone-950">
-              {formatCount(activeProviderCount)} providers
-            </p>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              Search by service, province, or property location.
-            </p>
-          </div>
-        </figcaption>
-      </figure>
-    </aside>
-  );
-}
-
 export default async function Home() {
   const topProvidersPromise = getTopRatedProviderPreviews();
   const {
-    activeProviderCount,
     categories,
-    popularRegions,
     regions,
     subdivisions,
   } = await getHomepageShellData();
-  const featuredCategories = categories.slice(0, 8);
-  const activityStats = [
-    {
-      detail: "Profiles currently available in the directory.",
-      label: "Active providers",
-      value: activeProviderCount,
-    },
-    {
-      detail: "Specialists across buying, selling, moving, and home care.",
-      label: "Service categories",
-      value: categories.length,
-    },
-    {
-      detail: "Canadian areas available for local matching.",
-      label: "Areas covered",
-      value: regions.length,
-    },
-  ];
+  const featuredCategories = getFeaturedCategories(categories);
 
   return (
     <>
-      <section className="border-b border-stone-200 bg-[#f7f5ef]">
-        <div className="mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
-          <div className="grid gap-10 lg:grid-cols-[minmax(0,0.96fr)_minmax(24rem,0.84fr)] lg:items-center">
-            <div>
-              <p className="text-sm font-semibold uppercase text-teal-700">
-                Canadian real estate services directory
-              </p>
-              <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-stone-950 sm:text-5xl lg:text-6xl">
-                Find real estate help that actually serves your area.
-              </h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-700">
-                Search real estate agents, mortgage pros, inspectors, lawyers,
-                contractors, photographers, stagers, and more by service and
-                Canadian region.
-              </p>
+      <section className="border-b border-stone-200 bg-white px-3 py-4 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-[92rem] overflow-hidden rounded-lg bg-stone-950 shadow-sm">
+          <Image
+            src="/images/landing-hero.png"
+            alt=""
+            fill
+            preload
+            sizes="(max-width: 1536px) calc(100vw - 3rem), 1472px"
+            className="object-cover"
+          />
+          <div
+            className="absolute inset-0 bg-stone-950/45"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-stone-950/90 via-stone-950/70 to-stone-950/25"
+            aria-hidden="true"
+          />
+          <div className="relative mx-auto w-full max-w-7xl px-6 py-14 lg:py-20">
+            <div className="max-w-3xl">
+              <div>
+                <p className="text-sm font-semibold uppercase text-emerald-100">
+                  Real estate services directory
+                </p>
+                <h1 className="mt-4 text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
+                  One directory for anyone hiring and the providers serving
+                  them
+                </h1>
+                <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-100">
+                  Search real estate agents, mortgage pros, inspectors, lawyers,
+                  contractors, photographers, stagers, and more by service and
+                  area.
+                </p>
 
-              <HeroSearchForm
-                categories={categories}
-                regions={regions}
-                subdivisions={subdivisions}
-              />
+                <HeroSearchForm
+                  categories={categories}
+                  regions={regions}
+                  subdivisions={subdivisions}
+                />
+              </div>
             </div>
-
-            <HeroVisualPanel activeProviderCount={activeProviderCount} />
-          </div>
-
-          <div className="mt-8 grid gap-3 md:grid-cols-3">
-            {activityStats.map((stat) => (
-              <ActivityStatCard
-                key={stat.label}
-                detail={stat.detail}
-                label={stat.label}
-                value={stat.value}
-              />
-            ))}
           </div>
         </div>
       </section>
@@ -1003,7 +844,7 @@ export default async function Home() {
             <SectionHeader
               eyebrow="Browse services"
               title="Choose the right specialist first"
-              description="Start with the profession, then narrow results by province, area, ratings, and public profile details."
+              description="Start with the profession, then narrow results by area, ratings, and public profile details."
             />
             <Link
               href="/search"
@@ -1017,37 +858,6 @@ export default async function Home() {
             {featuredCategories.map((category) => (
               <ServiceCategoryCard key={category.id} category={category} />
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-stone-200 bg-white">
-        <div className="mx-auto w-full max-w-7xl px-6 py-16">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <SectionHeader
-              eyebrow="Browse by area"
-              title="Find providers in the communities they serve"
-              description="Choose an area to open local provider results and compare services available near you."
-            />
-            <Link
-              href="/search#provider-search-address"
-              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
-            >
-              Search all areas
-            </Link>
-          </div>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {popularRegions.length > 0 ? (
-              popularRegions.map((region) => (
-                <PopularRegionCard key={region.id} region={region} />
-              ))
-            ) : (
-              <div className="rounded-lg border border-dashed border-stone-300 bg-[#fbfaf7] p-6 text-sm leading-6 text-stone-600 md:col-span-2 xl:col-span-3">
-                Local areas are being added. You can still search providers by
-                service, province, or property location.
-              </div>
-            )}
           </div>
         </div>
       </section>

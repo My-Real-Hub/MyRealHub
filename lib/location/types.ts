@@ -9,7 +9,7 @@ export type ResolvedSearchLocation = {
 };
 
 export type LocationAutocompleteResponse = {
-  rejectedOutsideCanada: boolean;
+  rejectedOutsideSupportedArea: boolean;
   suggestions: ResolvedSearchLocation[];
 };
 
@@ -21,7 +21,7 @@ export type LocationApiErrorCode =
   | "ADDRESS_NOT_FOUND"
   | "GEOCODER_UNAVAILABLE"
   | "INVALID_REQUEST"
-  | "OUTSIDE_CANADA"
+  | "OUTSIDE_SUPPORTED_AREA"
   | "REGION_NOT_FOUND";
 
 export type LocationApiErrorResponse = {
