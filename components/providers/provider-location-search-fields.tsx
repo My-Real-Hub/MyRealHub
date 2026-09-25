@@ -16,10 +16,11 @@ import type {
 } from "@/lib/location/types";
 
 type ProviderLocationSearchFieldsProps = {
+  formId?: string;
   initialProvinceCode: string;
-  initialProvinceName: string | null;
   initialRegionId: string;
   initialRegionName: string | null;
+  regionControlId?: string;
 };
 
 type LocationStatus = {
@@ -30,10 +31,10 @@ type LocationStatus = {
 type CoordinateResolveSource = "device" | "map";
 
 const inputClassName =
-  "h-12 w-full rounded-md border border-stone-300 bg-white px-4 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+  "h-12 w-full rounded-md border border-stone-300 bg-white px-4 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-teal-700 focus:ring-4 focus:ring-teal-100";
 
 const secondaryButtonClassName =
-  "inline-flex h-11 items-center justify-center whitespace-nowrap rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex h-11 items-center justify-center whitespace-nowrap rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-60";
 
 async function resolveLocation(
   body:
@@ -66,10 +67,10 @@ async function resolveLocation(
 }
 
 export function ProviderLocationSearchFields({
-  initialProvinceCode,
-  initialProvinceName,
+  formId,
   initialRegionId,
   initialRegionName,
+  regionControlId,
 }: ProviderLocationSearchFieldsProps) {
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -85,22 +86,31 @@ export function ProviderLocationSearchFields({
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [provinceCode, setProvinceCode] = useState(initialProvinceCode);
-  const [regionId, setRegionId] = useState(initialRegionId);
   const [status, setStatus] = useState<LocationStatus>(
     initialRegionId && initialRegionName
       ? {
           kind: "resolved",
-          message: `Current search area: ${initialRegionName}${
-            initialProvinceName ? `, ${initialProvinceName}` : ""
-          }.`,
+          message: `Current search area: ${initialRegionName}.`,
         }
       : {
           kind: "idle",
-          message: "Enter a Canadian address or postal code, or place the pin.",
-    },
+          message: "Enter an address or postal code, or place the pin.",
+        },
   );
   const [isLocatingDevice, setIsLocatingDevice] = useState(false);
+
+  function setRegionControlValue(nextRegionId: string) {
+    if (!regionControlId) {
+      return;
+    }
+
+    const control = document.getElementById(regionControlId);
+
+    if (control instanceof HTMLSelectElement) {
+      control.value = nextRegionId;
+      control.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -127,7 +137,7 @@ export function ProviderLocationSearchFields({
       autocompleteControllerRef.current = controller;
       setStatus({
         kind: "loading",
-        message: "Searching Canadian addresses...",
+        message: "Searching addresses...",
       });
 
       try {
@@ -150,14 +160,14 @@ export function ProviderLocationSearchFields({
         if (payload.suggestions.length === 0) {
           setStatus({
             kind: "error",
-            message: payload.rejectedOutsideCanada
-              ? "That location is outside Canada. Enter a Canadian address or postal code."
-              : "No Canadian address was found. Check the address or place the map pin.",
+            message: payload.rejectedOutsideSupportedArea
+              ? "That location is outside the supported service area. Enter another address or postal code."
+              : "No address was found. Check the address or place the map pin.",
           });
         } else {
           setStatus({
             kind: "idle",
-            message: `${payload.suggestions.length} Canadian address suggestion${
+            message: `${payload.suggestions.length} address suggestion${
               payload.suggestions.length === 1 ? "" : "s"
             } found.`,
           });
@@ -188,8 +198,7 @@ export function ProviderLocationSearchFields({
   function clearResolvedLocation() {
     setSelectedLocation(null);
     setCoordinates(null);
-    setProvinceCode("");
-    setRegionId("");
+    setRegionControlValue("");
   }
 
   function applyLocation(location: ResolvedSearchLocation) {
@@ -198,8 +207,7 @@ export function ProviderLocationSearchFields({
       latitude: location.latitude,
       longitude: location.longitude,
     });
-    setProvinceCode(location.provinceCode);
-    setRegionId(location.regionId);
+    setRegionControlValue(location.regionId);
     setQuery(location.address);
     setSuggestions([]);
     setIsSuggestionListOpen(false);
@@ -207,7 +215,7 @@ export function ProviderLocationSearchFields({
     inputRef.current?.setCustomValidity("");
     setStatus({
       kind: "resolved",
-      message: `Matched to ${location.regionName}, ${location.provinceName}.`,
+      message: `Matched to ${location.regionName}.`,
     });
   }
 
@@ -223,16 +231,15 @@ export function ProviderLocationSearchFields({
     reverseControllerRef.current = controller;
     setCoordinates(nextCoordinates);
     setSelectedLocation(null);
-    setProvinceCode("");
-    setRegionId("");
+    setRegionControlValue("");
     setSuggestions([]);
     setIsSuggestionListOpen(false);
     setStatus({
       kind: "loading",
       message:
         source === "device"
-          ? "Matching your current location to a Canadian service region..."
-          : "Matching the map pin to a Canadian service region...",
+          ? "Matching your current location to a service area..."
+          : "Matching the map pin to a service area...",
     });
 
     try {
@@ -369,24 +376,34 @@ export function ProviderLocationSearchFields({
   const isResolving = status.kind === "loading" || isLocatingDevice;
 
   return (
-    <section className="border-b border-stone-200 pb-5">
-      <input type="hidden" name="province" value={provinceCode} />
-      <input type="hidden" name="region" value={regionId} />
-
-      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Project location
+    <section className="p-4 sm:p-5 lg:p-6">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.75fr)] lg:items-start">
+        <div className="min-w-0">
+          <LocationPickerMap
+            className="h-80 lg:h-[20rem]"
+            coordinates={coordinates}
+            disabled={isResolving}
+            onCoordinatesChange={handleCoordinatesChange}
+          />
+          <p className="mt-3 text-xs leading-5 text-stone-500">
+            Your search location is used only to identify a service area. It is
+            not saved or shown to providers.
           </p>
-          <h2 className="mt-2 text-lg font-semibold text-stone-950">
-            Search by address or postal code
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-sm font-semibold uppercase text-teal-700">
+            Search area
+          </p>
+          <h2 className="mt-2 text-xl font-semibold leading-tight text-stone-950">
+            Address or map pin
           </h2>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
-            Select a Canadian address, use your current location, or move the
-            pin on the map.
+          <p className="mt-3 text-sm leading-6 text-stone-600">
+            Choose an address, postal code, or pin so results match the right
+            service area.
           </p>
 
-          <div className="relative mt-4">
+          <div className="relative mt-5">
             <label
               htmlFor="provider-search-address"
               className="grid gap-2 text-sm font-semibold text-stone-900"
@@ -395,6 +412,7 @@ export function ProviderLocationSearchFields({
               <input
                 ref={inputRef}
                 id="provider-search-address"
+                form={formId}
                 type="search"
                 value={query}
                 onChange={(event) => {
@@ -412,14 +430,14 @@ export function ProviderLocationSearchFields({
                     message:
                       nextQuery.trim().length > 0 &&
                       nextQuery.trim().length < 3
-                        ? "Enter at least 3 characters to search Canadian addresses."
+                        ? "Enter at least 3 characters to search addresses."
                         : nextQuery.trim()
                           ? "Searching will begin after you pause typing."
-                          : "Enter a Canadian address or postal code, or place the pin.",
+                          : "Enter an address or postal code, or place the pin.",
                   });
                   event.target.setCustomValidity(
                     nextQuery.trim()
-                      ? "Select a Canadian address suggestion or place the map pin."
+                      ? "Select an address suggestion or place the map pin."
                       : "",
                   );
                 }}
@@ -464,7 +482,7 @@ export function ProviderLocationSearchFields({
                       type="button"
                       className={`w-full rounded-md px-3 py-3 text-left transition ${
                         index === activeSuggestionIndex
-                          ? "bg-emerald-50"
+                          ? "bg-teal-50"
                           : "hover:bg-stone-50"
                       }`}
                       onMouseDown={(event) => event.preventDefault()}
@@ -474,8 +492,8 @@ export function ProviderLocationSearchFields({
                       <span className="block text-sm font-semibold text-stone-900">
                         {suggestion.address}
                       </span>
-                      <span className="mt-1 block text-xs text-emerald-800">
-                        {suggestion.regionName}, {suggestion.provinceName}
+                      <span className="mt-1 block text-sm text-teal-800">
+                        {suggestion.regionName}
                       </span>
                     </button>
                   </li>
@@ -484,7 +502,7 @@ export function ProviderLocationSearchFields({
             ) : null}
           </div>
 
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="mt-3 grid gap-2">
             <button
               type="button"
               className={secondaryButtonClassName}
@@ -506,7 +524,7 @@ export function ProviderLocationSearchFields({
               status.kind === "error"
                 ? "border-red-200 bg-red-50 text-red-800"
                 : status.kind === "resolved"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  ? "border-teal-200 bg-teal-50 text-teal-900"
                   : "border-stone-200 bg-white text-stone-600"
             }`}
             role={status.kind === "error" ? "alert" : "status"}
@@ -515,22 +533,14 @@ export function ProviderLocationSearchFields({
             {status.message}
           </p>
 
-          <p className="mt-3 text-xs leading-5 text-stone-500">
-            Your search location is used only to identify a service region. It
-            is not saved or shown to providers.
-          </p>
-        </div>
-
-        <div>
-          <LocationPickerMap
-            coordinates={coordinates}
+          <button
+            type="submit"
+            form={formId}
+            className="mt-4 h-12 w-full rounded-md bg-stone-950 px-6 text-sm font-semibold text-white transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isResolving}
-            onCoordinatesChange={handleCoordinatesChange}
-          />
-          <p className="mt-2 text-xs leading-5 text-stone-500">
-            Use Recenter, Ontario, or Canada to quickly move the map. Provider
-            home addresses are never displayed.
-          </p>
+          >
+            Search providers
+          </button>
         </div>
       </div>
     </section>

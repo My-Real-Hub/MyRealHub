@@ -2,15 +2,15 @@
 
 import { useMemo, useState } from "react";
 import type {
-  CanadianSubdivisionOption,
   ServiceRegionOption,
+  SubdivisionOption,
 } from "@/lib/service-regions";
 
 type ProviderRegionFilterFieldsProps = {
   initialProvinceCode?: string;
   initialRegionId?: string;
   regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
   variant?: "homepage" | "search";
 };
 
@@ -36,9 +36,9 @@ export function ProviderRegionFilterFields({
   const provinceByCode = useMemo(
     () =>
       new Map(
-        subdivisions.map((subdivision) => [
+        subdivisions.map((subdivision, index) => [
           subdivision.code,
-          subdivision.name,
+          `Region group ${index + 1}`,
         ]),
       ),
     [subdivisions],
@@ -48,20 +48,24 @@ export function ProviderRegionFilterFields({
   );
   const isHomepage = variant === "homepage";
   const labelClassName = isHomepage
-    ? "min-w-0"
+    ? "flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700"
     : "flex flex-col gap-2 text-sm font-medium text-stone-800";
-  const labelTextClassName = isHomepage ? "sr-only" : "";
+  const labelTextClassName = "";
+  const homepageFocusClassName = "focus:border-teal-700 focus:ring-teal-100";
+  const searchFocusClassName = "focus:border-emerald-700 focus:ring-emerald-100";
   const selectClassName = `${
     isHomepage ? "h-12" : "h-11"
   } w-full min-w-0 rounded-md border ${
-    isHomepage ? "border-stone-200 px-4 text-base" : "border-stone-300 px-3 text-sm"
-  } bg-white text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500`;
+    isHomepage ? "border-stone-300 px-3 text-base" : "border-stone-300 px-3 text-sm"
+  } bg-white text-stone-950 outline-none transition ${
+    isHomepage ? homepageFocusClassName : searchFocusClassName
+  } focus:ring-4 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500`;
   const provinceName = provinceByCode.get(provinceCode);
 
   return (
     <>
       <label htmlFor={`${variant}-provider-province`} className={labelClassName}>
-        <span className={labelTextClassName}>Province or territory</span>
+        <span className={labelTextClassName}>Region group</span>
         <select
           id={`${variant}-provider-province`}
           name="province"
@@ -72,10 +76,10 @@ export function ProviderRegionFilterFields({
           }}
           className={selectClassName}
         >
-          <option value="">All provinces and territories</option>
-          {subdivisions.map((subdivision) => (
+          <option value="">All region groups</option>
+          {subdivisions.map((subdivision, index) => (
             <option key={subdivision.code} value={subdivision.code}>
-              {subdivision.name}
+              Region group {index + 1}
             </option>
           ))}
         </select>
@@ -85,7 +89,9 @@ export function ProviderRegionFilterFields({
         htmlFor={`${variant}-provider-service-region`}
         className={labelClassName}
       >
-        <span className={labelTextClassName}>Service region</span>
+        <span className={labelTextClassName}>
+          {isHomepage ? "Area" : "Service region"}
+        </span>
         <select
           id={`${variant}-provider-service-region`}
           name="region"
@@ -97,7 +103,9 @@ export function ProviderRegionFilterFields({
           <option value="">
             {provinceName
               ? `All regions in ${provinceName}`
-              : "Select a province or territory first"}
+              : isHomepage
+                ? "Select region group first"
+                : "Select a region group first"}
           </option>
           {provinceRegions.map((region) => (
             <option key={region.id} value={region.id}>

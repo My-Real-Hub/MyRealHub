@@ -16,8 +16,8 @@ import {
   type ContactDeliveryMethod,
 } from "@/lib/contact-requests";
 import type {
-  CanadianSubdivisionOption,
   ServiceRegionOption,
+  SubdivisionOption,
 } from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -229,7 +229,7 @@ async function getProviderRegionSettings(providerProfileId: string | null) {
       (selectedRegionsResult.data ?? []) as ProviderServiceRegionRow[]
     ).map((row) => row.service_region_id),
     subdivisions: (subdivisionsResult.data ??
-      []) as CanadianSubdivisionOption[],
+      []) as SubdivisionOption[],
   };
 }
 

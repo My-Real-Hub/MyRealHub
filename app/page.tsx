@@ -1,11 +1,12 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { AudienceTabs } from "@/components/home/audience-tabs";
 import { ProviderRegionFilterFields } from "@/components/providers/provider-region-filter-fields";
 import { featuredProviders, serviceCategories } from "@/lib/service-directory";
 import type {
-  CanadianSubdivisionOption,
   ServiceRegionOption,
+  SubdivisionOption,
 } from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -48,17 +49,9 @@ type HomepageCategory = {
   slug: string;
 };
 
-type PopularRegion = {
-  href: string;
-  id: string;
-  name: string;
-  providerCount: number;
-  provinceCode: string;
-  provinceName: string;
-};
-
 type TopRatedProvider = {
   averageRating: number;
+  avatarUrl: string | null;
   bio: string;
   categoryHref: string;
   categoryName: string;
@@ -72,11 +65,9 @@ type TopRatedProvider = {
 };
 
 type HomepageShellData = {
-  activeProviderCount: number;
   categories: HomepageCategory[];
-  popularRegions: PopularRegion[];
   regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 };
 
 const categoryIcons: Record<string, string> = {
@@ -92,8 +83,17 @@ const categoryIcons: Record<string, string> = {
   stager: "✧",
 };
 
-const numberFormatter = new Intl.NumberFormat("en-US");
 const ratingValues = [1, 2, 3, 4, 5];
+const featuredCategoryOrder = [
+  "real-estate-agent",
+  "home-inspector",
+  "mortgage-broker",
+  "real-estate-lawyer",
+  "appraiser",
+  "property-manager",
+  "contractor",
+  "cleaner",
+];
 
 function slugify(value: string) {
   return value
@@ -102,10 +102,6 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
-}
-
-function formatCount(value: number) {
-  return numberFormatter.format(value);
 }
 
 function getFallbackCategories(): HomepageCategory[] {
@@ -127,11 +123,7 @@ function getProviderName(provider: HomepageProviderRow) {
 }
 
 function getProviderLocation(provider: HomepageProviderRow) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location available on profile";
 }
@@ -160,6 +152,36 @@ function truncateText(value: string | null, fallback: string, limit = 150) {
     : normalizedValue;
 }
 
+function refineCustomerCopy(value: string | null) {
+  return value
+    ?.replace(
+      /pre-listing improvement\s+[a-z]+/gi,
+      "pre-listing improvements",
+    )
+    .replace(
+      /Repair\s+[a-z]+\s+before listing a property\./gi,
+      "Repairs before listing a property.",
+    ) ?? null;
+}
+
+function getPublicProfileImageUrl(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (url.hostname === "example.com" || url.hostname.endsWith(".example.com")) {
+      return null;
+    }
+
+    return value;
+  } catch {
+    return value.startsWith("/") ? value : null;
+  }
+}
+
 function getCategoryIcon(categoryName: string) {
   const normalizedCategory = categoryName.toLowerCase();
   const iconKey = Object.keys(categoryIcons).find((key) =>
@@ -173,15 +195,6 @@ function getCategoryHref(categoryId: string, categoryName: string) {
   return categoryId
     ? `/search?category=${encodeURIComponent(categoryId)}`
     : `/search?service=${encodeURIComponent(categoryName)}`;
-}
-
-function getRegionHref(region: ServiceRegionOption) {
-  const params = new URLSearchParams({
-    province: region.province_code,
-    region: region.id,
-  });
-
-  return `/search?${params.toString()}#provider-search-address`;
 }
 
 function getCategoryCards(
@@ -219,48 +232,18 @@ function getCategoryCards(
   );
 }
 
-function getPopularRegions({
-  providerRegionRows,
-  regions,
-  subdivisions,
-}: {
-  providerRegionRows: HomepageProviderRegionRow[];
-  regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
-}) {
-  const providerCountByRegion = new Map<string, number>();
-  const provinceNameByCode = new Map(
-    subdivisions.map((subdivision) => [subdivision.code, subdivision.name]),
+function getFeaturedCategories(categories: HomepageCategory[]) {
+  const orderBySlug = new Map(
+    featuredCategoryOrder.map((slug, index) => [slug, index]),
   );
 
-  providerRegionRows.forEach((row) => {
-    providerCountByRegion.set(
-      row.service_region_id,
-      (providerCountByRegion.get(row.service_region_id) ?? 0) + 1,
-    );
-  });
-
-  const regionsWithCounts = regions.map((region) => ({
-    href: getRegionHref(region),
-    id: region.id,
-    name: region.name,
-    providerCount: providerCountByRegion.get(region.id) ?? 0,
-    provinceCode: region.province_code,
-    provinceName:
-      provinceNameByCode.get(region.province_code) ?? region.province_code,
-  }));
-  const popularRegions = regionsWithCounts
-    .filter((region) => region.providerCount > 0)
+  return categories
+    .filter((category) => orderBySlug.has(category.slug))
     .sort(
-      (firstRegion, secondRegion) =>
-        secondRegion.providerCount - firstRegion.providerCount ||
-        firstRegion.name.localeCompare(secondRegion.name),
-    )
-    .slice(0, 6);
-
-  return popularRegions.length > 0
-    ? popularRegions
-    : regionsWithCounts.slice(0, 6);
+      (firstCategory, secondCategory) =>
+        (orderBySlug.get(firstCategory.slug) ?? Number.MAX_SAFE_INTEGER) -
+        (orderBySlug.get(secondCategory.slug) ?? Number.MAX_SAFE_INTEGER),
+    );
 }
 
 async function getHomepageShellData(): Promise<HomepageShellData> {
@@ -293,37 +276,18 @@ async function getHomepageShellData(): Promise<HomepageShellData> {
     ]);
     const categories = (categoriesResult.data ?? []) as HomepageCategoryRow[];
     const providers = (providersResult.data ?? []) as unknown as HomepageProviderRow[];
-    const activeProviderIds = providers.map((provider) => provider.id);
     const subdivisions = (subdivisionsResult.data ??
-      []) as CanadianSubdivisionOption[];
+      []) as SubdivisionOption[];
     const regions = (serviceRegionsResult.data ?? []) as ServiceRegionOption[];
-    const providerRegionRows =
-      activeProviderIds.length > 0
-        ? await supabase
-            .from("provider_service_regions")
-            .select("provider_profile_id,service_region_id")
-            .in("provider_profile_id", activeProviderIds)
-            .then(
-              ({ data }) => (data ?? []) as HomepageProviderRegionRow[],
-            )
-        : [];
 
     return {
-      activeProviderCount: providers.length,
       categories: getCategoryCards(categories, providers),
-      popularRegions: getPopularRegions({
-        providerRegionRows,
-        regions,
-        subdivisions,
-      }),
       regions,
       subdivisions,
     };
   } catch {
     return {
-      activeProviderCount: featuredProviders.length,
       categories: getFallbackCategories(),
-      popularRegions: [],
       regions: [],
       subdivisions: [],
     };
@@ -359,6 +323,7 @@ function getRegionNamesByProvider({
 function getFallbackTopProviders(): TopRatedProvider[] {
   return featuredProviders.map((provider) => ({
     averageRating: 0,
+    avatarUrl: null,
     bio: provider.summary,
     categoryHref: `/search?service=${encodeURIComponent(provider.category)}`,
     categoryName: provider.category,
@@ -452,10 +417,11 @@ async function getTopRatedProviderPreviews(): Promise<TopRatedProvider[]> {
 
         return {
           averageRating,
+          avatarUrl: getPublicProfileImageUrl(provider.profile_image_url),
           bio: truncateText(
-            provider.bio,
+            refineCustomerCopy(provider.bio),
             provider.service_area ??
-              "Profile details, service regions, and contact options are available on this provider profile.",
+              "Profile details, service areas, and contact options are available on this provider profile.",
           ),
           categoryHref: getCategoryHref(category?.id ?? "", category?.name ?? ""),
           categoryName: category?.name ?? "Real estate service",
@@ -509,15 +475,15 @@ function SectionHeader({
   description?: string;
 }) {
   return (
-    <div>
-      <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+    <div className="max-w-2xl">
+      <p className="text-sm font-semibold uppercase text-teal-700">
         {eyebrow}
       </p>
-      <h2 className="mt-2 text-2xl font-semibold text-stone-950 sm:text-3xl">
+      <h2 className="mt-3 text-3xl font-semibold leading-tight text-stone-950 sm:text-4xl">
         {title}
       </h2>
       {description ? (
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
+        <p className="mt-4 text-base leading-7 text-stone-600">
           {description}
         </p>
       ) : null}
@@ -532,72 +498,72 @@ function HeroSearchForm({
 }: {
   categories: HomepageCategory[];
   regions: ServiceRegionOption[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 }) {
   return (
     <form
       action="/search"
       method="get"
-      className="mt-8 grid gap-3 rounded-2xl border border-stone-200 bg-white/90 p-3 shadow-lg shadow-stone-200/60 backdrop-blur sm:grid-cols-2 lg:grid-cols-[1.1fr_1fr_1fr_1fr_auto]"
+      className="mt-8 rounded-lg border border-white/70 bg-white/95 p-4 shadow-lg shadow-stone-950/15 backdrop-blur"
     >
-      <label htmlFor="homepage-keyword" className="sr-only">
-        Search keywords
-      </label>
-      <input
-        id="homepage-keyword"
-        name="q"
-        type="search"
-        placeholder="What do you need help with?"
-        className="h-12 min-w-0 rounded-md border border-stone-200 bg-white px-4 text-base text-stone-950 outline-none motion-safe:transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label
+          htmlFor="homepage-keyword"
+          className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700"
+        >
+          Need
+          <input
+            id="homepage-keyword"
+            name="q"
+            type="search"
+            placeholder="Inspector, lawyer..."
+            className="h-12 min-w-0 rounded-md border border-stone-300 bg-white px-3 text-base text-stone-950 outline-none motion-safe:transition placeholder:text-stone-400 focus:border-teal-700 focus:ring-4 focus:ring-teal-100"
+          />
+        </label>
 
-      <label htmlFor="homepage-category" className="sr-only">
-        Service category
-      </label>
-      <select
-        id="homepage-category"
-        name="category"
-        className="h-12 min-w-0 rounded-md border border-stone-200 bg-white px-4 text-base text-stone-950 outline-none motion-safe:transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-      >
-        <option value="">All service categories</option>
-        {categories.map((category) => (
-          <option key={category.id} value={category.id}>
-            {category.name}
-          </option>
-        ))}
-      </select>
+        <label
+          htmlFor="homepage-category"
+          className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700"
+        >
+          Service
+          <select
+            id="homepage-category"
+            name="category"
+            className="h-12 min-w-0 rounded-md border border-stone-300 bg-white px-3 text-base text-stone-950 outline-none motion-safe:transition focus:border-teal-700 focus:ring-4 focus:ring-teal-100"
+          >
+            <option value="">All categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      <ProviderRegionFilterFields
-        regions={regions}
-        subdivisions={subdivisions}
-        variant="homepage"
-      />
+        <ProviderRegionFilterFields
+          regions={regions}
+          subdivisions={subdivisions}
+          variant="homepage"
+        />
 
-      <button
-        type="submit"
-        className="h-12 rounded-md bg-emerald-700 px-6 text-sm font-semibold text-white motion-safe:transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 sm:col-span-2 lg:col-span-1"
-      >
-        Search
-      </button>
+        <button
+          type="submit"
+          className="h-12 rounded-md bg-stone-950 px-6 text-sm font-semibold text-white motion-safe:transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 sm:col-span-2"
+        >
+          Search
+        </button>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 border-t border-stone-200 pt-4 text-sm text-stone-600 sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          href="/search#provider-search-address"
+          className="font-semibold text-teal-800 hover:text-teal-950"
+        >
+          Search by address or map pin
+        </Link>
+        <span>Use an address to match nearby coverage without posting it publicly.</span>
+      </div>
     </form>
-  );
-}
-
-function ActivityStatCard({
-  detail,
-  label,
-  value,
-}: {
-  detail: string;
-  label: string;
-  value: number;
-}) {
-  return (
-    <article className="rounded-xl border border-white/10 bg-white/10 p-4">
-      <p className="text-3xl font-semibold text-white">{formatCount(value)}</p>
-      <p className="mt-1 text-sm font-semibold text-stone-100">{label}</p>
-      <p className="mt-2 text-xs leading-5 text-stone-300">{detail}</p>
-    </article>
   );
 }
 
@@ -605,16 +571,16 @@ function ServiceCategoryCard({ category }: { category: HomepageCategory }) {
   return (
     <Link
       href={category.href}
-      className="group rounded-2xl border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-emerald-100"
+      className="group flex min-h-52 flex-col rounded-lg border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5 hover:border-teal-700 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-teal-100"
     >
       <div className="flex items-start justify-between gap-4">
         <span
-          className="grid size-11 place-items-center rounded-xl bg-emerald-50 text-xl font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100"
+          className="grid size-10 place-items-center rounded-md bg-teal-900 text-lg font-semibold text-white"
           aria-hidden="true"
         >
           {getCategoryIcon(category.name)}
         </span>
-        <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600">
+        <span className="text-sm font-semibold text-stone-500">
           {category.providerCount > 0
             ? `${category.providerCount} provider${
                 category.providerCount === 1 ? "" : "s"
@@ -626,54 +592,42 @@ function ServiceCategoryCard({ category }: { category: HomepageCategory }) {
         {category.name}
       </h3>
       <p className="mt-2 text-sm leading-6 text-stone-600">
-        Compare providers, service regions, ratings, and contact preferences.
+        Compare providers, service areas, ratings, and contact preferences.
       </p>
-      <span className="mt-5 inline-flex text-sm font-semibold text-emerald-800 motion-safe:transition group-hover:translate-x-1">
-        Search this service →
+      <span className="mt-auto pt-5 text-sm font-semibold text-teal-800">
+        Search service
       </span>
-    </Link>
-  );
-}
-
-function PopularRegionCard({ region }: { region: PopularRegion }) {
-  return (
-    <Link
-      href={region.href}
-      className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-emerald-100"
-    >
-      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-        {region.provinceName}
-      </p>
-      <h3 className="mt-2 text-lg font-semibold text-stone-950">
-        {region.name}
-      </h3>
-      <p className="mt-3 text-sm leading-6 text-stone-600">
-        {region.providerCount > 0
-          ? `${region.providerCount} active provider${
-              region.providerCount === 1 ? "" : "s"
-            } serving this region.`
-          : "Open map-based discovery for this Canadian service region."}
-      </p>
     </Link>
   );
 }
 
 function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
   return (
-    <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md">
+    <article className="flex h-full flex-col rounded-lg border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5 hover:border-teal-700 hover:shadow-md">
       <div className="flex gap-4">
-        <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-emerald-700 text-base font-semibold text-white shadow-sm">
-          {provider.initials}
+        <div className="size-14 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-teal-900">
+          {provider.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={provider.avatarUrl}
+              alt={`${provider.name} profile`}
+              className="size-full object-cover"
+            />
+          ) : (
+            <span className="grid size-full place-items-center text-base font-semibold text-white">
+              {provider.initials}
+            </span>
+          )}
         </div>
         <div className="min-w-0">
           <Link
             href={provider.categoryHref}
-            className="text-xs font-semibold uppercase tracking-wide text-emerald-700 hover:text-emerald-900"
+            className="text-sm font-semibold uppercase text-teal-700 hover:text-teal-950"
           >
             {provider.categoryName}
           </Link>
           <h3 className="mt-1 text-lg font-semibold text-stone-950">
-            <Link href={provider.href} className="hover:text-emerald-800">
+            <Link href={provider.href} className="hover:text-teal-800">
               {provider.name}
             </Link>
           </h3>
@@ -705,17 +659,17 @@ function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
         </span>
       </p>
 
-      <p className="mt-4 text-sm leading-6 text-stone-600">{provider.bio}</p>
+      <p className="mt-4 flex-1 text-sm leading-6 text-stone-600">{provider.bio}</p>
 
       {provider.serviceRegionNames.length > 0 ? (
-        <p className="mt-4 text-sm font-semibold text-emerald-800">
+        <p className="mt-4 text-sm font-semibold text-teal-800">
           Serves {provider.serviceRegionNames.slice(0, 2).join(" · ")}
         </p>
       ) : null}
 
       <Link
         href={provider.href}
-        className="mt-5 inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
+        className="mt-5 inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
       >
         View profile
       </Link>
@@ -729,10 +683,10 @@ function TopProviderSkeletonGrid() {
       {[0, 1, 2].map((item) => (
         <div
           key={item}
-          className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
+          className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm"
         >
           <div className="flex gap-4">
-            <div className="size-14 rounded-xl bg-stone-200 motion-safe:animate-pulse" />
+            <div className="size-14 rounded-md bg-stone-200 motion-safe:animate-pulse" />
             <div className="flex-1">
               <div className="h-3 w-24 rounded bg-stone-200 motion-safe:animate-pulse" />
               <div className="mt-3 h-5 w-3/4 rounded bg-stone-200 motion-safe:animate-pulse" />
@@ -770,13 +724,13 @@ function HowItWorksSection() {
   const steps = [
     {
       description:
-        "Start broad with a profession/category, then narrow by province and service region.",
+        "Start broad with a profession/category, then narrow by service area.",
       title: "Choose the service and area",
     },
     {
       description:
-        "On the search page, enter an address or move the map pin so MyRealHub can match the property to a Canadian service region.",
-      title: "Match a project location",
+        "On the search page, enter an address or move the map pin so MyRealHub can match the property to a service area.",
+      title: "Match the property location",
     },
     {
       description:
@@ -786,41 +740,32 @@ function HowItWorksSection() {
   ];
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-14">
-      <SectionHeader
-        eyebrow="How it works"
-        title="A cleaner path from project location to provider shortlist"
-        description="Open each step to see how homepage discovery connects to the richer search workflow."
-      />
+    <section className="border-y border-stone-200 bg-white">
+      <div className="mx-auto w-full max-w-7xl px-6 py-16">
+        <SectionHeader
+          eyebrow="How it works"
+          title="Move from address to provider shortlist"
+          description="Start with the service you need, confirm the area, and compare providers that serve that property."
+        />
 
-      <div className="mt-6 grid gap-3 lg:grid-cols-3">
+        <ol className="mt-8 grid gap-4 lg:grid-cols-3">
         {steps.map((step, index) => (
-          <details
+          <li
             key={step.title}
-            open={index === 0}
-            className="group rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
+            className="rounded-lg border border-stone-200 bg-[#fbfaf7] p-5 shadow-sm"
           >
-            <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-left [&::-webkit-details-marker]:hidden">
-              <div>
-                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                  Step {index + 1}
-                </span>
-                <h3 className="mt-2 text-lg font-semibold text-stone-950">
-                  {step.title}
-                </h3>
-              </div>
-              <span
-                className="rounded-full border border-stone-200 px-2 text-stone-500 motion-safe:transition group-open:rotate-45"
-                aria-hidden="true"
-              >
-                +
-              </span>
-            </summary>
+            <span className="flex size-9 items-center justify-center rounded-md bg-stone-950 text-sm font-semibold text-white">
+              {index + 1}
+            </span>
+            <h3 className="mt-5 text-lg font-semibold text-stone-950">
+              {step.title}
+            </h3>
             <p className="mt-4 text-sm leading-6 text-stone-600">
               {step.description}
             </p>
-          </details>
+          </li>
         ))}
+        </ol>
       </div>
     </section>
   );
@@ -829,185 +774,142 @@ function HowItWorksSection() {
 export default async function Home() {
   const topProvidersPromise = getTopRatedProviderPreviews();
   const {
-    activeProviderCount,
     categories,
-    popularRegions,
     regions,
     subdivisions,
   } = await getHomepageShellData();
-  const featuredCategories = categories.slice(0, 8);
-  const activityStats = [
-    {
-      detail: "Approved listings available in public search.",
-      label: "Active providers",
-      value: activeProviderCount,
-    },
-    {
-      detail: "Professional categories spanning the moving journey.",
-      label: "Service categories",
-      value: categories.length,
-    },
-    {
-      detail: "Canadian regions connected to map discovery.",
-      label: "Service regions",
-      value: regions.length,
-    },
-    {
-      detail: "Frequently served areas surfaced from provider coverage.",
-      label: "Popular regions",
-      value: popularRegions.length,
-    },
-  ];
+  const featuredCategories = getFeaturedCategories(categories);
 
   return (
     <>
-      <section className="overflow-hidden border-b border-stone-200 bg-[radial-gradient(circle_at_top_left,#ecfdf5,transparent_34rem),linear-gradient(180deg,#ffffff,#fafaf9)]">
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-14 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:items-center lg:py-20">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-              Canadian real estate services directory
-            </p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-stone-950 sm:text-5xl lg:text-6xl">
-              Find the provider who serves your exact project area.
-            </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-600">
-              Search real estate agents, mortgage pros, inspectors, lawyers,
-              contractors, photographers, stagers, and more by service and
-              Canadian service region.
-            </p>
+      <section className="border-b border-stone-200 bg-white px-3 py-4 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-[92rem] overflow-hidden rounded-lg bg-stone-950 shadow-sm">
+          <Image
+            src="/images/landing-hero.png"
+            alt=""
+            fill
+            preload
+            sizes="(max-width: 1536px) calc(100vw - 3rem), 1472px"
+            className="object-cover"
+          />
+          <div
+            className="absolute inset-0 bg-stone-950/45"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-stone-950/90 via-stone-950/70 to-stone-950/25"
+            aria-hidden="true"
+          />
+          <div className="relative mx-auto w-full max-w-7xl px-6 py-14 lg:py-20">
+            <div className="max-w-3xl">
+              <div>
+                <p className="text-sm font-semibold uppercase text-emerald-100">
+                  Real estate services directory
+                </p>
+                <h1 className="mt-4 text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
+                  One directory for anyone hiring and the providers serving
+                  them
+                </h1>
+                <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-100">
+                  Search real estate agents, mortgage pros, inspectors, lawyers,
+                  contractors, photographers, stagers, and more by service and
+                  area.
+                </p>
 
-            <HeroSearchForm
-              categories={categories}
-              regions={regions}
-              subdivisions={subdivisions}
+                <HeroSearchForm
+                  categories={categories}
+                  regions={regions}
+                  subdivisions={subdivisions}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-stone-200 bg-white">
+        <div className="mx-auto grid w-full max-w-7xl gap-8 px-6 py-16 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
+          <SectionHeader
+            eyebrow="Start here"
+            title="One directory for the people hiring and the providers serving them"
+            description="Consumers can shortlist trusted help by area. Providers can keep coverage, contact preferences, and public profiles up to date."
+          />
+          <AudienceTabs />
+        </div>
+      </section>
+
+      <section id="services" className="bg-[#fbfaf7]">
+        <div className="mx-auto w-full max-w-7xl px-6 py-16">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <SectionHeader
+              eyebrow="Browse services"
+              title="Choose the right specialist first"
+              description="Start with the profession, then narrow results by area, ratings, and public profile details."
             />
-
-            <div className="mt-4 flex flex-col gap-3 text-sm text-stone-600 sm:flex-row sm:items-center">
-              <Link
-                href="/search#provider-search-address"
-                className="font-semibold text-emerald-800 hover:text-emerald-900"
-              >
-                Search by address or map pin →
-              </Link>
-              <span className="hidden text-stone-300 sm:inline" aria-hidden="true">
-                |
-              </span>
-              <span>Exact addresses stay private and are only used for region matching.</span>
-            </div>
+            <Link
+              href="/search"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+            >
+              View all providers
+            </Link>
           </div>
 
-          <div className="grid gap-4">
-            <AudienceTabs />
-            <div className="rounded-2xl border border-stone-800 bg-stone-950 p-5 text-white shadow-xl">
-              <p className="text-sm font-medium text-amber-200">
-                Platform activity
-              </p>
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                {activityStats.map((stat) => (
-                  <ActivityStatCard
-                    key={stat.label}
-                    detail={stat.detail}
-                    label={stat.label}
-                    value={stat.value}
-                  />
-                ))}
-              </div>
-            </div>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {featuredCategories.map((category) => (
+              <ServiceCategoryCard key={category.id} category={category} />
+            ))}
           </div>
         </div>
       </section>
 
-      <section id="services" className="mx-auto w-full max-w-6xl px-6 py-14">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <SectionHeader
-            eyebrow="Browse services"
-            title="Pick a category and jump into real results"
-            description="Each card opens the provider search with that service selected."
-          />
-          <Link
-            href="/search"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-stone-950 hover:text-stone-950"
-          >
-            View all providers
-          </Link>
-        </div>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {featuredCategories.map((category) => (
-            <ServiceCategoryCard key={category.id} category={category} />
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-stone-200 bg-white">
-        <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-          <SectionHeader
-            eyebrow="Popular service regions"
-            title="Start with areas providers already serve"
-            description="Region cards connect directly to map-based discovery on the search page."
-          />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {popularRegions.length > 0 ? (
-              popularRegions.map((region) => (
-                <PopularRegionCard key={region.id} region={region} />
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-6 text-stone-600 sm:col-span-2">
-                Service regions are being prepared. Use provider search to
-                browse available Canadian locations.
-              </div>
-            )}
+      <section id="providers" className="bg-[#f7f5ef]">
+        <div className="mx-auto w-full max-w-7xl px-6 py-16">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <SectionHeader
+              eyebrow="Provider previews"
+              title="Promising profiles, ready to compare"
+              description="Compare active provider profiles, ratings, service areas, and contact options before you reach out."
+            />
+            <Link
+              href="/search"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-stone-950 px-4 text-sm font-semibold text-white motion-safe:transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+            >
+              Search directory
+            </Link>
           </div>
-        </div>
-      </section>
 
-      <section id="providers" className="mx-auto w-full max-w-6xl px-6 py-14">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <SectionHeader
-            eyebrow="Provider previews"
-            title="Top-rated providers surface as reviews come in"
-            description="Preview active profiles, ratings, and service regions without exposing private home addresses."
-          />
-          <Link
-            href="/search"
-            className="inline-flex h-10 items-center justify-center rounded-md bg-stone-950 px-4 text-sm font-semibold text-white motion-safe:transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-stone-100"
-          >
-            Search directory
-          </Link>
+          <Suspense fallback={<TopProviderSkeletonGrid />}>
+            <TopRatedProviderSection providersPromise={topProvidersPromise} />
+          </Suspense>
         </div>
-
-        <Suspense fallback={<TopProviderSkeletonGrid />}>
-          <TopRatedProviderSection providersPromise={topProvidersPromise} />
-        </Suspense>
       </section>
 
       <HowItWorksSection />
 
-      <section id="join" className="border-t border-stone-200 bg-white">
-        <div className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-12 lg:grid-cols-[1fr_auto] lg:items-center">
+      <section id="join" className="bg-stone-950 text-white">
+        <div className="mx-auto grid w-full max-w-7xl gap-6 px-6 py-14 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            <p className="text-sm font-semibold uppercase text-amber-300">
               Service providers
             </p>
-            <h2 className="mt-2 text-3xl font-semibold text-stone-950">
-              Grow where consumers are already searching.
+            <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
+              Be found in the regions you actually serve.
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-              Join MyRealHub to define your service regions, manage inquiries,
+            <p className="mt-4 max-w-2xl text-base leading-7 text-stone-300">
+              Join MyRealHub to define your service areas, manage inquiries,
               collect ratings, and keep your profile current from Settings.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:min-w-80">
             <Link
               href="/signup?role=provider"
-              className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white motion-safe:transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-semibold text-stone-950 motion-safe:transition hover:bg-stone-200 focus:outline-none focus:ring-4 focus:ring-white/20"
             >
               Join as Provider
             </Link>
             <Link
               href="/login?next=/provider/dashboard"
-              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-5 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-600 px-5 text-sm font-semibold text-white motion-safe:transition hover:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
             >
               Provider login
             </Link>

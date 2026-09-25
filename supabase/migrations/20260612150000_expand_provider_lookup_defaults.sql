@@ -266,7 +266,7 @@ from (
     ('contractor', 'Basement finishing', 'basement-finishing', 'Basement finishing and remodeling services.'),
     ('contractor', 'Kitchen remodels', 'kitchen-remodels', 'Kitchen renovation and upgrade services.'),
     ('contractor', 'Bathroom remodels', 'bathroom-remodels', 'Bathroom renovation and upgrade services.'),
-    ('contractor', 'Pre-listing repairs', 'pre-listing-repairs', 'Repair projects before listing a property.'),
+    ('contractor', 'Pre-listing repairs', 'pre-listing-repairs', 'Repairs before listing a property.'),
     ('electrician', 'Panel upgrades', 'panel-upgrades', 'Electrical panel replacement and capacity upgrades.'),
     ('electrician', 'EV charger installation', 'ev-charger-installation', 'Electric vehicle charger installation.'),
     ('electrician', 'Lighting upgrades', 'lighting-upgrades', 'Interior and exterior lighting work.'),

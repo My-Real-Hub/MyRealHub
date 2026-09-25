@@ -12,27 +12,29 @@ type MapCoordinates = {
 };
 
 type LocationPickerMapProps = {
+  className?: string;
   coordinates: MapCoordinates | null;
   disabled?: boolean;
   onCoordinatesChange: (coordinates: MapCoordinates) => void;
 };
 
-const CANADA_CENTER: [number, number] = [56.1304, -106.3468];
-const CANADA_BOUNDS: [[number, number], [number, number]] = [
+const SUPPORTED_AREA_CENTER: [number, number] = [56.1304, -106.3468];
+const SUPPORTED_AREA_BOUNDS: [[number, number], [number, number]] = [
   [41.4, -141.5],
   [83.4, -52],
 ];
-const CANADA_ZOOM = 3;
-const TORONTO_CENTER: [number, number] = [43.6532, -79.3832];
-const TORONTO_ZOOM = 11;
-const ONTARIO_CENTER: [number, number] = [50.0007, -85.0002];
-const ONTARIO_ZOOM = 5;
+const SUPPORTED_AREA_ZOOM = 3;
+const DEFAULT_LOCAL_CENTER: [number, number] = [43.6532, -79.3832];
+const DEFAULT_LOCAL_ZOOM = 11;
+const PRIMARY_AREA_CENTER: [number, number] = [50.0007, -85.0002];
+const PRIMARY_AREA_ZOOM = 5;
 const SELECTED_LOCATION_ZOOM = 13;
 const DEFAULT_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const DEFAULT_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 export function LocationPickerMap({
+  className = "h-64",
   coordinates,
   disabled = false,
   onCoordinatesChange,
@@ -73,27 +75,27 @@ export function LocationPickerMap({
         const map = leaflet
           .map(containerRef.current, {
             boxZoom: true,
-            center: TORONTO_CENTER,
+            center: DEFAULT_LOCAL_CENTER,
             doubleClickZoom: "center",
             dragging: true,
             inertia: true,
             keyboard: true,
             keyboardPanDelta: 120,
-            maxBounds: CANADA_BOUNDS,
+            maxBounds: SUPPORTED_AREA_BOUNDS,
             maxBoundsViscosity: 0.65,
-            minZoom: CANADA_ZOOM,
+            minZoom: SUPPORTED_AREA_ZOOM,
             scrollWheelZoom: "center",
             touchZoom: "center",
             wheelDebounceTime: 30,
             wheelPxPerZoomLevel: 90,
             worldCopyJump: true,
-            zoom: TORONTO_ZOOM,
+            zoom: DEFAULT_LOCAL_ZOOM,
             zoomAnimation: true,
             zoomControl: false,
             zoomDelta: 0.5,
             zoomSnap: 0.5,
           })
-          .setView(TORONTO_CENTER, TORONTO_ZOOM);
+          .setView(DEFAULT_LOCAL_CENTER, DEFAULT_LOCAL_ZOOM);
         const tileUrl =
           process.env.NEXT_PUBLIC_MAP_TILE_URL?.trim() || DEFAULT_TILE_URL;
         const attribution =
@@ -167,12 +169,12 @@ export function LocationPickerMap({
       });
       const marker = leaflet
         .marker(point, {
-          alt: "Selected project location",
+          alt: "Selected property location",
           autoPan: true,
           draggable: !disabled,
           icon,
           keyboard: true,
-          title: "Drag to change the project location",
+          title: "Drag to change the property location",
         })
         .addTo(map);
 
@@ -212,27 +214,27 @@ export function LocationPickerMap({
     mapRef.current?.zoomOut(0.5);
   }
 
-  function resetToCanada() {
-    mapRef.current?.setView(CANADA_CENTER, CANADA_ZOOM, {
+  function resetToSupportedArea() {
+    mapRef.current?.setView(SUPPORTED_AREA_CENTER, SUPPORTED_AREA_ZOOM, {
       animate: true,
     });
   }
 
-  function resetToToronto() {
-    mapRef.current?.setView(TORONTO_CENTER, TORONTO_ZOOM, {
+  function resetToDefaultLocalArea() {
+    mapRef.current?.setView(DEFAULT_LOCAL_CENTER, DEFAULT_LOCAL_ZOOM, {
       animate: true,
     });
   }
 
-  function resetToOntario() {
-    mapRef.current?.setView(ONTARIO_CENTER, ONTARIO_ZOOM, {
+  function resetToPrimaryArea() {
+    mapRef.current?.setView(PRIMARY_AREA_CENTER, PRIMARY_AREA_ZOOM, {
       animate: true,
     });
   }
 
   function recenterSelectedLocation() {
     if (!coordinates) {
-      resetToToronto();
+      resetToDefaultLocalArea();
       return;
     }
 
@@ -252,23 +254,23 @@ export function LocationPickerMap({
   }
 
   const controlButtonClassName =
-    "rounded-md border border-stone-200 bg-white/95 px-3 py-2 text-sm font-semibold text-stone-800 shadow-sm backdrop-blur transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50";
+    "rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 shadow-sm transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-100 shadow-inner">
+    <div className="relative overflow-hidden rounded-lg border border-stone-300 bg-stone-100 shadow-sm">
       <div
         ref={containerRef}
-        className="myrealhub-location-map h-80 w-full sm:h-96"
-        aria-label="Map for choosing a project location"
+        className={`myrealhub-location-map w-full ${className}`}
+        aria-label="Map for choosing a property location"
       />
       <div
-        className="absolute right-3 top-3 z-[500] flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-2"
+        className="absolute right-2 top-2 z-[500] flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1.5"
         aria-label="Map controls"
         onPointerDown={stopMapControlPropagation}
       >
         <button
           type="button"
-          className={`${controlButtonClassName} min-w-10 text-lg leading-none`}
+          className={`${controlButtonClassName} min-w-8 text-base leading-none`}
           onClick={zoomIn}
           disabled={!isMapReady}
           aria-label="Zoom map in"
@@ -277,7 +279,7 @@ export function LocationPickerMap({
         </button>
         <button
           type="button"
-          className={`${controlButtonClassName} min-w-10 text-lg leading-none`}
+          className={`${controlButtonClassName} min-w-8 text-base leading-none`}
           onClick={zoomOut}
           disabled={!isMapReady}
           aria-label="Zoom map out"
@@ -295,26 +297,19 @@ export function LocationPickerMap({
         <button
           type="button"
           className={controlButtonClassName}
-          onClick={resetToOntario}
+          onClick={resetToPrimaryArea}
           disabled={!isMapReady}
         >
-          Ontario
+          Primary area
         </button>
         <button
           type="button"
           className={controlButtonClassName}
-          onClick={resetToCanada}
+          onClick={resetToSupportedArea}
           disabled={!isMapReady}
         >
-          Canada
+          All areas
         </button>
-      </div>
-      <div
-        className="pointer-events-none absolute bottom-8 left-3 right-3 z-[500] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-medium leading-5 text-stone-700 shadow-sm backdrop-blur sm:bottom-3 sm:right-auto sm:max-w-sm"
-        aria-hidden="true"
-      >
-        Click to place the pin. Drag the map to move around. Scroll, pinch, or
-        double-click to zoom.
       </div>
       {mapError ? (
         <div className="absolute inset-0 grid place-items-center bg-stone-100 p-6 text-center text-sm font-medium text-red-700">

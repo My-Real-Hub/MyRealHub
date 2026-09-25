@@ -1,4 +1,10 @@
 import Link from "next/link";
+import {
+  DashboardHeader,
+  DashboardSection,
+  DashboardShell,
+  DashboardStatCard,
+} from "@/components/dashboard/dashboard-shell";
 import { ConversationCenter } from "@/components/messages/conversation-center";
 import type { ProviderProfileFormData } from "@/components/providers/provider-profile-form";
 import { requireProfileRole } from "@/lib/auth/session";
@@ -67,13 +73,13 @@ const statusContent: Record<DashboardStatus, StatusContent> = {
   active: {
     label: "Active",
     badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    summary: "Your listing is approved and ready for public directory surfaces.",
+    summary: "Your listing is approved and visible in the directory.",
     nextStep: "Keep service details and contact information current.",
   },
   inactive: {
     label: "Inactive",
     badgeClassName: "border-stone-200 bg-stone-100 text-stone-700",
-    summary: "Your listing exists but is hidden from public directory surfaces.",
+    summary: "Your listing exists but is hidden from public search.",
     nextStep: "Update profile details and request reactivation when ready.",
   },
   rejected: {
@@ -86,8 +92,9 @@ const statusContent: Record<DashboardStatus, StatusContent> = {
 
 const dashboardNavItems = [
   { href: "#overview", label: "Overview" },
-  { href: "#consumer-tools", label: "Find services" },
+  { href: "#listing", label: "Listing" },
   { href: "#inquiries", label: "Inquiries" },
+  { href: "#customer-tools", label: "Customer tools" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -237,115 +244,81 @@ export default async function ProviderDashboardPage({
   const displayName = getDisplayName(providerProfile, profile.fullName);
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-10">
-      <div className="grid gap-8 lg:grid-cols-[15rem_1fr] lg:items-start">
-        <aside className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:sticky lg:top-28">
-          <p className="px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Provider
-          </p>
-          <nav
-            aria-label="Provider dashboard navigation"
-            className="mt-3 grid gap-1 text-sm font-medium"
-          >
-            {dashboardNavItems.map((item) => (
+    <DashboardShell
+      navItems={dashboardNavItems}
+      navLabel="Provider"
+      signedInValue={profile.email ?? displayName}
+    >
+      <div className="grid gap-6">
+        <DashboardHeader
+          eyebrow="Provider dashboard"
+          title={displayName}
+          description="Manage your public profile, service areas, contact details, and inquiries."
+          actions={
+            <>
               <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-md px-2 py-2 text-stone-700 transition hover:bg-stone-50 hover:text-stone-950"
+                href="/settings"
+                className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
               >
-                {item.label}
+                Edit listing
               </Link>
-            ))}
-          </nav>
-          <div className="mt-5 border-t border-stone-200 pt-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Signed in
-            </p>
-            <p className="mt-2 break-words text-sm font-medium text-stone-950">
-              {profile.email ?? displayName}
-            </p>
-          </div>
-        </aside>
+              <Link
+                href="/search"
+                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+              >
+                View directory
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+              >
+                Customer dashboard
+              </Link>
+            </>
+          }
+        />
 
-        <div className="grid gap-6">
-          <header id="overview" className="scroll-mt-28">
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-              Provider dashboard
-            </p>
-            <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h1 className="text-3xl font-semibold text-stone-950">
-                  {displayName}
-                </h1>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                  Manage your listing, approval status, and contact requests from
-                  one provider workspace.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/search"
-                  className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800"
-                >
-                  Search providers
-                </Link>
-                <Link
-                  href="/dashboard"
-                  className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-                >
-                  Consumer dashboard
-                </Link>
-                <Link
-                  href="/settings"
-                  className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-                >
-                  Settings
-                </Link>
-              </div>
-            </div>
-          </header>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <DashboardStatCard
+            description="Current review state."
+            label="Listing status"
+            tone={statusKey === "active" ? "accent" : "warning"}
+            value={status.label}
+          />
+          <DashboardStatCard
+            description="Core profile fields completed."
+            label="Profile readiness"
+            value={`${completedFields}/11`}
+          />
+          <DashboardStatCard
+            description="Total customer conversations."
+            label="Inquiries"
+            value={conversationData.total}
+          />
+          <DashboardStatCard
+            description="Customer conversations needing review."
+            label="Unread"
+            tone={conversationData.unreadCount > 0 ? "info" : "light"}
+            value={conversationData.unreadCount}
+          />
+        </div>
 
-          <section
-            id="consumer-tools"
-            className="scroll-mt-28 border-y border-stone-200 py-5"
-          >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-stone-950">
-                  Find services for your own real estate needs
-                </h2>
-                <p className="mt-1 text-sm leading-6 text-stone-600">
-                  Search, save, contact, and rate other providers with this
-                  account.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/search"
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950"
-                >
-                  Browse directory
-                </Link>
-                <Link
-                  href="/dashboard#saved-providers"
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950"
-                >
-                  Saved providers
-                </Link>
-              </div>
-            </div>
-          </section>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm md:col-span-2">
+        <DashboardSection
+          id="listing"
+          eyebrow="Listing"
+          title="Public profile readiness"
+          description="Check what customers see before they decide to contact you."
+        >
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+            <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-sm font-medium text-stone-500">
-                    Profile status
+                    Approval status
                   </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-stone-950">
+                  <h3 className="mt-2 text-2xl font-semibold text-stone-950">
                     {status.label}
-                  </h2>
+                  </h3>
                 </div>
                 <span
                   className={`inline-flex w-fit rounded-md border px-3 py-1 text-sm font-semibold ${status.badgeClassName}`}
@@ -381,56 +354,64 @@ export default async function ProviderDashboardPage({
               ) : null}
             </article>
 
-            <article className="rounded-lg border border-stone-200 bg-stone-950 p-5 text-white shadow-sm">
-              <p className="text-sm font-medium text-stone-300">
-                Inquiry snapshot
-              </p>
-              <p className="mt-3 text-4xl font-semibold">
-                {conversationData.unreadCount}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-stone-300">
-                Unread conversations out of {conversationData.total} total.
-              </p>
-            </article>
+            <div className="grid gap-4">
+              <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                <p className="text-sm font-medium text-stone-500">
+                  Service area
+                </p>
+                <p className="mt-3 text-lg font-semibold text-stone-950">
+                  {getLocationLabel(providerProfile)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-stone-600">
+                  {providerProfile?.service_area ?? "Service area not added"}
+                </p>
+              </article>
+
+              <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+                <p className="text-sm font-medium text-stone-500">Contact</p>
+                <p className="mt-3 break-words text-sm font-semibold text-stone-950">
+                  {providerProfile?.email ?? profile.email ?? "Email not added"}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-stone-600">
+                  {providerProfile?.phone ?? "Phone not added"}
+                </p>
+              </article>
+            </div>
           </div>
+        </DashboardSection>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-medium text-stone-500">
-                Profile fields
-              </p>
-              <p className="mt-3 text-3xl font-semibold text-stone-950">
-                {completedFields}/11
-              </p>
-              <p className="mt-2 text-sm leading-6 text-stone-600">
-                Core listing fields currently populated.
-              </p>
-            </article>
-
-            <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-medium text-stone-500">Location</p>
-              <p className="mt-3 text-lg font-semibold text-stone-950">
-                {getLocationLabel(providerProfile)}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-stone-600">
-                {providerProfile?.service_area ?? "Service area not added"}
-              </p>
-            </article>
-
-            <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-medium text-stone-500">Contact</p>
-              <p className="mt-3 break-words text-sm font-semibold text-stone-950">
-                {providerProfile?.email ?? profile.email ?? "Email not added"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-stone-600">
-                {providerProfile?.phone ?? "Phone not added"}
-              </p>
-            </article>
+        <DashboardSection
+          id="customer-tools"
+          eyebrow="Customer tools"
+          title="Find services for your own real estate needs"
+          description="Use the same directory tools available to customers when you need support from another provider."
+          actions={
+            <>
+              <Link
+                href="/search"
+                className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+              >
+                Browse directory
+              </Link>
+              <Link
+                href="/dashboard#saved-providers"
+                className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+              >
+                Saved providers
+              </Link>
+            </>
+          }
+        >
+          <div className="mt-5 rounded-lg border border-stone-200 bg-white px-5 py-4 shadow-sm">
+            <p className="text-sm leading-6 text-stone-600">
+              Search by service, compare public profiles, save providers, and
+              start conversations from your customer dashboard.
+            </p>
           </div>
+        </DashboardSection>
 
-          <ConversationCenter data={conversationData} />
-        </div>
+        <ConversationCenter data={conversationData} />
       </div>
-    </section>
+    </DashboardShell>
   );
 }

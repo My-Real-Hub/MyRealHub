@@ -1,7 +1,7 @@
 import "server-only";
 
 const DEFAULT_GEOCODER_BASE_URL = "https://photon.komoot.io";
-const CANADA_BOUNDING_BOX = "-141.1,41.6,-52.5,83.2";
+const SUPPORTED_AREA_BOUNDING_BOX = "-141.1,41.6,-52.5,83.2";
 
 export type PhotonFeature = {
   geometry?: {
@@ -38,7 +38,7 @@ function getGeocoderBaseUrl() {
 function getUserAgent() {
   return (
     process.env.GEOCODER_USER_AGENT?.trim() ||
-    "MyRealHub/0.1 (Canadian provider search)"
+    "MyRealHub/0.1 (provider search)"
   );
 }
 
@@ -104,9 +104,8 @@ export function getPhotonAddressLabel(feature: PhotonFeature) {
     getPhotonProperty(feature, "county");
   const state = getPhotonProperty(feature, "state");
   const postcode = getPhotonProperty(feature, "postcode");
-  const country = getPhotonProperty(feature, "country") ?? "Canada";
   const streetAddress = [houseNumber, street].filter(Boolean).join(" ");
-  const parts = [name, streetAddress, city, state, postcode, country].filter(
+  const parts = [name, streetAddress, city, state, postcode].filter(
     (value, index, values): value is string =>
       Boolean(value) &&
       values.findIndex(
@@ -123,7 +122,7 @@ export async function autocompletePhotonAddress(query: string) {
   return fetchPhoton(
     "/api/",
     new URLSearchParams({
-      bbox: CANADA_BOUNDING_BOX,
+      bbox: SUPPORTED_AREA_BOUNDING_BOX,
       lang: "en",
       limit: "8",
       q: query,

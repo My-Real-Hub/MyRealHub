@@ -6,6 +6,12 @@ import {
   updateFeedbackSubmission,
   updateLookupItem,
 } from "@/app/admin/dashboard/actions";
+import {
+  DashboardHeader,
+  DashboardSection,
+  DashboardShell,
+  DashboardStatCard,
+} from "@/components/dashboard/dashboard-shell";
 import { requireProfileRole } from "@/lib/auth/session";
 import {
   FEEDBACK_SCREENSHOTS_BUCKET,
@@ -226,6 +232,7 @@ const selectClassName =
   "h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 
 const dashboardNavItems = [
+  { href: "#overview", label: "Overview" },
   { href: "#providers", label: "Providers" },
   { href: "#feedback", label: "Feedback" },
   { href: "#categories", label: "Categories" },
@@ -907,30 +914,23 @@ async function getAdminDashboardData({
 }
 
 function CountCard({
+  description,
   label,
   value,
   tone = "light",
 }: {
+  description?: string;
   label: string;
   value: number;
-  tone?: "light" | "dark";
+  tone?: "light" | "accent" | "info" | "warning" | "danger";
 }) {
-  const className =
-    tone === "dark"
-      ? "border-stone-950 bg-stone-950 text-white"
-      : "border-stone-200 bg-white text-stone-950";
-
   return (
-    <article className={`rounded-lg border p-5 shadow-sm ${className}`}>
-      <p
-        className={`text-sm font-medium ${
-          tone === "dark" ? "text-stone-300" : "text-stone-500"
-        }`}
-      >
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-semibold">{value}</p>
-    </article>
+    <DashboardStatCard
+      description={description}
+      label={label}
+      tone={tone}
+      value={value}
+    />
   );
 }
 
@@ -987,7 +987,7 @@ function ProviderStatusFilters({
             aria-current={isSelected ? "page" : undefined}
             className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
               isSelected
-                ? "border-stone-950 bg-stone-950 text-white"
+                ? "border-emerald-700 bg-emerald-700 text-white"
                 : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
             }`}
           >
@@ -1040,7 +1040,7 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
               aria-current={isCurrent ? "page" : undefined}
               className={`inline-flex size-9 items-center justify-center rounded-md border text-xs font-semibold transition ${
                 isCurrent
-                  ? "border-stone-950 bg-stone-950 text-white"
+                  ? "border-emerald-700 bg-emerald-700 text-white"
                   : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
               }`}
             >
@@ -1125,7 +1125,7 @@ function FeedbackFilterLink({
       aria-current={isSelected ? "page" : undefined}
       className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
         isSelected
-          ? "border-stone-950 bg-stone-950 text-white"
+          ? "border-emerald-700 bg-emerald-700 text-white"
           : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
       }`}
     >
@@ -1219,28 +1219,17 @@ function FeedbackQueueSection({
     rows.length === 1 ? "1 submission" : `${rows.length} submissions`;
 
   return (
-    <article
+    <DashboardSection
       id="feedback"
-      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Feedback
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-stone-950">
-            Bug reports and suggestions
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
-            Review user-submitted feedback, keep internal notes, and move items
-            through the product queue.
-          </p>
-        </div>
-        <span className="w-fit rounded-md bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-900">
+      eyebrow="Feedback"
+      title="Bug reports and suggestions"
+      description="Review customer feedback, keep internal notes, and move items through triage."
+      actions={
+        <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
           {queueLabel}
         </span>
-      </div>
-
+      }
+    >
       <FeedbackActionMessage message={actionMessage} />
 
       <FeedbackFilters statusFilter={statusFilter} typeFilter={typeFilter} />
@@ -1425,7 +1414,7 @@ function FeedbackQueueSection({
           </div>
         )}
       </div>
-    </article>
+    </DashboardSection>
   );
 }
 
@@ -1566,7 +1555,7 @@ function LookupSearchControls({
       </label>
       <button
         type="submit"
-        className="h-10 self-end rounded-md bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 focus:outline-none focus:ring-4 focus:ring-stone-100"
+        className="h-10 self-end rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
       >
         Search
       </button>
@@ -1663,8 +1652,8 @@ function LookupPagination({
               })}
               aria-current={isCurrent ? "page" : undefined}
               className={`inline-flex size-9 items-center justify-center rounded-md border text-xs font-semibold transition ${
-                isCurrent
-                  ? "border-stone-950 bg-stone-950 text-white"
+                  isCurrent
+                  ? "border-emerald-700 bg-emerald-700 text-white"
                   : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
               }`}
             >
@@ -1819,26 +1808,19 @@ function LookupManagementSection({
   const rangeLabel = getLookupRangeLabel(lookupPage);
 
   return (
-    <article
+    <DashboardSection
       id={id}
-      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Directory data
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-stone-950">{title}</h2>
-          <p className="mt-2 text-sm text-stone-600">
-            Showing {rangeLabel}
-            {lookupPage.search ? ` for "${lookupPage.search}"` : ""}
-          </p>
-        </div>
-        <span className="w-fit rounded-md bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
+      eyebrow="Directory data"
+      title={title}
+      description={`Showing ${rangeLabel}${
+        lookupPage.search ? ` for "${lookupPage.search}"` : ""
+      }`}
+      actions={
+        <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
           {count}
         </span>
-      </div>
-
+      }
+    >
       <LookupActionMessage message={message} />
 
       <LookupSearchControls
@@ -1959,7 +1941,7 @@ function LookupManagementSection({
         providerStatusFilter={providerStatusFilter}
         providerPage={providerPage}
       />
-    </article>
+    </DashboardSection>
   );
 }
 
@@ -1985,106 +1967,88 @@ export default async function AdminDashboardPage({
   });
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-10">
-      <div className="grid gap-8 lg:grid-cols-[15rem_1fr] lg:items-start">
-        <aside className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:sticky lg:top-28">
-          <p className="px-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Admin
-          </p>
-          <nav
-            aria-label="Admin dashboard navigation"
-            className="mt-3 grid gap-1 text-sm font-medium"
-          >
-            {dashboardNavItems.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="rounded-md px-2 py-2 text-stone-700 transition hover:bg-stone-50 hover:text-stone-950"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <div className="mt-5 border-t border-stone-200 pt-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Signed in
-            </p>
-            <p className="mt-2 break-words text-sm font-medium text-stone-950">
-              {profile.email ?? profile.fullName ?? "Admin account"}
-            </p>
-          </div>
-        </aside>
-
-        <div className="grid gap-6">
-          <header className="scroll-mt-28">
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-              Admin dashboard
-            </p>
-            <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h1 className="text-3xl font-semibold text-stone-950">
-                  Platform operations
-                </h1>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                  Review provider status, platform feedback, and directory
-                  lookup data from one admin workspace.
-                </p>
-              </div>
-              <Link
-                href="/search"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-              >
-                View Directory
-              </Link>
-            </div>
-          </header>
+    <DashboardShell
+      navItems={dashboardNavItems}
+      navLabel="Admin"
+      signedInValue={profile.email ?? profile.fullName ?? "Admin account"}
+    >
+      <div className="grid gap-6">
+        <DashboardHeader
+          eyebrow="Admin dashboard"
+          title="Operations dashboard"
+          description="Review provider approvals, customer feedback, and directory data from one place."
+          actions={
+            <Link
+              href="/search"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+            >
+              View directory
+            </Link>
+          }
+        />
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <CountCard
+              description="Customer-facing accounts."
               label="User accounts"
               value={dashboardData.counts.userAccounts}
             />
             <CountCard
+              description="Accounts with provider access."
               label="Provider accounts"
               value={dashboardData.counts.providerAccounts}
             />
             <CountCard
+              description="Listings waiting for review."
               label="Pending approval"
               value={dashboardData.counts.pending}
-              tone="dark"
+              tone={dashboardData.counts.pending > 0 ? "warning" : "light"}
             />
-            <CountCard label="Active listings" value={dashboardData.counts.active} />
             <CountCard
+              description="Approved profiles in search."
+              label="Active listings"
+              tone="accent"
+              value={dashboardData.counts.active}
+            />
+            <CountCard
+              description="Total provider profile records."
               label="Provider profiles"
               value={dashboardData.counts.providerProfiles}
             />
             <CountCard
+              description="Unreviewed customer reports."
               label="New feedback"
+              tone={dashboardData.counts.newFeedback > 0 ? "info" : "light"}
               value={dashboardData.counts.newFeedback}
             />
-            <CountCard label="Categories" value={dashboardData.counts.categories} />
-            <CountCard label="Languages" value={dashboardData.counts.languages} />
-            <CountCard label="Specialties" value={dashboardData.counts.specialties} />
+            <CountCard
+              description="Service types available."
+              label="Categories"
+              value={dashboardData.counts.categories}
+            />
+            <CountCard
+              description="Languages providers can select."
+              label="Languages"
+              value={dashboardData.counts.languages}
+            />
+            <CountCard
+              description="Specialized service tags."
+              label="Specialties"
+              value={dashboardData.counts.specialties}
+            />
           </div>
 
-          <article
+          <DashboardSection
             id="providers"
-            className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-          >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-                  Providers
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-stone-950">
-                  Approval queue
-                </h2>
-              </div>
-              <span className="w-fit rounded-md bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-900">
+            eyebrow="Providers"
+            title="Approval queue"
+            description="Review new and updated provider listings before they appear in search."
+            actions={
+              <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
                 {dashboardData.counts.pending} pending
               </span>
-            </div>
-
+            }
+          >
             <div className="mt-6 grid gap-3">
               {dashboardData.pendingProviders.length > 0 ? (
                 dashboardData.pendingProviders.map((provider) => (
@@ -2129,7 +2093,7 @@ export default async function AdminDashboardPage({
 
               <ProviderPagination providerPage={dashboardData.providerPage} />
             </div>
-          </article>
+          </DashboardSection>
 
           <FeedbackQueueSection
             rows={dashboardData.feedbackQueue}
@@ -2190,8 +2154,7 @@ export default async function AdminDashboardPage({
               })}
             />
           </div>
-        </div>
       </div>
-    </section>
+    </DashboardShell>
   );
 }

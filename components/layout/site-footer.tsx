@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MyRealHubLogo } from "@/components/brand/my-real-hub-logo";
 import { FeedbackLink } from "@/components/feedback/feedback-link";
 
 const footerLinks = [
@@ -13,7 +14,10 @@ export function SiteFooter() {
     <footer className="border-t border-stone-200 bg-white">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm font-semibold text-stone-950">MyRealHub</p>
+          <MyRealHubLogo
+            markClassName="size-12"
+            wordmarkClassName="relative h-7 w-32"
+          />
           <p className="mt-2 max-w-md text-sm leading-6 text-stone-600">
             A focused directory for real estate services, built step by step for
             buyers, sellers, providers, and admins.

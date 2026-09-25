@@ -9,6 +9,11 @@ import {
   setProviderInactive,
   setProviderRatingModerationStatus,
 } from "@/app/admin/dashboard/actions";
+import {
+  DashboardHeader,
+  DashboardShell,
+  DashboardStatCard,
+} from "@/components/dashboard/dashboard-shell";
 import { requireProfileRole } from "@/lib/auth/session";
 import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
@@ -155,6 +160,14 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+const adminProviderReviewNavItems = [
+  { href: "/admin/dashboard#overview", label: "Overview", active: false },
+  { href: "#profile", label: "Profile details", active: true },
+  { href: "#review", label: "Status controls" },
+  { href: "#ratings", label: "Ratings" },
+  { href: "/admin/dashboard#providers", label: "Provider queue" },
+];
+
 function formatDate(value: string | null) {
   if (!value) {
     return "Not recorded";
@@ -173,11 +186,7 @@ function getProviderName(provider: ProviderReviewProfile) {
 }
 
 function getLocation(provider: ProviderReviewProfile) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }
@@ -408,7 +417,10 @@ function ReviewMessage({
 
 function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
   return (
-    <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+    <article
+      id="review"
+      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
@@ -537,7 +549,10 @@ function RatingModerationPanel({
   ratings: AdminProviderRatingRow[];
 }) {
   return (
-    <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+    <article
+      id="ratings"
+      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
@@ -627,7 +642,7 @@ export default async function AdminProviderReviewPage({
   params,
   searchParams,
 }: AdminProviderReviewPageProps) {
-  await requireProfileRole("admin");
+  const profile = await requireProfileRole("admin");
 
   const { providerId } = await params;
   const query = await searchParams;
@@ -643,43 +658,64 @@ export default async function AdminProviderReviewPage({
   const reviewMessage = getReviewMessage(query.review);
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-10">
-      <div className="mb-6">
-        <Link
-          href="/admin/dashboard#providers"
-          className="text-sm font-semibold text-emerald-800 transition hover:text-emerald-950"
-        >
-          Back to admin dashboard
-        </Link>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_21rem] lg:items-start">
-        <div className="grid gap-6">
-          <header className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-                  Provider review
-                </p>
-                <h1 className="mt-3 text-3xl font-semibold text-stone-950">
-                  {getProviderName(provider)}
-                </h1>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">
-                  {getLocation(provider)}
-                </p>
-              </div>
+    <DashboardShell
+      navItems={adminProviderReviewNavItems}
+      navLabel="Admin"
+      signedInValue={profile.email ?? profile.fullName ?? "Admin account"}
+    >
+      <div className="grid gap-6">
+        <DashboardHeader
+          eyebrow="Provider review"
+          title={getProviderName(provider)}
+          description={getLocation(provider)}
+          actions={
+            <>
               <StatusBadge status={provider.status} />
-            </div>
-            {provider.rejection_reason ? (
-              <p className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">
-                {provider.rejection_reason}
-              </p>
-            ) : null}
-          </header>
+              <Link
+                href="/admin/dashboard#providers"
+                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+              >
+                Back to admin dashboard
+              </Link>
+            </>
+          }
+        />
 
+        <div className="grid gap-4 md:grid-cols-3">
+          <DashboardStatCard
+            description="Current moderation state."
+            label="Status"
+            tone={provider.status === "active" ? "accent" : "warning"}
+            value={statusLabels[provider.status]}
+          />
+          <DashboardStatCard
+            description="Primary service category."
+            label="Profession"
+            value={provider.categoryName ?? "Not added"}
+          />
+          <DashboardStatCard
+            description="Public ratings available for review."
+            label="Ratings"
+            value={ratings.length}
+          />
+        </div>
+
+        <div className="grid gap-6">
           <ReviewMessage message={reviewMessage} />
 
-          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+          {provider.rejection_reason ? (
+            <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">
+              {provider.rejection_reason}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
+          <div className="grid gap-6">
+          <article
+            id="profile"
+            className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+          >
             <h2 className="text-xl font-semibold text-stone-950">
               Profile details
             </h2>
@@ -708,8 +744,7 @@ export default async function AdminProviderReviewPage({
                 <DetailItem label="Phone" value={provider.phone} />
                 <DetailItem label="Website" value={provider.website_url} />
                 <DetailItem label="City" value={provider.city} />
-                <DetailItem label="Province" value={provider.province_state} />
-                <DetailItem label="Country" value={provider.country} />
+                <DetailItem label="State or region" value={provider.province_state} />
                 <DetailItem label="Service area" value={provider.service_area} />
                 <DetailItem
                   label="Years experience"
@@ -752,7 +787,7 @@ export default async function AdminProviderReviewPage({
             providerId={provider.id}
             ratings={ratings}
           />
-        </div>
+          </div>
 
         <div className="grid gap-6 lg:sticky lg:top-28">
           <ReviewActions provider={provider} />
@@ -774,6 +809,7 @@ export default async function AdminProviderReviewPage({
           </article>
         </div>
       </div>
-    </section>
+      </div>
+    </DashboardShell>
   );
 }

@@ -38,7 +38,7 @@ export function SaveProviderButton({
     return (
       <Link
         href={getLoginHref(returnPath)}
-        className={`${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-stone-950 hover:text-stone-950 focus:ring-stone-100`}
+        className={`${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-teal-800 hover:text-teal-900 focus:ring-teal-100`}
       >
         Log in to save
       </Link>
@@ -53,8 +53,8 @@ export function SaveProviderButton({
         type="submit"
         className={
           isSaved
-            ? `${baseClassName} ${sizeClassName} w-full border border-emerald-700 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:ring-emerald-100`
-            : `${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-stone-950 hover:text-stone-950 focus:ring-stone-100`
+            ? `${baseClassName} ${sizeClassName} w-full border border-teal-700 bg-teal-50 text-teal-800 hover:bg-teal-100 focus:ring-teal-100`
+            : `${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-teal-800 hover:text-teal-900 focus:ring-teal-100`
         }
       >
         {isSaved ? savedLabel : unsavedLabel}

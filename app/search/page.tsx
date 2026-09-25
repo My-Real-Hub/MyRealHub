@@ -3,7 +3,7 @@ import { ProviderLocationSearchFields } from "@/components/providers/provider-lo
 import { SaveProviderButton } from "@/components/providers/save-provider-button";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { getSavedProviderIds } from "@/lib/saved-providers";
-import type { CanadianSubdivisionOption } from "@/lib/service-regions";
+import type { SubdivisionOption } from "@/lib/service-regions";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type SearchPageSearchParams = {
@@ -84,7 +84,7 @@ type ProviderSearchData = {
   providers: ProviderSearchResult[];
   serviceRegions: ServiceRegionLookupRow[];
   specialties: SpecialtyLookupRow[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 };
 
 const providerSelectColumns = [
@@ -103,6 +103,8 @@ const providerSelectColumns = [
   "accept_new_inquiries",
 ].join(",");
 const ratingValues = [1, 2, 3, 4, 5];
+const providerSearchFormId = "provider-search-form";
+const providerRegionControlId = "provider-region";
 
 type ProviderRatingSummaryRow = {
   provider_profile_id: string;
@@ -155,7 +157,7 @@ function getSelectedCategoryId(
 
 function resolveSubdivisionCode(
   value: string,
-  subdivisions: CanadianSubdivisionOption[],
+  subdivisions: SubdivisionOption[],
 ) {
   const normalizedValue = normalizeLookupValue(value);
 
@@ -206,11 +208,7 @@ function getProviderName(provider: ProviderSearchResult) {
 }
 
 function getProviderLocation(provider: ProviderSearchResult) {
-  const parts = [
-    provider.city,
-    provider.province_state,
-    provider.country,
-  ].filter(Boolean);
+  const parts = [provider.city].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }
@@ -235,6 +233,22 @@ function getRatingSummaryText(averageRating: number, ratingCount: number) {
   return `${averageRating.toFixed(1)} (${ratingCount} review${
     ratingCount === 1 ? "" : "s"
   })`;
+}
+
+function refineCustomerCopy(value: string | null) {
+  if (!value) {
+    return "Profile details are available soon.";
+  }
+
+  return value
+    .replace(
+      /pre-listing improvement\s+[a-z]+/gi,
+      "pre-listing improvements",
+    )
+    .replace(
+      /Repair\s+[a-z]+\s+before listing a property\./gi,
+      "Repairs before listing a property.",
+    );
 }
 
 function StarRating({ rating }: { rating: number }) {
@@ -291,8 +305,7 @@ function getActiveFilterCount(filters: ProviderSearchFilters) {
   return [
     filters.categoryId,
     filters.languageId,
-    filters.provinceCode,
-    filters.regionId,
+    filters.regionId || filters.provinceCode,
     filters.specialtyId,
     filters.keyword,
   ].filter(Boolean).length;
@@ -422,7 +435,7 @@ async function getSearchData(
   const serviceRegions = (serviceRegionsResult.data ??
     []) as ServiceRegionLookupRow[];
   const subdivisions = (subdivisionsResult.data ??
-    []) as CanadianSubdivisionOption[];
+    []) as SubdivisionOption[];
   const requestedRegionId = resolveLookupId(
     getSearchParam(query.region),
     serviceRegions,
@@ -512,7 +525,7 @@ async function getSearchData(
     if (!regionProviderIds.ok) {
       return {
         categories,
-        errorMessage: "Service-region filter could not be applied.",
+        errorMessage: "Area filter could not be applied.",
         filters,
         languages,
         providers: [],
@@ -534,7 +547,7 @@ async function getSearchData(
     if (!provinceProviderIds.ok) {
       return {
         categories,
-        errorMessage: "Province filter could not be applied.",
+        errorMessage: "Region filter could not be applied.",
         filters,
         languages,
         providers: [],
@@ -742,27 +755,67 @@ async function getSearchData(
 function FilterSelect({
   children,
   defaultValue,
+  formId,
   id,
   label,
   name,
 }: {
   children: React.ReactNode;
   defaultValue: string;
+  formId?: string;
   id: string;
   label: string;
   name: string;
 }) {
   return (
-    <label htmlFor={id} className="flex flex-col gap-2 text-sm font-medium text-stone-800">
+    <label
+      htmlFor={id}
+      className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-800"
+    >
       {label}
       <select
         id={id}
+        form={formId}
         name={name}
         defaultValue={defaultValue}
-        className="h-11 rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+        className="h-12 rounded-md border border-stone-300 bg-white px-3 text-base text-stone-950 outline-none transition focus:border-teal-700 focus:ring-4 focus:ring-teal-100"
       >
         {children}
       </select>
+    </label>
+  );
+}
+
+function FilterInput({
+  defaultValue,
+  formId,
+  id,
+  label,
+  name,
+  placeholder,
+}: {
+  defaultValue: string;
+  formId?: string;
+  id: string;
+  label: string;
+  name: string;
+  placeholder: string;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-800"
+    >
+      {label}
+      <input
+        id={id}
+        form={formId}
+        name={name}
+        type="search"
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        className="h-12 rounded-md border border-stone-300 bg-white px-3 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-teal-700 focus:ring-4 focus:ring-teal-100"
+      />
     </label>
   );
 }
@@ -780,24 +833,22 @@ function FilterSummary({
   languages: LookupRow[];
   serviceRegions: ServiceRegionLookupRow[];
   specialties: SpecialtyLookupRow[];
-  subdivisions: CanadianSubdivisionOption[];
+  subdivisions: SubdivisionOption[];
 }) {
+  const selectedAreaLabel = filters.regionId
+    ? getCategoryName(serviceRegions, filters.regionId)
+    : filters.provinceCode
+      ? (subdivisions.find(
+          (subdivision) => subdivision.code === filters.provinceCode,
+        )?.name ?? filters.provinceCode)
+      : null;
   const filterLabels = [
-    filters.provinceCode
-      ? `Province: ${
-          subdivisions.find(
-            (subdivision) => subdivision.code === filters.provinceCode,
-          )?.name ?? filters.provinceCode
-        }`
-      : null,
+    selectedAreaLabel ? `Region: ${selectedAreaLabel}` : null,
     filters.categoryId
       ? `Profession: ${getCategoryName(categories, filters.categoryId)}`
       : null,
     filters.languageId
       ? `Language: ${getCategoryName(languages, filters.languageId)}`
-      : null,
-    filters.regionId
-      ? `Service region: ${getCategoryName(serviceRegions, filters.regionId)}`
       : null,
     filters.specialtyId
       ? `Specialty: ${getCategoryName(specialties, filters.specialtyId)}`
@@ -814,7 +865,7 @@ function FilterSummary({
       {filterLabels.map((label) => (
         <span
           key={label}
-          className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 ring-1 ring-inset ring-emerald-100"
+          className="rounded-md border border-teal-100 bg-teal-50 px-2.5 py-1.5 text-sm font-semibold text-teal-900"
         >
           {label}
         </span>
@@ -854,65 +905,96 @@ function ProviderResultCard({
     provider.languageNames.length + provider.specialtyNames.length - visibleTags.length;
 
   return (
-    <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
-      <div className="flex gap-4">
-        <div className="size-16 shrink-0 overflow-hidden rounded-lg border border-stone-200 bg-emerald-50">
-          {profileImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profileImageUrl}
-              alt={`${providerName} profile`}
-              className="size-full object-cover"
-            />
-          ) : (
-            <span className="grid size-full place-items-center bg-emerald-700 text-lg font-semibold text-white">
-              {getProviderInitials(providerName)}
-            </span>
-          )}
+    <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm transition hover:border-teal-700 hover:shadow-md">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
+        <div className="flex min-w-0 flex-1 gap-4">
+          <div className="size-16 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-teal-900">
+            {profileImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profileImageUrl}
+                alt={`${providerName} profile`}
+                className="size-full object-cover"
+              />
+            ) : (
+              <span className="grid size-full place-items-center text-lg font-semibold text-white">
+                {getProviderInitials(providerName)}
+              </span>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold uppercase text-teal-700">
+              {provider.categoryName ?? "Real estate service"}
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold leading-tight text-stone-950">
+              <Link href={providerHref} className="transition hover:text-teal-800">
+                {providerName}
+              </Link>
+            </h2>
+            {provider.display_name && provider.display_name !== provider.business_name ? (
+              <p className="mt-1 text-sm font-medium text-stone-600">
+                {provider.display_name}
+              </p>
+            ) : null}
+            <p className="mt-2 text-sm font-medium text-stone-700">
+              {getProviderLocation(provider)}
+            </p>
+            <p
+              className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-stone-700"
+              aria-label={getRatingSummaryText(
+                provider.averageRating,
+                provider.ratingCount,
+              )}
+            >
+              {provider.ratingCount > 0 ? (
+                <StarRating rating={provider.averageRating} />
+              ) : null}
+              <span>
+                {getRatingSummaryText(provider.averageRating, provider.ratingCount)}
+              </span>
+            </p>
+          </div>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-            {provider.categoryName ?? "Real estate service"}
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-stone-950">
-            <Link href={providerHref} className="transition hover:text-emerald-800">
-              {providerName}
-            </Link>
-          </h2>
-          {provider.display_name && provider.display_name !== provider.business_name ? (
-            <p className="mt-1 text-sm font-medium text-stone-600">
-              {provider.display_name}
-            </p>
-          ) : null}
-          <p className="mt-2 text-sm font-medium text-stone-700">
-            {getProviderLocation(provider)}
-          </p>
-          <p
-            className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-stone-700"
-            aria-label={getRatingSummaryText(
-              provider.averageRating,
-              provider.ratingCount,
-            )}
+        <div className="grid gap-2 sm:grid-cols-3 xl:w-48 xl:grid-cols-1">
+          <Link
+            href={providerHref}
+            className="inline-flex h-10 items-center justify-center rounded-md bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
           >
-            {provider.ratingCount > 0 ? (
-              <StarRating rating={provider.averageRating} />
-            ) : null}
-            <span>
-              {getRatingSummaryText(provider.averageRating, provider.ratingCount)}
+            View profile
+          </Link>
+          {acceptsNewInquiries ? (
+            <Link
+              href={isSignedIn ? contactHref : getContactLoginHref(contactHref)}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+            >
+              {isSignedIn ? "Contact" : "Log in to contact"}
+            </Link>
+          ) : (
+            <span className="inline-flex h-10 items-center justify-center rounded-md border border-stone-200 bg-stone-50 px-4 text-sm font-semibold text-stone-500">
+              Contact paused
             </span>
-          </p>
+          )}
+          <SaveProviderButton
+            isSaved={provider.isSaved}
+            isSignedIn={isSignedIn}
+            providerId={provider.id}
+            returnPath={returnPath}
+            size="compact"
+          />
         </div>
       </div>
 
       {provider.serviceRegionNames.length > 0 ? (
-        <p className="mt-4 text-sm font-semibold text-emerald-800">
+        <p className="mt-5 rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-900">
           Serves {provider.serviceRegionNames.join(" · ")}
         </p>
       ) : null}
 
       <p className="mt-4 text-sm leading-6 text-stone-600">
-        {provider.bio ?? "No bio added yet."}
+        {refineCustomerCopy(provider.bio)}
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -920,49 +1002,21 @@ function ProviderResultCard({
           visibleTags.map((tag) => (
             <span
               key={tag}
-              className="rounded-md bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-700"
+              className="rounded-md bg-stone-100 px-2.5 py-1.5 text-sm font-semibold text-stone-700"
             >
               {tag}
             </span>
           ))
         ) : (
-          <span className="rounded-md bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600">
+          <span className="rounded-md bg-stone-100 px-2.5 py-1.5 text-sm font-semibold text-stone-600">
             Details available on profile
           </span>
         )}
         {hiddenTagCount > 0 ? (
-          <span className="rounded-md bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600">
+          <span className="rounded-md bg-stone-100 px-2.5 py-1.5 text-sm font-semibold text-stone-600">
             +{hiddenTagCount} more
           </span>
         ) : null}
-      </div>
-
-      <div className="mt-5 grid gap-2 border-t border-stone-200 pt-4 sm:grid-cols-3">
-        <Link
-          href={providerHref}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-        >
-          View profile
-        </Link>
-        {acceptsNewInquiries ? (
-          <Link
-            href={isSignedIn ? contactHref : getContactLoginHref(contactHref)}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
-          >
-            {isSignedIn ? "Contact" : "Log in to contact"}
-          </Link>
-        ) : (
-          <span className="inline-flex h-10 items-center justify-center rounded-md border border-stone-200 bg-stone-50 px-4 text-sm font-semibold text-stone-500">
-            Inquiries paused
-          </span>
-        )}
-        <SaveProviderButton
-          isSaved={provider.isSaved}
-          isSignedIn={isSignedIn}
-          providerId={provider.id}
-          returnPath={returnPath}
-          size="compact"
-        />
       </div>
     </article>
   );
@@ -976,21 +1030,21 @@ function EmptyState({
   regionName: string | null;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
-      <h2 className="text-xl font-semibold text-stone-950">
+    <div className="rounded-lg border border-dashed border-stone-300 bg-white px-6 py-14 text-center shadow-sm">
+      <h2 className="text-2xl font-semibold text-stone-950">
         No providers found
       </h2>
-      <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-600">
+      <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-stone-600">
         {hasFilters
           ? regionName
             ? `No active providers currently serve ${regionName}. Try another location or clear a filter.`
-            : "No active providers match those filters yet. Try clearing one filter or choosing another region."
+            : "No active providers match those filters yet. Try clearing one filter or choosing another area."
           : "No active providers are listed yet. Approved provider profiles will appear here."}
       </p>
       {hasFilters ? (
         <Link
           href="/search"
-          className="mt-5 inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+          className="mt-6 inline-flex h-11 items-center justify-center rounded-md bg-stone-950 px-5 text-sm font-semibold text-white transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
         >
           Clear filters
         </Link>
@@ -1012,164 +1066,229 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           specialty.category_id === searchData.filters.categoryId,
       )
     : searchData.specialties;
-  const selectedSubdivision =
-    searchData.subdivisions.find(
-      (subdivision) =>
-        subdivision.code === searchData.filters.provinceCode,
-    ) ?? null;
   const selectedServiceRegion =
     searchData.serviceRegions.find(
       (region) => region.id === searchData.filters.regionId,
     ) ?? null;
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-10">
-      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Provider search
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold text-stone-950">
-            Find active real estate service providers
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-stone-600">
-            Enter a Canadian address or place the map pin to find providers
-            serving that property or project location.
-          </p>
+    <div className="bg-[#f7f5ef]">
+      <section className="border-b border-stone-200 bg-white">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 py-7 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase text-teal-700">
+              Provider search
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold leading-tight text-stone-950">
+              Find real estate services that cover your area.
+            </h1>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-stone-600">
+              Filter by service, address, language, and specialty, then compare
+              active providers.
+            </p>
+          </div>
+          <Link
+            href="/signup?role=provider"
+            className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+          >
+            Join as Provider
+          </Link>
         </div>
-        <Link
-          href="/signup?role=provider"
-          className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-        >
-          Join as Provider
-        </Link>
-      </div>
+      </section>
 
-      <form className="mt-8 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-        {searchData.filters.keyword ? (
-          <input type="hidden" name="q" value={searchData.filters.keyword} />
-        ) : null}
-        <ProviderLocationSearchFields
-          initialProvinceCode={searchData.filters.provinceCode}
-          initialProvinceName={selectedSubdivision?.name ?? null}
-          initialRegionId={searchData.filters.regionId}
-          initialRegionName={selectedServiceRegion?.name ?? null}
+      <section className="mx-auto w-full max-w-7xl px-6 py-8">
+        <form
+          id={providerSearchFormId}
+          action="/search"
+          method="get"
+          className="hidden"
+          aria-hidden="true"
         />
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
-          <FilterSelect
-            id="provider-category"
-            name="category"
-            label="Profession/category"
-            defaultValue={searchData.filters.categoryId}
-          >
-            <option value="">All professions</option>
-            {searchData.categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </FilterSelect>
-
-          <FilterSelect
-            id="provider-language"
-            name="language"
-            label="Language"
-            defaultValue={searchData.filters.languageId}
-          >
-            <option value="">All languages</option>
-            {searchData.languages.map((language) => (
-              <option key={language.id} value={language.id}>
-                {language.name}
-              </option>
-            ))}
-          </FilterSelect>
-
-          <FilterSelect
-            id="provider-specialty"
-            name="specialty"
-            label="Specialty"
-            defaultValue={searchData.filters.specialtyId}
-          >
-            <option value="">All specialties</option>
-            {filteredSpecialties.map((specialty) => (
-              <option key={specialty.id} value={specialty.id}>
-                {specialty.name}
-              </option>
-            ))}
-          </FilterSelect>
-
-          <button
-            type="submit"
-            className="h-11 rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-          >
-            Search
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <FilterSummary
-            categories={searchData.categories}
-            filters={searchData.filters}
-            languages={searchData.languages}
-            serviceRegions={searchData.serviceRegions}
-            specialties={searchData.specialties}
-            subdivisions={searchData.subdivisions}
+        <div className="rounded-lg border border-stone-200 bg-white shadow-sm">
+          <ProviderLocationSearchFields
+            formId={providerSearchFormId}
+            initialProvinceCode={searchData.filters.provinceCode}
+            initialRegionId={searchData.filters.regionId}
+            initialRegionName={selectedServiceRegion?.name ?? null}
+            regionControlId={providerRegionControlId}
           />
-          {activeFilterCount > 0 ? (
-            <Link
-              href="/search"
-              className="text-sm font-semibold text-stone-700 transition hover:text-stone-950"
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[23rem_minmax(0,1fr)] lg:items-start">
+          <aside className="lg:sticky lg:top-24">
+            <div className="space-y-4">
+            <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase text-teal-700">
+                    Filters
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-stone-950">
+                    Search providers
+                  </h2>
+                </div>
+                <span className="rounded-md border border-stone-200 px-2.5 py-1.5 text-sm font-semibold text-stone-700">
+                  {activeFilterCount} filter
+                  {activeFilterCount === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-4">
+                <FilterInput
+                  id="provider-keyword"
+                  formId={providerSearchFormId}
+                  name="q"
+                  label="Keyword"
+                  defaultValue={searchData.filters.keyword}
+                  placeholder="Name, service, or keyword"
+                />
+
+                <FilterSelect
+                  id={providerRegionControlId}
+                  formId={providerSearchFormId}
+                  name="region"
+                  label="Region"
+                  defaultValue={searchData.filters.regionId}
+                >
+                  <option value="">All regions</option>
+                  {searchData.serviceRegions.map((region) => (
+                    <option key={region.id} value={region.id}>
+                      {region.name}
+                    </option>
+                  ))}
+                </FilterSelect>
+
+                <FilterSelect
+                  id="provider-category"
+                  formId={providerSearchFormId}
+                  name="category"
+                  label="Profession"
+                  defaultValue={searchData.filters.categoryId}
+                >
+                  <option value="">All professions</option>
+                  {searchData.categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </FilterSelect>
+
+                <FilterSelect
+                  id="provider-specialty"
+                  formId={providerSearchFormId}
+                  name="specialty"
+                  label="Specialty"
+                  defaultValue={searchData.filters.specialtyId}
+                >
+                  <option value="">All specialties</option>
+                  {filteredSpecialties.map((specialty) => (
+                    <option key={specialty.id} value={specialty.id}>
+                      {specialty.name}
+                    </option>
+                  ))}
+                </FilterSelect>
+
+                <FilterSelect
+                  id="provider-language"
+                  formId={providerSearchFormId}
+                  name="language"
+                  label="Language"
+                  defaultValue={searchData.filters.languageId}
+                >
+                  <option value="">All languages</option>
+                  {searchData.languages.map((language) => (
+                    <option key={language.id} value={language.id}>
+                      {language.name}
+                    </option>
+                  ))}
+                </FilterSelect>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+              <button
+                type="submit"
+                form={providerSearchFormId}
+                className="h-12 w-full rounded-md bg-stone-950 px-6 text-sm font-semibold text-white transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+              >
+                Search providers
+              </button>
+              {activeFilterCount > 0 ? (
+                <Link
+                  href="/search"
+                  className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-stone-300 text-sm font-semibold text-stone-800 transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+                >
+                  Clear filters
+                </Link>
+              ) : null}
+            </div>
+            </div>
+          </aside>
+
+          <div className="min-w-0">
+          {searchData.errorMessage ? (
+            <p
+              className="mb-5 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"
+              role="status"
             >
-              Clear filters
-            </Link>
+              {searchData.errorMessage}
+            </p>
           ) : null}
-        </div>
-      </form>
 
-      {searchData.errorMessage ? (
-        <p
-          className="mt-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"
-          role="status"
-        >
-          {searchData.errorMessage}
-        </p>
-      ) : null}
-
-      <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-stone-500">Search results</p>
-          <h2 className="mt-1 text-2xl font-semibold text-stone-950">
-            {searchData.providers.length} active provider
-            {searchData.providers.length === 1 ? "" : "s"}
-          </h2>
-        </div>
-        <p className="text-sm text-stone-500">
-          {activeFilterCount > 0
-            ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} applied`
-            : "Showing all active providers"}
-        </p>
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        {searchData.providers.length > 0 ? (
-          searchData.providers.map((provider) => (
-            <ProviderResultCard
-              key={provider.id}
-              isSignedIn={Boolean(currentProfile)}
-              provider={provider}
-              returnPath={returnPath}
-            />
-          ))
-        ) : (
-          <div className="lg:col-span-2">
-            <EmptyState
-              hasFilters={activeFilterCount > 0}
-              regionName={selectedServiceRegion?.name ?? null}
-            />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase text-teal-700">
+                Results
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-stone-950">
+                {searchData.providers.length} provider
+                {searchData.providers.length === 1 ? "" : "s"} available
+              </h2>
+            </div>
+            {activeFilterCount > 0 ? (
+              <Link
+                href="/search"
+                className="text-sm font-semibold text-teal-800 transition hover:text-teal-950"
+              >
+                Clear filters
+              </Link>
+            ) : null}
           </div>
-        )}
-      </div>
-    </section>
+
+          {activeFilterCount > 0 ? (
+            <div className="mt-4">
+              <FilterSummary
+                categories={searchData.categories}
+                filters={searchData.filters}
+                languages={searchData.languages}
+                serviceRegions={searchData.serviceRegions}
+                specialties={searchData.specialties}
+                subdivisions={searchData.subdivisions}
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-6 grid gap-4">
+            {searchData.providers.length > 0 ? (
+              searchData.providers.map((provider) => (
+                <ProviderResultCard
+                  key={provider.id}
+                  isSignedIn={Boolean(currentProfile)}
+                  provider={provider}
+                  returnPath={returnPath}
+                />
+              ))
+            ) : (
+              <EmptyState
+                hasFilters={activeFilterCount > 0}
+                regionName={selectedServiceRegion?.name ?? null}
+              />
+            )}
+          </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }

@@ -144,12 +144,12 @@ export async function getServiceRegionMatchRows() {
   return (data ?? []) as unknown as ServiceRegionMatchRow[];
 }
 
-export function matchCanadianServiceRegion(
+export function matchServiceRegion(
   location: GeocodedLocation,
   regions: ServiceRegionMatchRow[],
 ) {
   if (location.countryCode.toUpperCase() !== "CA") {
-    return { status: "outside_canada" as const };
+    return { status: "outside_supported_area" as const };
   }
 
   const provinceCode = getProvinceCode(location);
