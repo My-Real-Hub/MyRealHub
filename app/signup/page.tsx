@@ -1,10 +1,29 @@
-import Link from "next/link";
+import { SignUpForm } from "@/components/auth/auth-forms";
+import { getSignUpRole } from "@/lib/auth/roles";
+
+function getSearchParam(value: string | string[] | undefined) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+
+  return rawValue?.trim() ?? "";
+}
+
+function getSafeRedirectPath(value: string) {
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return null;
+  }
+
+  return value;
+}
 
 export default async function SignUpPage({
   searchParams,
 }: PageProps<"/signup">) {
   const params = await searchParams;
-  const isProvider = params.role === "provider";
+  const initialRole = getSignUpRole(params.role);
+  const isProviderSignup = initialRole === "provider";
+  const redirectTo = getSafeRedirectPath(getSearchParam(params.next));
+  const reason = getSearchParam(params.reason);
+  const showContactPrompt = reason === "contact-provider";
 
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
@@ -13,61 +32,29 @@ export default async function SignUpPage({
           Sign Up
         </p>
         <h1 className="mt-3 text-3xl font-semibold text-stone-950">
-          {isProvider ? "Join MyRealHub as a provider" : "Create your MyRealHub account"}
+          {isProviderSignup
+            ? "Join the provider directory"
+            : "Create your MyRealHub account"}
         </h1>
         <p className="mt-4 text-base leading-7 text-stone-600">
-          Account creation will be connected to Supabase Auth in a later task.
-          This page establishes the public route and provider CTA destination.
+          {isProviderSignup
+            ? "Create a provider account to manage your listing and service profile."
+            : "Create an account to save providers and manage your MyRealHub activity."}
         </p>
+        {showContactPrompt ? (
+          <p className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-900">
+            Create an account to send this provider a contact request. We&apos;ll
+            bring you back to their profile after sign-up when your session is
+            active.
+          </p>
+        ) : null}
       </div>
 
-      <div className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Link
-            href="/signup"
-            className={`rounded-md border px-4 py-3 text-sm font-semibold transition ${
-              isProvider
-                ? "border-stone-200 text-stone-600 hover:border-stone-950"
-                : "border-emerald-700 bg-emerald-50 text-emerald-800"
-            }`}
-          >
-            Regular user
-          </Link>
-          <Link
-            href="/signup?role=provider"
-            className={`rounded-md border px-4 py-3 text-sm font-semibold transition ${
-              isProvider
-                ? "border-emerald-700 bg-emerald-50 text-emerald-800"
-                : "border-stone-200 text-stone-600 hover:border-stone-950"
-            }`}
-          >
-            Service provider
-          </Link>
-        </div>
-
-        <form className="mt-6 grid gap-4">
-          <label className="flex flex-col gap-2 text-sm font-medium text-stone-700">
-            Name
-            <input
-              type="text"
-              className="h-12 rounded-md border border-stone-200 px-3 text-base outline-none focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-stone-700">
-            Email
-            <input
-              type="email"
-              className="h-12 rounded-md border border-stone-200 px-3 text-base outline-none focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-            />
-          </label>
-          <button
-            type="submit"
-            className="h-12 rounded-md bg-emerald-700 px-6 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-          >
-            Continue
-          </button>
-        </form>
-      </div>
+      <SignUpForm
+        initialRole={initialRole}
+        reason={reason}
+        redirectTo={redirectTo}
+      />
     </section>
   );
 }

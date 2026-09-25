@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { AuthMenu } from "@/components/auth/auth-menu";
+import { MyRealHubLogo } from "@/components/brand/my-real-hub-logo";
+import { FeedbackLink } from "@/components/feedback/feedback-link";
 
 const primaryLinks = [
   { href: "/", label: "Home" },
@@ -9,11 +12,12 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <Link href="/" className="flex items-center gap-3" aria-label="MyRealHub home">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-700 text-sm font-bold text-white">
-            MRH
-          </span>
-          <span className="text-lg font-semibold text-stone-950">MyRealHub</span>
+        <Link
+          href="/"
+          className="inline-flex rounded-md focus:outline-none focus:ring-4 focus:ring-teal-100"
+          aria-label="MyRealHub home"
+        >
+          <MyRealHubLogo markClassName="size-14" />
         </Link>
 
         <nav
@@ -30,27 +34,11 @@ export function SiteHeader() {
                 {link.label}
               </Link>
             ))}
+            <FeedbackLink className="transition hover:text-stone-950" />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/login"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-            >
-              Log In
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-            >
-              Sign Up
-            </Link>
-            <Link
-              href="/signup?role=provider"
-              className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
-            >
-              Join as Provider
-            </Link>
+            <AuthMenu />
           </div>
         </nav>
       </div>
