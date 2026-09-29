@@ -135,7 +135,7 @@ export function ProviderServiceRegionsForm({
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <label className="grid gap-2 text-sm font-semibold text-stone-900">
-          Region group
+          Province or territory
           <select
             value={provinceCode}
             onChange={(event) => {
@@ -145,16 +145,16 @@ export function ProviderServiceRegionsForm({
             className={inputClassName}
             disabled={!providerProfileId || pending}
           >
-            {subdivisions.map((subdivision, index) => (
+            {subdivisions.map((subdivision) => (
               <option key={subdivision.code} value={subdivision.code}>
-                Region group {index + 1}
+                {subdivision.name}
               </option>
             ))}
           </select>
         </label>
 
         <label className="grid gap-2 text-sm font-semibold text-stone-900">
-          Search this region group
+          Search service regions
           <input
             type="search"
             value={regionSearch}
