@@ -36,10 +36,7 @@ export function ProviderRegionFilterFields({
   const provinceByCode = useMemo(
     () =>
       new Map(
-        subdivisions.map((subdivision, index) => [
-          subdivision.code,
-          `Region group ${index + 1}`,
-        ]),
+        subdivisions.map((subdivision) => [subdivision.code, subdivision.name]),
       ),
     [subdivisions],
   );
@@ -65,7 +62,7 @@ export function ProviderRegionFilterFields({
   return (
     <>
       <label htmlFor={`${variant}-provider-province`} className={labelClassName}>
-        <span className={labelTextClassName}>Region group</span>
+        <span className={labelTextClassName}>Province or territory</span>
         <select
           id={`${variant}-provider-province`}
           name="province"
@@ -76,10 +73,10 @@ export function ProviderRegionFilterFields({
           }}
           className={selectClassName}
         >
-          <option value="">All region groups</option>
-          {subdivisions.map((subdivision, index) => (
+          <option value="">All provinces and territories</option>
+          {subdivisions.map((subdivision) => (
             <option key={subdivision.code} value={subdivision.code}>
-              Region group {index + 1}
+              {subdivision.name}
             </option>
           ))}
         </select>
@@ -104,8 +101,8 @@ export function ProviderRegionFilterFields({
             {provinceName
               ? `All regions in ${provinceName}`
               : isHomepage
-                ? "Select region group first"
-                : "Select a region group first"}
+                ? "Select province or territory first"
+                : "Select a province or territory first"}
           </option>
           {provinceRegions.map((region) => (
             <option key={region.id} value={region.id}>
