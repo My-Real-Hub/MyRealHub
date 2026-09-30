@@ -21,6 +21,7 @@ type SearchPageProps = {
 };
 
 type LookupRow = {
+  description?: string | null;
   id: string;
   name: string;
   slug: string;
@@ -105,6 +106,42 @@ const providerSelectColumns = [
 const ratingValues = [1, 2, 3, 4, 5];
 const providerSearchFormId = "provider-search-form";
 const providerRegionControlId = "provider-region";
+const lookupSearchStopWords = new Set([
+  "a",
+  "about",
+  "an",
+  "and",
+  "any",
+  "by",
+  "can",
+  "for",
+  "from",
+  "help",
+  "hire",
+  "i",
+  "in",
+  "info",
+  "information",
+  "need",
+  "of",
+  "on",
+  "or",
+  "someone",
+  "the",
+  "to",
+  "with",
+]);
+const broadLookupMatchTokens = new Set([
+  "estate",
+  "home",
+  "property",
+  "real",
+  "service",
+  "services",
+  "support",
+]);
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type ProviderRatingSummaryRow = {
   provider_profile_id: string;
@@ -191,6 +228,172 @@ function getIlikeExpression(columns: string[], value: string) {
   return columns
     .map((column) => `${column}.ilike.%${sanitizedValue}%`)
     .join(",");
+}
+
+function getInExpression(column: string, values: string[]) {
+  const validValues = values.filter((value) => uuidPattern.test(value));
+
+  if (validValues.length === 0) {
+    return "";
+  }
+
+  return `${column}.in.(${validValues.join(",")})`;
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeSearchToken(token: string) {
+  if (token.length > 4 && token.endsWith("ies")) {
+    return `${token.slice(0, -3)}y`;
+  }
+
+  if (token.length > 3 && token.endsWith("s") && !token.endsWith("ss")) {
+    return token.slice(0, -1);
+  }
+
+  return token;
+}
+
+function getLookupSearchTokens(value: string) {
+  return normalizeSearchText(value)
+    .split(" ")
+    .map(normalizeSearchToken)
+    .filter(
+      (token) => token.length > 1 && !lookupSearchStopWords.has(token),
+    );
+}
+
+function doSearchTokensMatch(searchToken: string, lookupToken: string) {
+  return (
+    searchToken === lookupToken ||
+    (searchToken.length >= 4 && lookupToken.startsWith(searchToken)) ||
+    (lookupToken.length >= 4 && searchToken.startsWith(lookupToken))
+  );
+}
+
+function countLookupTokenMatches(searchTokens: string[], lookupTokens: string[]) {
+  return searchTokens.filter((searchToken) =>
+    lookupTokens.some((lookupToken) =>
+      doSearchTokensMatch(searchToken, lookupToken),
+    ),
+  ).length;
+}
+
+function hasSpecificLookupTokenMatch(
+  searchTokens: string[],
+  lookupTokens: string[],
+) {
+  return searchTokens.some(
+    (searchToken) =>
+      searchToken.length >= 5 &&
+      !broadLookupMatchTokens.has(searchToken) &&
+      lookupTokens.some((lookupToken) =>
+        doSearchTokensMatch(searchToken, lookupToken),
+      ),
+  );
+}
+
+function isLookupKeywordMatch(keyword: string, lookup: LookupRow) {
+  const normalizedKeyword = normalizeSearchText(keyword);
+
+  if (!normalizedKeyword) {
+    return false;
+  }
+
+  const searchableText = [
+    lookup.name,
+    lookup.slug,
+    lookup.description ?? "",
+  ].join(" ");
+  const nameText = normalizeSearchText(`${lookup.name} ${lookup.slug}`);
+  const lookupText = normalizeSearchText(searchableText);
+  const searchTokens = getLookupSearchTokens(keyword);
+
+  if (searchTokens.length === 0) {
+    return false;
+  }
+
+  if (
+    nameText.includes(normalizedKeyword) ||
+    normalizedKeyword.includes(nameText) ||
+    lookupText.includes(normalizedKeyword)
+  ) {
+    return true;
+  }
+
+  const nameTokens = getLookupSearchTokens(`${lookup.name} ${lookup.slug}`);
+  const textTokens = getLookupSearchTokens(searchableText);
+  const nameMatches = countLookupTokenMatches(searchTokens, nameTokens);
+  const textMatches = countLookupTokenMatches(
+    searchTokens,
+    textTokens,
+  );
+  const hasSpecificNameMatch = hasSpecificLookupTokenMatch(
+    searchTokens,
+    nameTokens,
+  );
+  const hasSpecificTextMatch = hasSpecificLookupTokenMatch(
+    searchTokens,
+    textTokens,
+  );
+
+  if (searchTokens.length === 1) {
+    const [searchToken] = searchTokens;
+
+    return (
+      nameMatches === 1 ||
+      (textMatches === 1 && !broadLookupMatchTokens.has(searchToken))
+    );
+  }
+
+  return (
+    nameMatches >= 2 ||
+    (hasSpecificNameMatch && searchTokens.length <= 3) ||
+    (hasSpecificTextMatch && searchTokens.length <= 3) ||
+    textMatches === searchTokens.length ||
+    (textMatches >= 2 && textMatches / searchTokens.length >= 0.5)
+  );
+}
+
+function getKeywordLookupMatches(
+  keyword: string,
+  categories: LookupRow[],
+  specialties: SpecialtyLookupRow[],
+) {
+  const categoryIds = new Set<string>();
+  const specialtyIds = new Set<string>();
+
+  categories.forEach((category) => {
+    if (isLookupKeywordMatch(keyword, category)) {
+      categoryIds.add(category.id);
+    }
+  });
+
+  specialties.forEach((specialty) => {
+    if (!isLookupKeywordMatch(keyword, specialty)) {
+      return;
+    }
+
+    specialtyIds.add(specialty.id);
+
+    if (specialty.category_id) {
+      categoryIds.add(specialty.category_id);
+    }
+  });
+
+  return {
+    categoryIds: Array.from(categoryIds),
+    specialtyIds: Array.from(specialtyIds),
+  };
 }
 
 function intersectProviderIds(firstIds: string[], secondIds: string[]) {
@@ -363,6 +566,33 @@ async function getProviderIdsForRelation(
   };
 }
 
+async function getProviderIdsForSpecialties(specialtyIds: string[]) {
+  if (specialtyIds.length === 0) {
+    return { ids: [] as string[], ok: true };
+  }
+
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("provider_specialties")
+    .select("provider_profile_id")
+    .in("specialty_id", specialtyIds);
+
+  if (error) {
+    return { ids: [] as string[], ok: false };
+  }
+
+  return {
+    ids: Array.from(
+      new Set(
+        ((data ?? []) as ProviderRelationRow[]).map(
+          (row) => row.provider_profile_id,
+        ),
+      ),
+    ),
+    ok: true,
+  };
+}
+
 async function getProviderIdsForServiceRegions(serviceRegionIds: string[]) {
   if (serviceRegionIds.length === 0) {
     return { ids: [] as string[], ok: true };
@@ -405,7 +635,7 @@ async function getSearchData(
     await Promise.all([
       supabase
         .from("categories")
-        .select("id,name,slug")
+        .select("id,name,slug,description")
         .eq("is_active", true)
         .order("name"),
       supabase
@@ -415,7 +645,7 @@ async function getSearchData(
         .order("name"),
       supabase
         .from("specialties")
-        .select("id,category_id,name,slug")
+        .select("id,category_id,name,slug,description")
         .eq("is_active", true)
         .order("name"),
       supabase
@@ -459,6 +689,16 @@ async function getSearchData(
     regionId,
     specialtyId: resolveLookupId(getSearchParam(query.specialty), specialties),
   };
+  const keywordLookupMatches = getKeywordLookupMatches(
+    filters.keyword,
+    categories,
+    specialties,
+  );
+  const keywordSpecialtyProviderIds =
+    await getProviderIdsForSpecialties(keywordLookupMatches.specialtyIds);
+  const keywordLookupError = keywordSpecialtyProviderIds.ok
+    ? null
+    : "Some keyword matches could not be applied.";
   const lookupError =
     categoriesResult.error ||
     languagesResult.error ||
@@ -467,6 +707,7 @@ async function getSearchData(
     subdivisionsResult.error
       ? "Some filter options could not be loaded."
       : null;
+  const filterErrorMessage = lookupError || keywordLookupError;
   const relationFilters: string[][] = [];
 
   if (filters.languageId) {
@@ -570,7 +811,7 @@ async function getSearchData(
   if (relationProviderIds?.length === 0) {
     return {
       categories,
-      errorMessage: lookupError,
+      errorMessage: filterErrorMessage,
       filters,
       languages,
       providers: [],
@@ -598,9 +839,14 @@ async function getSearchData(
     ["business_name", "display_name", "bio", "service_area"],
     filters.keyword,
   );
+  const keywordExpressions = [
+    keywordExpression,
+    getInExpression("category_id", keywordLookupMatches.categoryIds),
+    getInExpression("id", keywordSpecialtyProviderIds.ids),
+  ].filter(Boolean);
 
-  if (keywordExpression) {
-    providerQuery = providerQuery.or(keywordExpression);
+  if (keywordExpressions.length > 0) {
+    providerQuery = providerQuery.or(keywordExpressions.join(","));
   }
 
   const { data: providerRows, error: providerError } = await providerQuery;
@@ -624,7 +870,7 @@ async function getSearchData(
   if (providerIds.length === 0) {
     return {
       categories,
-      errorMessage: lookupError,
+      errorMessage: filterErrorMessage,
       filters,
       languages,
       providers: [],
@@ -714,7 +960,7 @@ async function getSearchData(
   return {
     categories,
     errorMessage:
-      lookupError ||
+      filterErrorMessage ||
       (providerLanguagesResult.error ||
         providerSpecialtiesResult.error ||
         providerServiceRegionsResult.error ||

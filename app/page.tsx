@@ -655,7 +655,7 @@ function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
             ? `${provider.averageRating.toFixed(1)} · ${
                 provider.ratingCount
               } review${provider.ratingCount === 1 ? "" : "s"}`
-            : "Ratings coming soon"}
+            : "No ratings yet"}
         </span>
       </p>
 
