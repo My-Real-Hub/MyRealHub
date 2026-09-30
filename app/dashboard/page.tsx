@@ -24,7 +24,6 @@ const customerDashboardNavItems = [
   { href: "#overview", label: "Overview" },
   { href: "#saved-providers", label: "Saved providers" },
   { href: "#sent-messages", label: "Messages" },
-  { href: "/settings", label: "Settings" },
 ];
 
 function EmptySavedProviders() {
@@ -77,20 +76,12 @@ export default async function UserDashboardPage({
           title={`Welcome, ${displayName}`}
           description="Keep saved providers, messages, and next steps organized from one place."
           actions={
-            <>
-              <Link
-                href="/search"
-                className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-              >
-                Search providers
-              </Link>
-              <Link
-                href="/settings"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-              >
-                Settings
-              </Link>
-            </>
+            <Link
+              href="/search"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            >
+              Search providers
+            </Link>
           }
         />
 

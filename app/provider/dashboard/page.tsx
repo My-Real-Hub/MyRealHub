@@ -95,7 +95,6 @@ const dashboardNavItems = [
   { href: "#listing", label: "Listing" },
   { href: "#inquiries", label: "Inquiries" },
   { href: "#customer-tools", label: "Customer tools" },
-  { href: "/settings", label: "Settings" },
 ];
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -257,14 +256,8 @@ export default async function ProviderDashboardPage({
           actions={
             <>
               <Link
-                href="/settings"
-                className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-              >
-                Edit listing
-              </Link>
-              <Link
                 href="/search"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+                className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
               >
                 View directory
               </Link>

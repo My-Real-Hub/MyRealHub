@@ -12,7 +12,6 @@ const savedProvidersNavItems = [
   { href: "/dashboard#overview", label: "Overview", active: false },
   { href: "#saved-providers", label: "Saved providers", active: true },
   { href: "/dashboard#sent-messages", label: "Messages" },
-  { href: "/settings", label: "Settings" },
 ];
 
 function EmptySavedProviders() {
