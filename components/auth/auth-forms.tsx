@@ -86,6 +86,96 @@ function inputClassName(hasError: boolean) {
   return `${fieldClassName} ${hasError ? errorFieldClassName : ""}`;
 }
 
+function EyeIcon({ isVisible }: { isVisible: boolean }) {
+  if (isVisible) {
+    return (
+      <svg
+        aria-hidden="true"
+        className="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      >
+        <path d="M3 3l18 18" />
+        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+        <path d="M9.9 4.2A10.5 10.5 0 0 1 12 4c5 0 9 4.5 10 8a12.7 12.7 0 0 1-2.3 4.1" />
+        <path d="M6.6 6.6A12 12 0 0 0 2 12c1 3.5 5 8 10 8a10.8 10.8 0 0 0 4.2-.9" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+    >
+      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function PasswordField({
+  autoComplete,
+  errorMessage,
+  hasError,
+  id,
+  label,
+  minLength,
+  name,
+}: {
+  autoComplete: string;
+  errorMessage?: string;
+  hasError: boolean;
+  id: string;
+  label: string;
+  minLength?: number;
+  name: string;
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+  const toggleLabel = `${isVisible ? "Hide" : "Show"} ${label.toLowerCase()}`;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="text-sm font-medium text-stone-700">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          name={name}
+          type={isVisible ? "text" : "password"}
+          autoComplete={autoComplete}
+          minLength={minLength}
+          className={`${inputClassName(hasError)} w-full pr-12`}
+          aria-invalid={hasError}
+          required
+        />
+        <button
+          type="button"
+          className="absolute inset-y-1 right-1 inline-flex w-10 items-center justify-center rounded-md text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          aria-label={toggleLabel}
+          aria-pressed={isVisible}
+          title={toggleLabel}
+          onClick={() => setIsVisible((currentValue) => !currentValue)}
+        >
+          <EyeIcon isVisible={isVisible} />
+        </button>
+      </div>
+      <FieldError message={errorMessage} />
+    </div>
+  );
+}
+
 function getAuthHref(
   pathname: "/login" | "/signup",
   {
@@ -222,41 +312,25 @@ export function SignUpForm({
           <FieldError message={fieldErrors.email} />
         </label>
 
-        <label
-          htmlFor="signup-password"
-          className="flex flex-col gap-2 text-sm font-medium text-stone-700"
-        >
-          Password
-          <input
-            id="signup-password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            minLength={PASSWORD_MIN_LENGTH}
-            className={inputClassName(Boolean(fieldErrors.password))}
-            aria-invalid={Boolean(fieldErrors.password)}
-            required
-          />
-          <FieldError message={fieldErrors.password} />
-        </label>
+        <PasswordField
+          id="signup-password"
+          name="password"
+          label="Password"
+          autoComplete="new-password"
+          minLength={PASSWORD_MIN_LENGTH}
+          hasError={Boolean(fieldErrors.password)}
+          errorMessage={fieldErrors.password}
+        />
 
-        <label
-          htmlFor="signup-confirm-password"
-          className="flex flex-col gap-2 text-sm font-medium text-stone-700"
-        >
-          Confirm password
-          <input
-            id="signup-confirm-password"
-            name="confirmPassword"
-            type="password"
-            autoComplete="new-password"
-            minLength={PASSWORD_MIN_LENGTH}
-            className={inputClassName(Boolean(fieldErrors.confirmPassword))}
-            aria-invalid={Boolean(fieldErrors.confirmPassword)}
-            required
-          />
-          <FieldError message={fieldErrors.confirmPassword} />
-        </label>
+        <PasswordField
+          id="signup-confirm-password"
+          name="confirmPassword"
+          label="Confirm password"
+          autoComplete="new-password"
+          minLength={PASSWORD_MIN_LENGTH}
+          hasError={Boolean(fieldErrors.confirmPassword)}
+          errorMessage={fieldErrors.confirmPassword}
+        />
 
         <button type="submit" className={buttonClassName} disabled={isSubmitting}>
           {isSubmitting ? "Creating account..." : "Create account"}
@@ -356,22 +430,14 @@ export function LoginForm({ reason = null, redirectTo = null }: LoginFormProps) 
           <FieldError message={fieldErrors.email} />
         </label>
 
-        <label
-          htmlFor="login-password"
-          className="flex flex-col gap-2 text-sm font-medium text-stone-700"
-        >
-          Password
-          <input
-            id="login-password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            className={inputClassName(Boolean(fieldErrors.password))}
-            aria-invalid={Boolean(fieldErrors.password)}
-            required
-          />
-          <FieldError message={fieldErrors.password} />
-        </label>
+        <PasswordField
+          id="login-password"
+          name="password"
+          label="Password"
+          autoComplete="current-password"
+          hasError={Boolean(fieldErrors.password)}
+          errorMessage={fieldErrors.password}
+        />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link href="/forgot-password" className="text-sm font-semibold text-emerald-800">
