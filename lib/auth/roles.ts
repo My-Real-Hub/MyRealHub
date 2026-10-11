@@ -49,13 +49,16 @@ function matchesPathPrefix(pathname: string, prefix: string) {
 
 export function isProfileRole(value: unknown): value is ProfileRole {
   return (
-    typeof value === "string" &&
-    PROFILE_ROLES.includes(value as ProfileRole)
+    typeof value === "string" && PROFILE_ROLES.includes(value as ProfileRole)
   );
 }
 
 export function isUserRole(role: ProfileRole | null | undefined) {
   return role === "user";
+}
+
+export function canJoinAsProvider(role: ProfileRole | null | undefined) {
+  return !role || role === "user";
 }
 
 export function isProviderRole(role: ProfileRole | null | undefined) {

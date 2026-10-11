@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProviderDashboardIcon } from "@/components/dashboard/provider-dashboard-icon";
 import { SaveProviderButton } from "@/components/providers/save-provider-button";
 import type { SavedProvider } from "@/lib/saved-providers";
 
@@ -14,7 +15,8 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 function formatDate(value: string) {
-  return dateFormatter.format(new Date(value));
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : dateFormatter.format(date);
 }
 
 function getProviderName(provider: SavedProvider["provider"]) {
@@ -22,7 +24,7 @@ function getProviderName(provider: SavedProvider["provider"]) {
 }
 
 function getProviderLocation(provider: SavedProvider["provider"]) {
-  const parts = [provider.city].filter(Boolean);
+  const parts = [provider.city, provider.province_state].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }
@@ -35,44 +37,60 @@ export function SavedProviderCard({
   const providerHref = `/providers/${
     savedProvider.provider.slug || savedProvider.provider.id
   }`;
+  const savedDate = formatDate(savedProvider.created_at);
 
   return (
-    <article className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+    <article className="flex min-w-0 flex-col rounded-2xl border border-stone-200 bg-white p-5 sm:p-6">
+      <div className="flex items-start gap-4">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+          <ProviderDashboardIcon name="bookmark" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-emerald-700">
             {savedProvider.categoryName ?? "Real estate service"}
           </p>
-          <h3 className="mt-2 text-lg font-semibold text-stone-950">
-            {providerName}
+          <h3 className="mt-1 break-words text-lg font-semibold leading-6 tracking-tight text-stone-950">
+            <Link
+              href={providerHref}
+              className="rounded-sm transition hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            >
+              {providerName}
+            </Link>
           </h3>
-          <p className="mt-2 text-sm font-medium text-stone-700">
+          <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-stone-500">
+            <ProviderDashboardIcon
+              name="location"
+              className="mt-0.5 size-4 shrink-0"
+            />
             {getProviderLocation(savedProvider.provider)}
           </p>
         </div>
-        <span className="w-fit rounded-md bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600">
-          Saved {formatDate(savedProvider.created_at)}
-        </span>
       </div>
 
-      <p className="mt-4 line-clamp-2 text-sm leading-6 text-stone-600">
+      <p className="mt-4 min-h-12 line-clamp-2 text-sm leading-6 text-stone-600">
         {savedProvider.provider.bio ?? "No bio added yet."}
       </p>
 
-      <div className="mt-5 grid gap-2 border-t border-stone-200 pt-4 sm:grid-cols-3">
+      <div className="flex-1" />
+      {savedDate ? (
+        <p className="mt-4 text-xs leading-5 text-stone-400">
+          Saved {savedDate}
+        </p>
+      ) : null}
+      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-stone-100 pt-4">
         <Link
           href={providerHref}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
         >
           View profile
-        </Link>
-        <Link
-          href="/search"
-          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
-        >
-          Find more
+          <ProviderDashboardIcon
+            name="arrow"
+            className="hidden size-4 sm:block"
+          />
         </Link>
         <SaveProviderButton
+          appearance="workspace"
+          ariaLabel={`Remove ${providerName} from saved providers`}
           isSaved
           isSignedIn
           providerId={savedProvider.provider.id}

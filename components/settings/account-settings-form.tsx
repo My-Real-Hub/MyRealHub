@@ -35,8 +35,7 @@ const initialState = {
   fieldErrors: {},
 };
 
-const inputClassName =
-  "h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+const inputClassName = "settings-input";
 
 function getInitials(name: string) {
   const initials = name
@@ -201,12 +200,12 @@ export function AccountSettingsForm({
   }
 
   return (
-    <form action={formAction} className="rounded-lg border border-stone-200 bg-white shadow-sm">
+    <form action={formAction} className="grid min-w-0 gap-5">
       <input type="hidden" name="profileImagePath" value={imagePath} />
 
       {state.status !== "idle" ? (
         <p
-          className={`m-6 rounded-md border px-4 py-3 text-sm leading-6 ${
+          className={`rounded-xl border px-4 py-3 text-sm leading-6 ${
             state.status === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-900"
               : "border-red-200 bg-red-50 text-red-800"
@@ -218,23 +217,23 @@ export function AccountSettingsForm({
         </p>
       ) : null}
 
-      <section id="account" className="scroll-mt-28 p-6">
+      <section id="account" className="settings-section settings-card">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-              Account
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-stone-950">
+            <h2 className="text-xl font-semibold tracking-tight text-stone-950">
               Account identity
             </h2>
+            <p className="mt-1 text-sm leading-6 text-stone-500">
+              The name and email associated with your account.
+            </p>
           </div>
-          <span className="w-fit rounded-md bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
+          <span className="w-fit shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-semibold text-stone-600">
             {roleLabel}
           </span>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-semibold text-stone-900">
+          <label className="grid gap-2 text-sm font-medium text-stone-800">
             Display name
             <input
               name="displayName"
@@ -249,7 +248,7 @@ export function AccountSettingsForm({
             <FieldError message={fieldErrors.displayName} />
           </label>
 
-          <label className="grid gap-2 text-sm font-semibold text-stone-900">
+          <label className="grid gap-2 text-sm font-medium text-stone-800">
             Email
             <input
               name="email"
@@ -265,20 +264,17 @@ export function AccountSettingsForm({
         </div>
       </section>
 
-      <section
-        id="profile"
-        className="scroll-mt-28 border-t border-stone-200 p-6"
-      >
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-          Profile
-        </p>
-        <h2 className="mt-2 text-xl font-semibold text-stone-950">
+      <section id="profile" className="settings-section settings-card">
+        <h2 className="text-xl font-semibold tracking-tight text-stone-950">
           Photo and biography
         </h2>
+        <p className="mt-1 text-sm leading-6 text-stone-500">
+          Introduce yourself with a photo and a short bio.
+        </p>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[12rem_1fr] lg:items-start">
-          <div className="grid gap-3">
-            <div className="grid aspect-square place-items-center overflow-hidden rounded-lg border border-stone-200 bg-stone-100">
+        <div className="mt-6 grid min-w-0 gap-6 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-start">
+          <div className="grid w-32 gap-3">
+            <div className="grid aspect-square place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-emerald-50">
               {imagePreviewUrl ? (
                 <img
                   src={imagePreviewUrl}
@@ -286,12 +282,12 @@ export function AccountSettingsForm({
                   className="size-full object-cover"
                 />
               ) : (
-                <span className="text-3xl font-semibold text-stone-500">
+                <span className="text-3xl font-semibold text-emerald-800">
                   {getInitials(fallbackName)}
                 </span>
               )}
             </div>
-            <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 transition hover:border-stone-950">
+            <label className="settings-secondary-button cursor-pointer px-2 focus-within:ring-4 focus-within:ring-emerald-100">
               {isUploading ? "Uploading..." : "Upload image"}
               <input
                 type="file"
@@ -320,7 +316,7 @@ export function AccountSettingsForm({
             <FieldError message={fieldErrors.profileImagePath} />
           </div>
 
-          <label className="grid gap-2 text-sm font-semibold text-stone-900">
+          <label className="grid min-w-0 gap-2 text-sm font-medium text-stone-800">
             Biography
             <textarea
               name="bio"
@@ -331,10 +327,10 @@ export function AccountSettingsForm({
                   ? undefined
                   : PROFILE_BIO_MAX_LENGTH
               }
-              className={`min-h-40 w-full resize-y rounded-md border bg-white px-3 py-3 text-sm font-normal leading-7 text-stone-950 outline-none transition focus:ring-4 ${
+              className={`min-h-40 w-full resize-y rounded-xl border bg-white px-3 py-3 text-sm font-normal leading-7 text-stone-950 outline-none transition focus:ring-4 ${
                 biographyIsOverLimit
                   ? "border-red-400 focus:border-red-600 focus:ring-red-100"
-                  : "border-stone-300 focus:border-emerald-700 focus:ring-emerald-100"
+                  : "border-stone-200 focus:border-emerald-700 focus:ring-emerald-100"
               }`}
               aria-invalid={biographyIsOverLimit || Boolean(fieldErrors.bio)}
             />
@@ -351,18 +347,15 @@ export function AccountSettingsForm({
         </div>
       </section>
 
-      <section
-        id="communication"
-        className="scroll-mt-28 border-t border-stone-200 p-6"
-      >
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-          Communication
-        </p>
-        <h2 className="mt-2 text-xl font-semibold text-stone-950">
+      <section id="communication" className="settings-section settings-card">
+        <h2 className="text-xl font-semibold tracking-tight text-stone-950">
           Contact details
         </h2>
+        <p className="mt-1 text-sm leading-6 text-stone-500">
+          The phone number associated with your profile.
+        </p>
 
-        <label className="mt-6 grid max-w-xl gap-2 text-sm font-semibold text-stone-900">
+        <label className="mt-5 grid max-w-xl gap-2 text-sm font-medium text-stone-800">
           Phone
           <input
             name="phone"
@@ -377,13 +370,16 @@ export function AccountSettingsForm({
         </label>
       </section>
 
-      <div className="flex justify-end border-t border-stone-200 p-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <p className="text-xs leading-5 text-stone-500">
+          Saves your account identity, photo, biography, and phone.
+        </p>
         <button
           type="submit"
           disabled={isBusy || biographyIsOverLimit}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+          className="settings-primary-button shrink-0"
         >
-          {pending ? "Saving..." : "Save settings"}
+          {pending ? "Saving..." : "Save account details"}
         </button>
       </div>
     </form>

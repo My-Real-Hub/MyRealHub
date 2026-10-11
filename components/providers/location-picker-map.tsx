@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import type {
-  Map as LeafletMap,
-  Marker as LeafletMarker,
-} from "leaflet";
+import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 
 type MapCoordinates = {
   latitude: number;
@@ -254,10 +251,10 @@ export function LocationPickerMap({
   }
 
   const controlButtonClassName =
-    "rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 shadow-sm transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-50";
+    "min-h-9 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-stone-300 bg-stone-100 shadow-sm">
+    <div className="relative overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
       <div
         ref={containerRef}
         className={`myrealhub-location-map w-full ${className}`}

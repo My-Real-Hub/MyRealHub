@@ -2,10 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { saveProviderCommunicationPreferences } from "@/app/settings/actions";
-import {
-  contactDeliveryMethodLabels,
-  type ContactDeliveryMethod,
-} from "@/lib/contact-requests";
+import type { ContactDeliveryMethod } from "@/lib/contact-requests";
 
 type ProviderCommunicationPreferencesFormProps = {
   acceptNewInquiries: boolean;
@@ -21,8 +18,7 @@ const initialState = {
   fieldErrors: {},
 };
 
-const inputClassName =
-  "h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+const inputClassName = "settings-input";
 
 function StatusMessage({
   message,
@@ -42,7 +38,7 @@ function StatusMessage({
 
   return (
     <p
-      className={`mt-5 rounded-md border px-4 py-3 text-sm leading-6 ${className}`}
+      className={`mt-5 rounded-xl border px-4 py-3 text-sm leading-6 ${className}`}
       role={status === "error" ? "alert" : "status"}
       aria-live="polite"
     >
@@ -76,27 +72,34 @@ function ToggleRow({
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-start gap-3 rounded-md border border-stone-200 bg-white p-4 transition ${
+      className={`flex cursor-pointer items-center justify-between gap-5 rounded-xl border border-stone-200 bg-white p-4 transition ${
         disabled
           ? "cursor-not-allowed opacity-60"
           : "hover:border-emerald-200 hover:bg-emerald-50/40"
       }`}
     >
-      <input
-        type="checkbox"
-        name={name}
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="mt-1 size-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-100"
-      />
-      <span>
+      <span className="min-w-0">
         <span className="block text-sm font-semibold text-stone-950">
           {label}
         </span>
         <span className="mt-1 block text-sm leading-6 text-stone-600">
           {description}
         </span>
+      </span>
+      <span className="relative inline-flex shrink-0">
+        <input
+          type="checkbox"
+          role="switch"
+          name={name}
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden="true"
+          className="relative h-6 w-10 rounded-full bg-stone-200 transition peer-checked:bg-emerald-700 peer-focus-visible:ring-4 peer-focus-visible:ring-emerald-100 after:absolute after:left-1 after:top-1 after:size-4 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-4 motion-reduce:transition-none motion-reduce:after:transition-none"
+        />
       </span>
     </label>
   );
@@ -113,8 +116,7 @@ export function ProviderCommunicationPreferencesForm({
     saveProviderCommunicationPreferences,
     initialState,
   );
-  const [acceptsInquiries, setAcceptsInquiries] =
-    useState(acceptNewInquiries);
+  const [acceptsInquiries, setAcceptsInquiries] = useState(acceptNewInquiries);
   const [deliveryMethod, setDeliveryMethod] = useState(contactDeliveryMethod);
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(
     newMessageEmailEnabled,
@@ -128,24 +130,19 @@ export function ProviderCommunicationPreferencesForm({
     <form
       id="provider-communication"
       action={formAction}
-      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+      className="settings-section settings-card"
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+          <h2 className="text-xl font-semibold tracking-tight text-stone-950">
             Inquiry preferences
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-stone-950">
-            How clients can reach you
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-            Decide whether your public contact form is open, where new
-            inquiries should be delivered, and whether in-app messages should
-            trigger email alerts.
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-stone-500">
+            Choose how customers reach you and where inquiry notifications go.
           </p>
         </div>
         <span
-          className={`w-fit rounded-md px-3 py-1 text-xs font-semibold ${
+          className={`w-fit shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
             acceptsInquiries
               ? "bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-100"
               : "bg-stone-100 text-stone-600"
@@ -166,7 +163,7 @@ export function ProviderCommunicationPreferencesForm({
       <div className="mt-6 grid gap-4">
         <ToggleRow
           checked={acceptsInquiries}
-          description="When this is off, public Contact buttons show that you are not accepting new inquiries."
+          description="Let customers start a conversation from your public listing."
           disabled={disabled}
           label="Accept new inquiries"
           name="acceptNewInquiries"
@@ -174,8 +171,8 @@ export function ProviderCommunicationPreferencesForm({
         />
 
         <fieldset className="grid gap-3">
-          <legend className="text-sm font-semibold text-stone-900">
-            Contact delivery
+          <legend className="mb-3 text-sm font-medium text-stone-800">
+            Deliver new inquiries to
           </legend>
           <div className="grid gap-3 md:grid-cols-2">
             {(["in_app", "email"] as const).map((method) => {
@@ -184,9 +181,9 @@ export function ProviderCommunicationPreferencesForm({
               return (
                 <label
                   key={method}
-                  className={`grid cursor-pointer gap-2 rounded-md border p-4 transition ${
+                  className={`grid cursor-pointer gap-2 rounded-xl border p-4 transition ${
                     isSelected
-                      ? "border-emerald-200 bg-emerald-50"
+                      ? "border-emerald-700 bg-emerald-50"
                       : "border-stone-200 bg-white hover:border-emerald-200"
                   } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
                 >
@@ -198,16 +195,16 @@ export function ProviderCommunicationPreferencesForm({
                       checked={isSelected}
                       disabled={disabled}
                       onChange={() => setDeliveryMethod(method)}
-                      className="size-4 border-stone-300 text-emerald-700 focus:ring-emerald-100"
+                      className="size-4 shrink-0 border-stone-300 accent-emerald-700 focus:ring-emerald-100"
                     />
                     <span className="text-sm font-semibold text-stone-950">
-                      {contactDeliveryMethodLabels[method]}
+                      {method === "in_app" ? "MyRealHub inbox" : "Email relay"}
                     </span>
                   </span>
                   <span className="text-sm leading-6 text-stone-600">
                     {method === "in_app"
-                      ? "Create a MyRealHub conversation in your provider inbox."
-                      : "Securely relay inquiries to your notification email without showing that address publicly."}
+                      ? "Read and reply to customer messages from your dashboard."
+                      : "Receive inquiries at your private notification email."}
                   </span>
                 </label>
               );
@@ -218,14 +215,14 @@ export function ProviderCommunicationPreferencesForm({
 
         <ToggleRow
           checked={emailAlertsEnabled}
-          description="Send an email alert when a new in-app inquiry is created. Turning this off does not disable in-app messaging."
+          description="Get an email when a new inquiry arrives in your MyRealHub inbox."
           disabled={disabled}
-          label="Email me about new in-app messages"
+          label="Email alerts for inbox inquiries"
           name="newMessageEmailEnabled"
           onChange={setEmailAlertsEnabled}
         />
 
-        <label className="grid gap-2 text-sm font-semibold text-stone-900 md:max-w-xl">
+        <label className="grid gap-2 text-sm font-medium text-stone-800 md:max-w-xl">
           Notification email address
           <input
             name="notificationEmail"
@@ -238,18 +235,20 @@ export function ProviderCommunicationPreferencesForm({
             aria-invalid={Boolean(fieldErrors.notificationEmail)}
           />
           <span className="text-sm font-normal leading-6 text-stone-600">
-            This address is used for email alerts and direct-to-email relay. It
-            is stored privately and is not shown on public provider profiles.
+            Used for email delivery and alerts. This address stays private.
           </span>
           <FieldError message={fieldErrors.notificationEmail} />
         </label>
       </div>
 
-      <div className="mt-6 flex justify-end border-t border-stone-200 pt-5">
+      <div className="mt-6 flex flex-col gap-3 border-t border-stone-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs leading-5 text-stone-500">
+          Apply these changes to how your listing receives inquiries.
+        </p>
         <button
           type="submit"
           disabled={disabled}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+          className="settings-primary-button shrink-0"
         >
           {pending ? "Saving preferences..." : "Save inquiry preferences"}
         </button>

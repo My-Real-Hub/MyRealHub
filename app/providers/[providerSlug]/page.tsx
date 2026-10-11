@@ -90,21 +90,25 @@ const reviewDateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 function getProviderName(provider: PublicProviderProfile) {
-  return (
-    provider.business_name ??
-    provider.display_name ??
-    "Provider profile"
-  );
+  return provider.business_name ?? provider.display_name ?? "Provider profile";
 }
 
 function getLocation(provider: PublicProviderProfile) {
-  const parts = [provider.city].filter(Boolean);
+  const parts = [provider.city, provider.province_state].filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "Location not added";
 }
 
-function getDisplayValue(value: string | number | null) {
-  return value === null || value === "" ? "Not added" : String(value);
+function getWebsiteHref(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function getRatingSummaryText(averageRating: number, ratingCount: number) {
@@ -129,7 +133,10 @@ function getDefaultContactSubject(providerName: string) {
   return `Inquiry for ${providerName}`.slice(0, 160);
 }
 
-function getContactAuthHref(pathname: "/login" | "/signup", returnPath: string) {
+function getContactAuthHref(
+  pathname: "/login" | "/signup",
+  returnPath: string,
+) {
   const params = new URLSearchParams({
     next: returnPath,
     reason: "contact-provider",
@@ -146,7 +153,10 @@ function getPublicProfileImageUrl(value: string | null) {
   try {
     const url = new URL(value);
 
-    if (url.hostname === "example.com" || url.hostname.endsWith(".example.com")) {
+    if (
+      url.hostname === "example.com" ||
+      url.hostname.endsWith(".example.com")
+    ) {
       return null;
     }
 
@@ -165,9 +175,7 @@ function getLookupNames(rows: LookupNameRow[], ids: string[]) {
 }
 
 function getServiceRegionNames(rows: ServiceRegionNameRow[], ids: string[]) {
-  const lookup = new Map(
-    rows.map((row) => [row.id, row.name]),
-  );
+  const lookup = new Map(rows.map((row) => [row.id, row.name]));
 
   return ids
     .map((id) => lookup.get(id))
@@ -218,30 +226,29 @@ async function getPublicProviderProfile(identifier: string) {
     languageRowsResult,
     specialtyRowsResult,
     serviceRegionRowsResult,
-  ] =
-    await Promise.all([
-      provider.category_id
-        ? supabase
-            .from("categories")
-            .select("id,name")
-            .eq("id", provider.category_id)
-            .eq("is_active", true)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      supabase
-        .from("provider_languages")
-        .select("language_id")
-        .eq("provider_profile_id", provider.id),
-      supabase
-        .from("provider_specialties")
-        .select("specialty_id")
-        .eq("provider_profile_id", provider.id),
-      supabase
-        .from("provider_service_regions")
-        .select("service_region_id")
-        .eq("provider_profile_id", provider.id)
-        .order("created_at"),
-    ]);
+  ] = await Promise.all([
+    provider.category_id
+      ? supabase
+          .from("categories")
+          .select("id,name")
+          .eq("id", provider.category_id)
+          .eq("is_active", true)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("provider_languages")
+      .select("language_id")
+      .eq("provider_profile_id", provider.id),
+    supabase
+      .from("provider_specialties")
+      .select("specialty_id")
+      .eq("provider_profile_id", provider.id),
+    supabase
+      .from("provider_service_regions")
+      .select("service_region_id")
+      .eq("provider_profile_id", provider.id)
+      .order("created_at"),
+  ]);
 
   const languageIds = ((languageRowsResult.data ?? []) as RelationIdRow[])
     .map((row) => row.language_id)
@@ -257,27 +264,27 @@ async function getPublicProviderProfile(identifier: string) {
 
   const [languageResult, specialtyResult, serviceRegionResult] =
     await Promise.all([
-    languageIds.length > 0
-      ? supabase
-          .from("languages")
-          .select("id,name")
-          .in("id", languageIds)
-          .eq("is_active", true)
-      : Promise.resolve({ data: [] }),
-    specialtyIds.length > 0
-      ? supabase
-          .from("specialties")
-          .select("id,name")
-          .in("id", specialtyIds)
-          .eq("is_active", true)
-      : Promise.resolve({ data: [] }),
-    serviceRegionIds.length > 0
-      ? supabase
-          .from("service_regions")
-          .select("id,name,province_code")
-          .in("id", serviceRegionIds)
-          .eq("is_active", true)
-      : Promise.resolve({ data: [] }),
+      languageIds.length > 0
+        ? supabase
+            .from("languages")
+            .select("id,name")
+            .in("id", languageIds)
+            .eq("is_active", true)
+        : Promise.resolve({ data: [] }),
+      specialtyIds.length > 0
+        ? supabase
+            .from("specialties")
+            .select("id,name")
+            .in("id", specialtyIds)
+            .eq("is_active", true)
+        : Promise.resolve({ data: [] }),
+      serviceRegionIds.length > 0
+        ? supabase
+            .from("service_regions")
+            .select("id,name,province_code")
+            .in("id", serviceRegionIds)
+            .eq("is_active", true)
+        : Promise.resolve({ data: [] }),
     ]);
 
   return {
@@ -304,29 +311,31 @@ async function getProviderRatingData(
   currentProfileId: string | null,
 ) {
   const supabase = await getServerSupabaseClient();
-  const [summaryResult, currentRatingResult, reviewsResult] = await Promise.all([
-    supabase.rpc("get_provider_rating_summary", {
-      target_provider_profile_id: providerId,
-    }),
-    currentProfileId
-      ? supabase
-          .from("provider_ratings")
-          .select("rating,review,moderation_status")
-          .eq("provider_profile_id", providerId)
-          .eq("rater_user_id", currentProfileId)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase.rpc("get_provider_visible_reviews", {
-      target_provider_profile_id: providerId,
-      result_limit: 10,
-    }),
-  ]);
+  const [summaryResult, currentRatingResult, reviewsResult] = await Promise.all(
+    [
+      supabase.rpc("get_provider_rating_summary", {
+        target_provider_profile_id: providerId,
+      }),
+      currentProfileId
+        ? supabase
+            .from("provider_ratings")
+            .select("rating,review,moderation_status")
+            .eq("provider_profile_id", providerId)
+            .eq("rater_user_id", currentProfileId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase.rpc("get_provider_visible_reviews", {
+        target_provider_profile_id: providerId,
+        result_limit: 10,
+      }),
+    ],
+  );
   const summaryData = Array.isArray(summaryResult.data)
     ? summaryResult.data[0]
     : summaryResult.data;
   const summary = (summaryData ?? null) as ProviderRatingSummaryRow | null;
-  const currentRatingRow =
-    (currentRatingResult.data ?? null) as CurrentProviderRatingRow | null;
+  const currentRatingRow = (currentRatingResult.data ??
+    null) as CurrentProviderRatingRow | null;
   const hasCurrentRating =
     currentRatingRow !== null &&
     currentRatingRow.moderation_status !== "removed";
@@ -360,9 +369,11 @@ function StarRating({
       {ratingValues.map((value) => (
         <span
           key={value}
-          className={value <= roundedRating ? "text-amber-400" : "text-stone-300"}
+          className={
+            value <= roundedRating ? "text-amber-400" : "text-stone-300"
+          }
         >
-          ★
+          &#9733;
         </span>
       ))}
     </span>
@@ -377,89 +388,135 @@ function RatingSummary({
   ratingCount: number;
 }) {
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-stone-800">
+    <a
+      href="#reviews"
+      className="inline-flex flex-wrap items-center gap-2 rounded-lg text-sm text-stone-600 transition hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+      aria-label={getRatingSummaryText(averageRating, ratingCount)}
+    >
       {ratingCount > 0 ? (
-        <StarRating rating={averageRating} />
+        <StarRating rating={averageRating} size="text-base" />
       ) : null}
-      <span>{getRatingSummaryText(averageRating, ratingCount)}</span>
-    </div>
+      <span>
+        {ratingCount > 0
+          ? `${averageRating.toFixed(1)} (${ratingCount} rating${ratingCount === 1 ? "" : "s"})`
+          : "No ratings yet"}
+      </span>
+    </a>
   );
 }
 
 function ProviderReviews({
   reviews,
   ratingCount,
+  averageRating,
+  children,
 }: {
   reviews: ProviderReviewRow[];
   ratingCount: number;
+  averageRating: number;
+  children: React.ReactNode;
 }) {
   return (
-    <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <section
+      id="reviews"
+      className="public-profile-card public-profile-section lg:col-start-1"
+      aria-labelledby="reviews-heading"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-stone-950">Reviews</h2>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
+          <h2
+            id="reviews-heading"
+            className="text-lg font-semibold tracking-tight text-stone-950"
+          >
+            Ratings &amp; reviews
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-stone-500">
             {ratingCount > 0
-              ? `${ratingCount} visible rating${ratingCount === 1 ? "" : "s"}`
+              ? `Based on ${ratingCount} member rating${ratingCount === 1 ? "" : "s"}.`
               : "No one has rated this provider yet."}
           </p>
         </div>
+        {ratingCount > 0 ? (
+          <div
+            className="flex shrink-0 items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3"
+            aria-label={getRatingSummaryText(averageRating, ratingCount)}
+          >
+            <span className="text-2xl font-semibold tracking-tight text-emerald-900">
+              {averageRating.toFixed(1)}
+            </span>
+            <div>
+              <StarRating rating={averageRating} size="text-base" />
+              <p className="text-xs text-emerald-800">out of 5</p>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {reviews.length > 0 ? (
-        <div className="mt-5 grid gap-4">
+        <div className="mt-6 divide-y divide-stone-100 border-t border-stone-100">
           {reviews.map((review) => (
-            <section
-              key={review.id}
-              className="rounded-md border border-stone-200 bg-stone-50 p-4"
-            >
+            <section key={review.id} className="py-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="font-semibold text-stone-950">
+                  <h3 className="break-words text-sm font-semibold text-stone-950">
                     {review.reviewer_name ?? "MyRealHub member"}
-                  </p>
-                  <p className="mt-1 text-sm text-stone-500">
+                  </h3>
+                  <p className="mt-1 text-xs text-stone-500">
                     {formatReviewDate(review.updated_at ?? review.created_at)}
                   </p>
                 </div>
                 <div
-                  className="flex items-center gap-2 text-sm font-semibold text-stone-800"
+                  className="flex shrink-0 items-center gap-2 text-xs font-medium text-stone-500"
                   aria-label={`${review.rating} out of 5 stars`}
                 >
                   <StarRating rating={review.rating} size="text-base" />
                   <span>{review.rating}/5</span>
                 </div>
               </div>
-              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-stone-700">
+              <p className="mt-3 whitespace-pre-line break-words text-sm leading-7 text-stone-600">
                 {review.review}
               </p>
             </section>
           ))}
         </div>
       ) : ratingCount > 0 ? (
-        <p className="mt-5 rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm leading-6 text-stone-600">
+        <p className="mt-5 rounded-xl bg-stone-50 px-4 py-5 text-sm leading-6 text-stone-500">
           This provider has ratings, but no written reviews are visible yet.
         </p>
-      ) : null}
-    </article>
+      ) : (
+        <p className="mt-5 rounded-xl bg-stone-50 px-4 py-5 text-sm leading-6 text-stone-500">
+          Have you worked with this provider? Your experience can help others
+          choose.
+        </p>
+      )}
+      <div className="mt-5 border-t border-stone-100 pt-5">{children}</div>
+    </section>
   );
 }
 
-function TagList({ items }: { items: string[] }) {
+function TagList({
+  items,
+  fallback = "Not specified",
+}: {
+  items: string[];
+  fallback?: string;
+}) {
   if (items.length === 0) {
-    return <p className="text-sm text-stone-500">None selected.</p>;
+    return <p className="text-sm leading-6 text-stone-500">{fallback}</p>;
   }
 
   return (
     <div className="flex flex-wrap gap-2">
-      {items.map((item) => (
-        <span
-          key={item}
-          className="rounded-md bg-stone-100 px-2.5 py-1.5 text-sm font-medium text-stone-800"
-        >
-          {item}
-        </span>
-      ))}
+      {[...items]
+        .sort((left, right) => left.localeCompare(right))
+        .map((item) => (
+          <span
+            key={item}
+            className="max-w-full break-words rounded-lg bg-stone-50 px-3 py-1.5 text-sm leading-5 text-stone-600"
+          >
+            {item}
+          </span>
+        ))}
     </div>
   );
 }
@@ -471,13 +528,12 @@ function DetailItem({
   label: string;
   value: string | number | null;
 }) {
+  if (value === null || value === "") return null;
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-        {label}
-      </dt>
-      <dd className="mt-1 break-words text-sm font-medium text-stone-900">
-        {getDisplayValue(value)}
+      <dt className="text-xs font-medium text-stone-500">{label}</dt>
+      <dd className="mt-1.5 break-words text-sm font-medium text-stone-800">
+        {value}
       </dd>
     </div>
   );
@@ -485,24 +541,24 @@ function DetailItem({
 
 function ContactSignInPrompt({ returnPath }: { returnPath: string }) {
   return (
-    <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4">
+    <div className="rounded-xl bg-emerald-50/70 p-4">
       <p className="text-sm font-semibold text-emerald-950">
         Log in to contact this provider
       </p>
-      <p className="mt-2 text-sm leading-6 text-emerald-900">
-        Contact requests require a verified MyRealHub sender account so
-        providers can respond safely.
+      <p className="mt-2 text-sm leading-6 text-emerald-800">
+        Send an inquiry from your MyRealHub account and keep the conversation in
+        one place.
       </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={getContactAuthHref("/login", returnPath)}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          className="public-profile-primary-button"
         >
           Log in
         </Link>
         <Link
           href={getContactAuthHref("/signup", returnPath)}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-emerald-200 bg-white px-4 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          className="public-profile-secondary-button"
         >
           Create account
         </Link>
@@ -513,9 +569,9 @@ function ContactSignInPrompt({ returnPath }: { returnPath: string }) {
 
 function ContactUnavailableNotice() {
   return (
-    <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
-      This provider is not accepting new inquiries right now. You can still
-      save their profile and check back later.
+    <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
+      This provider is not accepting new inquiries right now. You can still save
+      their profile and check back later.
     </p>
   );
 }
@@ -557,146 +613,331 @@ export default async function PublicProviderProfilePage({
     "consume_services",
   );
 
+  const websiteHref = getWebsiteHref(provider.website_url);
+  const hasCredentials =
+    provider.years_experience !== null || Boolean(provider.license_number);
+
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-10">
-      <div className="mb-6">
+    <div className="bg-[#f6f7f5]">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Link
           href="/search"
-          className="text-sm font-semibold text-emerald-800 transition hover:text-emerald-950"
+          className="mb-5 inline-flex min-h-10 items-center gap-2 rounded-lg text-sm font-medium text-stone-500 transition hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
         >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-4"
+          >
+            <path d="m10 6-6 6 6 6M4 12h16" />
+          </svg>
           Back to search
         </Link>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_21rem] lg:items-start">
-        <div className="grid gap-6">
-          <header className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-            <div className="grid gap-6 lg:grid-cols-[13rem_1fr] lg:items-start">
+        <header className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+          <div className="flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4 sm:gap-6">
               <ProfileImage
                 src={profileImageUrl}
                 alt={`${providerName} profile`}
                 name={providerName}
               />
-
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-emerald-700">
                   {provider.categoryName ?? "Real estate service provider"}
                 </p>
-                <h1 className="mt-3 text-3xl font-semibold text-stone-950">
+                <h1 className="mt-2 break-words text-2xl font-semibold leading-tight tracking-tight text-stone-950 sm:text-3xl">
                   {providerName}
                 </h1>
                 {provider.display_name &&
                 provider.display_name !== provider.business_name ? (
-                  <p className="mt-2 text-base font-medium text-stone-700">
+                  <p className="mt-1.5 text-sm text-stone-600">
                     {provider.display_name}
                   </p>
                 ) : null}
-                <p className="mt-4 text-base leading-7 text-stone-600">
-                  {location}
-                </p>
-                <RatingSummary
-                  averageRating={ratingData.averageRating}
-                  ratingCount={ratingData.ratingCount}
-                />
-              </div>
-            </div>
-          </header>
-
-          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-stone-950">About</h2>
-            <p className="mt-4 text-sm leading-7 text-stone-700">
-              {provider.bio ?? "No bio added."}
-            </p>
-          </article>
-
-          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-stone-950">
-              Service details
-            </h2>
-            <div className="mt-6 grid gap-6 md:grid-cols-3">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                  Service regions
-                </h3>
+                <p className="mt-2 text-sm text-stone-500">{location}</p>
                 <div className="mt-3">
-                  <TagList items={provider.serviceRegionNames} />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                  Languages
-                </h3>
-                <div className="mt-3">
-                  <TagList items={provider.languageNames} />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                  Specialties
-                </h3>
-                <div className="mt-3">
-                  <TagList items={provider.specialtyNames} />
+                  <RatingSummary
+                    averageRating={ratingData.averageRating}
+                    ratingCount={ratingData.ratingCount}
+                  />
                 </div>
               </div>
             </div>
-          </article>
-
-          <ProviderReviews
-            ratingCount={ratingData.ratingCount}
-            reviews={ratingData.reviews}
-          />
-        </div>
-
-        <aside className="grid gap-6 lg:sticky lg:top-28">
-          <article
-            id="contact"
-            className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-          >
-            <h2 className="text-xl font-semibold text-stone-950">Contact</h2>
-            <div className="mt-5 grid gap-4">
+            <div className="grid gap-2 sm:grid-cols-2 lg:w-52 lg:shrink-0 lg:grid-cols-1">
               {isOwnProviderProfile ? (
-                <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
-                  You cannot contact your own provider profile.
-                </p>
-              ) : !acceptsNewInquiries ? (
-                <ContactUnavailableNotice />
-              ) : !currentProfile ? (
-                <ContactSignInPrompt returnPath={contactReturnPath} />
-              ) : !canConsumeServices ? (
-                <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
-                  Contact requests are available to users and service
-                  providers.
-                </p>
+                <Link
+                  href="/settings"
+                  className="public-profile-primary-button"
+                >
+                  Edit your profile
+                </Link>
               ) : (
-                <ContactProviderForm
-                  defaultEmail={currentProfile.email ?? ""}
-                  defaultName={currentProfile.fullName ?? ""}
-                  defaultSubject={getDefaultContactSubject(providerName)}
-                  providerId={provider.id}
-                  returnPath={contactReturnPath}
-                />
+                <a href="#contact" className="public-profile-primary-button">
+                  {currentProfile && !canConsumeServices
+                    ? "Contact details"
+                    : "Contact provider"}
+                </a>
               )}
-              <div className="border-t border-stone-200 pt-4">
+              {!isOwnProviderProfile &&
+              (!currentProfile || canConsumeServices) ? (
                 <SaveProviderButton
+                  appearance="profile"
+                  ariaLabel={`${isSaved ? "Unsave" : "Save"} ${providerName}`}
                   isSaved={isSaved}
                   isSignedIn={Boolean(currentProfile)}
                   providerId={provider.id}
                   returnPath={returnPath}
                 />
-              </div>
+              ) : null}
             </div>
-          </article>
+          </div>
+          <nav
+            aria-label="Provider profile navigation"
+            className="grid grid-cols-4 gap-1 border-t border-stone-100 px-3 py-2 sm:flex sm:gap-2 sm:px-5"
+          >
+            {[
+              { id: "about", label: "About" },
+              { id: "services", label: "Services" },
+              { id: "contact", label: "Contact" },
+              { id: "reviews", label: "Reviews" },
+            ].map((section) => (
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg px-2 text-sm font-medium text-stone-500 transition hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 sm:px-4"
+              >
+                {section.label}
+              </a>
+            ))}
+          </nav>
+        </header>
 
-          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-stone-950">
-              Rate this provider
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              {ratingData.ratingCount > 0
-                ? `Current average: ${ratingData.averageRating.toFixed(1)} out of 5.`
-                : "Be the first to submit a rating."}
-            </p>
-            <div className="mt-5">
+        <div className="mt-6 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start">
+          <div className="grid min-w-0 gap-6 lg:col-start-1">
+            <section
+              id="about"
+              className="public-profile-card public-profile-section"
+              aria-labelledby="about-heading"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                Meet the provider
+              </p>
+              <h2
+                id="about-heading"
+                className="mt-2 text-lg font-semibold tracking-tight text-stone-950"
+              >
+                About {providerName}
+              </h2>
+              <p className="mt-4 whitespace-pre-line break-words text-sm leading-7 text-stone-600">
+                {provider.bio ||
+                  "This provider has not added a business introduction yet."}
+              </p>
+              {hasCredentials ? (
+                <dl className="mt-5 grid gap-5 border-t border-stone-100 pt-5 sm:grid-cols-2">
+                  <DetailItem
+                    label="Experience"
+                    value={
+                      provider.years_experience !== null
+                        ? `${provider.years_experience} year${provider.years_experience === 1 ? "" : "s"} in the profession`
+                        : null
+                    }
+                  />
+                  <DetailItem
+                    label="License number"
+                    value={provider.license_number}
+                  />
+                </dl>
+              ) : null}
+            </section>
+
+            <section
+              id="services"
+              className="public-profile-card public-profile-section"
+              aria-labelledby="services-heading"
+            >
+              <h2
+                id="services-heading"
+                className="text-lg font-semibold tracking-tight text-stone-950"
+              >
+                Services &amp; coverage
+              </h2>
+              <div className="mt-5">
+                <h3 className="text-sm font-medium text-stone-800">
+                  Service areas
+                </h3>
+                <div className="mt-3">
+                  <TagList
+                    items={provider.serviceRegionNames}
+                    fallback={
+                      provider.service_area ||
+                      "Service areas have not been specified. Ask the provider about coverage for your location."
+                    }
+                  />
+                </div>
+              </div>
+              <div className="mt-5 grid gap-5 border-t border-stone-100 pt-5 sm:grid-cols-2">
+                <div>
+                  <h3 className="text-sm font-medium text-stone-800">
+                    Specialties
+                  </h3>
+                  <div className="mt-3">
+                    <TagList items={provider.specialtyNames} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-stone-800">
+                    Languages
+                  </h3>
+                  <div className="mt-3">
+                    <TagList items={provider.languageNames} />
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside
+            className="min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2"
+            aria-labelledby="contact-heading"
+          >
+            <section
+              id="contact"
+              className="public-profile-card public-profile-section"
+            >
+              <p
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${acceptsNewInquiries ? "bg-emerald-50 text-emerald-800" : "bg-stone-100 text-stone-500"}`}
+              >
+                <span
+                  className={`size-1.5 rounded-full ${acceptsNewInquiries ? "bg-emerald-600" : "bg-stone-400"}`}
+                  aria-hidden="true"
+                />
+                {acceptsNewInquiries
+                  ? "Accepting inquiries"
+                  : "Inquiries paused"}
+              </p>
+              <h2
+                id="contact-heading"
+                className="mt-4 text-lg font-semibold tracking-tight text-stone-950"
+              >
+                Get in touch
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-stone-500">
+                Ask about availability, services, or support for your property.
+              </p>
+              {provider.phone || provider.website_url ? (
+                <dl className="mt-5 grid gap-4 border-t border-stone-100 pt-5">
+                  {provider.phone ? (
+                    <div>
+                      <dt className="text-xs text-stone-500">Phone</dt>
+                      <dd className="mt-1">
+                        <a
+                          href={`tel:${provider.phone.replace(/[^+0-9]/g, "")}`}
+                          className="inline-flex min-h-9 items-center rounded-lg text-sm font-medium text-stone-800 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+                        >
+                          {provider.phone}
+                        </a>
+                      </dd>
+                    </div>
+                  ) : null}
+                  {provider.website_url ? (
+                    <div>
+                      <dt className="text-xs text-stone-500">Website</dt>
+                      <dd className="mt-1 break-words text-sm font-medium text-stone-800">
+                        {websiteHref ? (
+                          <a
+                            href={websiteHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+                          >
+                            <span className="min-w-0 break-all">
+                              {provider.website_url
+                                .replace(/^https?:\/\//, "")
+                                .replace(/\/$/, "")}
+                            </span>
+                            <svg
+                              aria-hidden="true"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="size-4 shrink-0"
+                            >
+                              <path d="M14 3h7v7m0-7L10 14M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+                            </svg>
+                            <span className="sr-only">opens in a new tab</span>
+                          </a>
+                        ) : (
+                          provider.website_url
+                        )}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+              <div className="mt-5 border-t border-stone-100 pt-5">
+                {isOwnProviderProfile ? (
+                  <p className="rounded-xl bg-stone-50 p-4 text-sm leading-6 text-stone-600">
+                    This is your public profile. Manage your contact details and
+                    inquiry preferences in{" "}
+                    <Link
+                      href="/settings"
+                      className="font-medium text-emerald-800 underline underline-offset-4"
+                    >
+                      Settings
+                    </Link>
+                    .
+                  </p>
+                ) : !acceptsNewInquiries ? (
+                  <ContactUnavailableNotice />
+                ) : !currentProfile ? (
+                  <ContactSignInPrompt returnPath={contactReturnPath} />
+                ) : !canConsumeServices ? (
+                  <p className="rounded-xl bg-stone-50 p-4 text-sm leading-6 text-stone-600">
+                    Sign in with a customer or provider account to send an
+                    inquiry.
+                  </p>
+                ) : (
+                  <ContactProviderForm
+                    defaultEmail={currentProfile.email ?? ""}
+                    defaultName={currentProfile.fullName ?? ""}
+                    defaultSubject={getDefaultContactSubject(providerName)}
+                    providerId={provider.id}
+                    returnPath={contactReturnPath}
+                  />
+                )}
+              </div>
+            </section>
+          </aside>
+
+          <ProviderReviews
+            averageRating={ratingData.averageRating}
+            ratingCount={ratingData.ratingCount}
+            reviews={ratingData.reviews}
+          >
+            {!isOwnProviderProfile &&
+            (!currentProfile || canConsumeServices) ? (
+              <h3 className="text-sm font-semibold text-stone-950">
+                {ratingData.currentRating
+                  ? "Your review"
+                  : "Share your experience"}
+              </h3>
+            ) : null}
+            {!isOwnProviderProfile && canConsumeServices ? (
+              <p className="mt-2 text-sm leading-6 text-stone-500">
+                Rate your experience with this provider. You can add a written
+                review or update your feedback later.
+              </p>
+            ) : null}
+            <div className="mt-4">
               <ProviderRatingForm
                 canRate={canConsumeServices}
                 currentModerationStatus={ratingData.currentModerationStatus}
@@ -705,40 +946,12 @@ export default async function PublicProviderProfilePage({
                 isSelf={isOwnProviderProfile}
                 isSignedIn={Boolean(currentProfile)}
                 providerId={provider.id}
-                returnPath={returnPath}
+                returnPath={`${returnPath}#reviews`}
               />
             </div>
-          </article>
-
-          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-stone-950">Details</h2>
-            <dl className="mt-5 grid gap-4">
-              <DetailItem label="Profession" value={provider.categoryName} />
-              <DetailItem
-                label="Inquiries"
-                value={
-                  acceptsNewInquiries
-                    ? "Available through secure contact"
-                    : "Paused by provider"
-                }
-              />
-              <DetailItem label="Phone" value={provider.phone} />
-              <DetailItem label="Website" value={provider.website_url} />
-              {provider.serviceRegionNames.length === 0 ? (
-                <DetailItem
-                  label="Service area"
-                  value={provider.service_area}
-                />
-              ) : null}
-              <DetailItem
-                label="Years experience"
-                value={provider.years_experience}
-              />
-              <DetailItem label="License" value={provider.license_number} />
-            </dl>
-          </article>
-        </aside>
+          </ProviderReviews>
+        </div>
       </div>
-    </section>
+    </div>
   );
 }

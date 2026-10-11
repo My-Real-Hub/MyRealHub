@@ -5,65 +5,62 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   DEFAULT_PROFILE_ROLE,
+  canJoinAsProvider,
   getDashboardPathForRole,
   getProfileRoleForUser,
   type ProfileRole,
 } from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
-export function AuthMenu() {
+export function AuthMenu({
+  initialRole,
+  initialUserId,
+}: {
+  initialRole: ProfileRole | null;
+  initialUserId: string | null;
+}) {
   const router = useRouter();
-  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(Boolean(initialRole));
   const [dashboardPath, setDashboardPath] = useState(
-    getDashboardPathForRole(DEFAULT_PROFILE_ROLE),
+    getDashboardPathForRole(initialRole ?? DEFAULT_PROFILE_ROLE),
   );
-  const [profileRole, setProfileRole] = useState<ProfileRole | null>(null);
+  const [profileRole, setProfileRole] = useState<ProfileRole | null>(
+    initialRole,
+  );
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+    let currentUserId = initialUserId;
+    let roleRequest = 0;
 
     try {
       const supabase = getSupabaseClient();
 
-      supabase.auth
-        .getSession()
-        .then(({ data }) => {
-          if (isMounted) {
-            setIsSignedIn(Boolean(data.session));
-          }
-
-          if (data.session?.user.id) {
-            return getProfileRoleForUser(supabase, data.session.user.id);
-          }
-
-          return null;
-        })
-        .then((role) => {
-          if (isMounted) {
-            setProfileRole(role);
-            setDashboardPath(
-              getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
-            );
-          }
-        })
-        .catch(() => {
-          // Keep the public auth links visible if session lookup is unavailable.
-        });
-
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
-          setIsSignedIn(Boolean(session));
-          if (!session?.user.id) {
-            setProfileRole(null);
-            setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
-            return;
+        if (!isMounted) {
+          return;
         }
 
-        getProfileRoleForUser(supabase, session.user.id)
+        const request = ++roleRequest;
+        const nextUserId = session?.user.id ?? null;
+        setIsSignedIn(Boolean(session));
+
+        if (!nextUserId || nextUserId !== currentUserId) {
+          setProfileRole(null);
+          setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
+        }
+        currentUserId = nextUserId;
+
+        if (!nextUserId) {
+          return;
+        }
+
+        getProfileRoleForUser(supabase, nextUserId)
           .then((role) => {
-            if (isMounted) {
+            if (isMounted && request === roleRequest) {
               setProfileRole(role);
               setDashboardPath(
                 getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
@@ -71,7 +68,7 @@ export function AuthMenu() {
             }
           })
           .catch(() => {
-            if (isMounted) {
+            if (isMounted && request === roleRequest) {
               setProfileRole(null);
               setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
             }
@@ -89,7 +86,7 @@ export function AuthMenu() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialUserId]);
 
   async function handleSignOut() {
     setIsSigningOut(true);
@@ -115,6 +112,14 @@ export function AuthMenu() {
   if (isSignedIn) {
     return (
       <>
+        {profileRole && canJoinAsProvider(profileRole) ? (
+          <Link
+            href="/signup?role=provider"
+            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+          >
+            Join as Provider
+          </Link>
+        ) : null}
         {profileRole === "provider" ? (
           <Link
             href="/dashboard"

@@ -2,13 +2,17 @@ import Link from "next/link";
 import { AuthMenu } from "@/components/auth/auth-menu";
 import { MyRealHubLogo } from "@/components/brand/my-real-hub-logo";
 import { FeedbackLink } from "@/components/feedback/feedback-link";
+import { getCurrentProfile } from "@/lib/auth/session";
+import { getSupabaseConfig } from "@/lib/supabase/client";
 
 const primaryLinks = [
   { href: "/", label: "Home" },
   { href: "/search", label: "Search" },
 ];
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const profile = getSupabaseConfig() ? await getCurrentProfile() : null;
+
   return (
     <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
@@ -38,7 +42,10 @@ export function SiteHeader() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <AuthMenu />
+            <AuthMenu
+              initialRole={profile?.role ?? null}
+              initialUserId={profile?.id ?? null}
+            />
           </div>
         </nav>
       </div>
