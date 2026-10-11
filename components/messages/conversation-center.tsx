@@ -39,6 +39,7 @@ type ConversationCenterCopy = {
 };
 
 type ConversationCenterProps = {
+  appearance?: "default" | "workspace";
   copy?: Partial<ConversationCenterCopy>;
   data: ConversationCenterData;
 };
@@ -240,22 +241,26 @@ function ConversationListItem({
   conversation,
   isSelected,
   onSelect,
+  workspace = false,
 }: {
   conversation: ConversationSummary;
   isSelected: boolean;
   onSelect: (conversationId: string) => void;
+  workspace?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(conversation.id)}
       aria-current={isSelected ? "true" : undefined}
-      className={`w-full rounded-md border px-4 py-3 text-left transition ${
+      className={`w-full border px-4 py-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${workspace ? "rounded-xl" : "rounded-md"} ${
         isSelected
-          ? "border-stone-950 bg-stone-50"
+          ? workspace
+            ? "border-emerald-700 bg-emerald-50/40"
+            : "border-stone-950 bg-stone-50"
           : conversation.unread
-          ? "border-emerald-200 bg-emerald-50/60 hover:border-emerald-600"
-          : "border-stone-200 bg-white hover:border-stone-400"
+            ? "border-emerald-200 bg-emerald-50/60 hover:border-emerald-600"
+            : "border-stone-200 bg-white hover:border-stone-400"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -318,10 +323,7 @@ function MessageBubble({ message }: { message: ConversationMessage }) {
       }`}
     >
       {!message.isOwn ? (
-        <Avatar
-          avatarUrl={message.senderAvatarUrl}
-          name={message.senderName}
-        />
+        <Avatar avatarUrl={message.senderAvatarUrl} name={message.senderName} />
       ) : null}
       <div
         className={`max-w-[min(100%,42rem)] rounded-2xl px-4 py-3 ${
@@ -354,7 +356,13 @@ function MessageBubble({ message }: { message: ConversationMessage }) {
   );
 }
 
-export function ConversationCenter({ copy, data }: ConversationCenterProps) {
+export function ConversationCenter({
+  appearance = "default",
+  copy,
+  data,
+}: ConversationCenterProps) {
+  const isWorkspace = appearance === "workspace";
+  const isConsumerWorkspace = isWorkspace && data.mode === "consumer";
   const text = { ...defaultCopy[data.mode], ...copy };
   const sectionId = data.mode === "provider" ? "inquiries" : "sent-messages";
   const queryParam = data.mode === "provider" ? "inquiry" : "message";
@@ -493,7 +501,7 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
       (conversation) => conversation.id === selectedConversationId,
     ) ?? null;
   const selectedMessages = selectedConversationId
-    ? messagesByConversation[selectedConversationId] ?? []
+    ? (messagesByConversation[selectedConversationId] ?? [])
     : [];
   const unreadCount = conversations.filter(
     (conversation) => conversation.unread,
@@ -570,9 +578,9 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
       setErrorMessage(result.message);
       setMessagesByConversation((current) => ({
         ...current,
-        [selectedConversation.id]: (current[selectedConversation.id] ?? []).filter(
-          (message) => message.id !== optimisticMessage.id,
-        ),
+        [selectedConversation.id]: (
+          current[selectedConversation.id] ?? []
+        ).filter((message) => message.id !== optimisticMessage.id),
       }));
       setMessageBody(body);
       return;
@@ -625,25 +633,39 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
   return (
     <article
       id={sectionId}
-      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+      className={
+        isWorkspace
+          ? `${data.mode === "consumer" ? "consumer-dashboard-section" : "provider-dashboard-section"} min-w-0`
+          : "scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+      }
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            {text.eyebrow}
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-stone-950">
+        <div className="min-w-0">
+          {text.eyebrow ? (
+            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+              {text.eyebrow}
+            </p>
+          ) : null}
+          <h2
+            className={`${text.eyebrow ? "mt-2 " : ""}text-xl font-semibold tracking-tight text-stone-950`}
+          >
             {text.title}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
+          <p
+            className={
+              isWorkspace
+                ? "mt-1 max-w-2xl text-sm leading-6 text-stone-500"
+                : "mt-2 max-w-2xl text-sm leading-6 text-stone-600"
+            }
+          >
             {text.description}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <span className="w-fit rounded-md bg-stone-50 px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <span className="w-fit rounded-full bg-stone-50 px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
             {conversations.length} shown
           </span>
-          <span className="w-fit rounded-md bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100">
+          <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-100">
             {unreadCount} unread
           </span>
         </div>
@@ -665,44 +687,88 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
         </p>
       ) : null}
 
-      <div className="mt-6 rounded-xl border border-stone-200 bg-stone-50/60">
-        <div className="grid gap-3 border-b border-stone-200 p-4 lg:grid-cols-[1fr_auto] lg:items-center">
-          <label className="sr-only" htmlFor={`${sectionId}-search`}>
-            Search conversations
-          </label>
-          <input
-            id={`${sectionId}-search`}
-            type="search"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Search by name, subject, or message"
-            className="h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
-          />
-          <button
-            type="button"
-            onClick={() => setShowUnreadOnly((current) => !current)}
-            aria-pressed={showUnreadOnly}
-            className={`inline-flex h-11 items-center justify-center rounded-md border px-4 text-sm font-semibold transition ${
-              showUnreadOnly
-                ? "border-emerald-700 bg-emerald-700 text-white"
-                : "border-stone-300 bg-white text-stone-800 hover:border-stone-950"
-            }`}
-          >
-            {showUnreadOnly ? "Showing unread" : "Unread only"}
-          </button>
-        </div>
+      <div
+        className={
+          isWorkspace
+            ? "mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white"
+            : "mt-6 rounded-xl border border-stone-200 bg-stone-50/60"
+        }
+      >
+        {!isWorkspace || conversations.length > 0 ? (
+          <div className="grid gap-3 border-b border-stone-200 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <label className="sr-only" htmlFor={`${sectionId}-search`}>
+              Search conversations
+            </label>
+            <input
+              id={`${sectionId}-search`}
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search by name, subject, or message"
+              className="h-11 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+            />
+            <button
+              type="button"
+              onClick={() => setShowUnreadOnly((current) => !current)}
+              aria-pressed={showUnreadOnly}
+              className={`inline-flex h-11 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
+                showUnreadOnly
+                  ? "border-emerald-700 bg-emerald-700 text-white"
+                  : "border-stone-300 bg-white text-stone-800 hover:border-stone-950"
+              }`}
+            >
+              {showUnreadOnly ? "Showing unread" : "Unread only"}
+            </button>
+          </div>
+        ) : null}
 
         {conversations.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              description={text.emptyDescription}
-              title={text.emptyTitle}
-            />
+          <div
+            className={isWorkspace ? "px-5 py-12 text-center sm:px-8" : "p-4"}
+          >
+            {isWorkspace ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"
+                >
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 4h16v12h-5l-3 4-3-4H4V4Z M8 8h8 M8 12h5" />
+                  </svg>
+                </span>
+                <h3 className="mt-4 text-base font-semibold text-stone-950">
+                  {text.emptyTitle}
+                </h3>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-stone-500">
+                  {text.emptyDescription}
+                </p>
+              </>
+            ) : (
+              <EmptyState
+                description={text.emptyDescription}
+                title={text.emptyTitle}
+              />
+            )}
           </div>
         ) : (
-          <div className="grid gap-0 xl:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)]">
-            <aside className="border-b border-stone-200 bg-white p-4 xl:border-b-0 xl:border-r">
-              <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1 xl:max-h-[44rem]">
+          <div
+            className={`grid gap-0 ${isConsumerWorkspace ? "min-[1200px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" : isWorkspace ? "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" : "xl:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)]"}`}
+          >
+            <aside
+              className={`min-w-0 border-b border-stone-200 bg-white p-4 ${isConsumerWorkspace ? "min-[1200px]:border-b-0 min-[1200px]:border-r" : "xl:border-b-0 xl:border-r"}`}
+            >
+              <div
+                className={`max-h-[28rem] space-y-3 overflow-y-auto pr-1 ${isConsumerWorkspace ? "min-[1200px]:max-h-[44rem]" : "xl:max-h-[44rem]"}`}
+              >
                 {filteredConversations.length > 0 ? (
                   filteredConversations.map((conversation) => (
                     <ConversationListItem
@@ -710,6 +776,7 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
                       conversation={conversation}
                       isSelected={conversation.id === selectedConversationId}
                       onSelect={handleOpenConversation}
+                      workspace={isWorkspace}
                     />
                   ))
                 ) : (
@@ -724,7 +791,9 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
             <section className="min-w-0 bg-white p-4">
               {selectedConversation ? (
                 <div className="flex min-h-[32rem] flex-col">
-                  <div className="flex flex-col gap-4 border-b border-stone-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div
+                    className={`flex flex-col gap-4 border-b border-stone-200 pb-4 ${isWorkspace ? "" : "lg:flex-row lg:items-start lg:justify-between"}`}
+                  >
                     <div className="flex min-w-0 items-start gap-3">
                       <Avatar
                         avatarUrl={selectedConversation.participant.avatarUrl}
@@ -765,9 +834,7 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
                     </div>
                     <div className="flex flex-wrap gap-2 lg:justify-end">
                       <StatusBadge status={selectedConversation.status} />
-                      <EmailDeliveryBadge
-                        conversation={selectedConversation}
-                      />
+                      <EmailDeliveryBadge conversation={selectedConversation} />
                       <span className="w-fit rounded-md border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-semibold text-stone-700">
                         {
                           contactDeliveryMethodLabels[
@@ -814,7 +881,7 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
                   {selectedConversation.participant.href ? (
                     <Link
                       href={selectedConversation.participant.href}
-                      className="mt-4 w-fit rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-800 transition hover:border-stone-950"
+                      className="mt-4 inline-flex min-h-11 w-fit items-center justify-center rounded-xl border border-stone-200 px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:border-stone-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
                     >
                       View provider profile
                     </Link>
@@ -863,7 +930,7 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
                         }
                         maxLength={2000}
                         placeholder="Write a clear, helpful reply..."
-                        className="min-h-28 w-full resize-y rounded-md border border-stone-300 bg-white px-3 py-3 text-sm leading-6 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+                        className="min-h-28 w-full resize-y rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm leading-6 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
                       />
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs font-medium text-stone-500">
@@ -872,7 +939,7 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
                         <button
                           type="submit"
                           disabled={pendingSend}
-                          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {pendingSend ? "Sending..." : "Send message"}
                         </button>
@@ -897,9 +964,7 @@ export function ConversationCenter({ copy, data }: ConversationCenterProps) {
                           id={`${sectionId}-reject-note`}
                           value={rejectionNote}
                           onChange={(event) =>
-                            setRejectionNote(
-                              event.target.value.slice(0, 2000),
-                            )
+                            setRejectionNote(event.target.value.slice(0, 2000))
                           }
                           maxLength={2000}
                           placeholder="Add a short note if you are declining this inquiry."

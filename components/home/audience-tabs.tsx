@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { canJoinAsProvider, type ProfileRole } from "@/lib/auth/roles";
 
 type AudienceTab = "consumer" | "provider";
 
@@ -44,8 +45,13 @@ const tabs: Array<{
   },
 ];
 
-export function AudienceTabs() {
+export function AudienceTabs({
+  profileRole,
+}: {
+  profileRole: ProfileRole | null;
+}) {
   const [selectedTab, setSelectedTab] = useState<AudienceTab>("consumer");
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
     <section className="rounded-lg border border-stone-300 bg-white p-3 shadow-sm">
@@ -54,19 +60,45 @@ export function AudienceTabs() {
         role="tablist"
         aria-label="Choose your MyRealHub path"
       >
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const isSelected = selectedTab === tab.id;
 
           return (
             <button
               key={tab.id}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
               type="button"
               role="tab"
+              tabIndex={isSelected ? 0 : -1}
               aria-selected={isSelected}
               aria-controls={`homepage-${tab.id}-panel`}
               id={`homepage-${tab.id}-tab`}
               onClick={() => setSelectedTab(tab.id)}
-              className={`rounded-md px-3 py-2 text-sm font-semibold motion-safe:transition ${
+              onKeyDown={(event) => {
+                let nextIndex: number;
+                switch (event.key) {
+                  case "ArrowLeft":
+                    nextIndex = (index - 1 + tabs.length) % tabs.length;
+                    break;
+                  case "ArrowRight":
+                    nextIndex = (index + 1) % tabs.length;
+                    break;
+                  case "Home":
+                    nextIndex = 0;
+                    break;
+                  case "End":
+                    nextIndex = tabs.length - 1;
+                    break;
+                  default:
+                    return;
+                }
+                event.preventDefault();
+                setSelectedTab(tabs[nextIndex].id);
+                tabRefs.current[nextIndex]?.focus();
+              }}
+              className={`min-h-11 rounded-md px-3 py-2 text-sm font-semibold motion-safe:transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
                 isSelected
                   ? "bg-stone-950 text-white shadow-sm"
                   : "text-stone-700 hover:text-stone-950"
@@ -111,23 +143,22 @@ export function AudienceTabs() {
                     key={highlight}
                     className="flex items-center gap-2 text-sm font-medium text-stone-700"
                   >
-                    <span
-                      className="h-px w-4 bg-teal-700"
-                      aria-hidden="true"
-                    />
+                    <span className="h-px w-4 shrink-0 bg-teal-700" aria-hidden="true" />
                     {highlight}
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-auto pt-6">
-                <Link
-                  href={tab.primaryHref}
-                  className="inline-flex h-11 w-full items-center justify-center rounded-md bg-stone-950 px-4 text-sm font-semibold text-white motion-safe:transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 sm:w-auto"
-                >
-                  {tab.primaryLabel}
-                </Link>
-              </div>
+              {tab.id === "consumer" || canJoinAsProvider(profileRole) ? (
+                <div className="mt-auto pt-6">
+                  <Link
+                    href={tab.primaryHref}
+                    className="inline-flex h-11 w-full items-center justify-center rounded-md bg-stone-950 px-4 text-sm font-semibold text-white motion-safe:transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 sm:w-auto"
+                  >
+                    {tab.primaryLabel}
+                  </Link>
+                </div>
+              ) : null}
             </div>
           );
         })}

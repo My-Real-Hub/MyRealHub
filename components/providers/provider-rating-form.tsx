@@ -59,7 +59,7 @@ export function ProviderRatingForm({
 
   if (isSelf) {
     return (
-      <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
+      <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
         You cannot rate your own provider profile.
       </p>
     );
@@ -69,7 +69,7 @@ export function ProviderRatingForm({
     return (
       <Link
         href={getLoginHref(returnPath)}
-        className="inline-flex h-11 w-full items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+        className="public-profile-secondary-button w-full sm:w-auto"
       >
         Log in to rate
       </Link>
@@ -78,22 +78,22 @@ export function ProviderRatingForm({
 
   if (!canRate) {
     return (
-      <p className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
+      <p className="rounded-xl bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-600">
         Ratings are available to users and service providers.
       </p>
     );
   }
 
   return (
-    <div className="grid gap-4">
-      <form action={formAction} className="grid gap-4">
+    <div className="grid min-w-0 gap-4">
+      <form action={formAction} className="grid min-w-0 gap-4">
         <input type="hidden" name="providerId" value={providerId} />
         <input type="hidden" name="returnPath" value={returnPath} />
 
         {feedbackMessages.map((message) => (
           <p
             key={`${message.status}-${message.message}`}
-            className={`rounded-md border px-4 py-3 text-sm leading-6 ${
+            className={`rounded-xl border px-4 py-3 text-sm leading-6 ${
               message.status === "success"
                 ? "border-emerald-200 bg-emerald-50 text-emerald-900"
                 : "border-red-200 bg-red-50 text-red-800"
@@ -106,28 +106,23 @@ export function ProviderRatingForm({
         ))}
 
         {currentModerationStatus === "hidden" ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
             Your review is hidden by moderation. You can still edit it, but it
             will stay hidden until an admin makes it visible again.
           </p>
         ) : null}
 
-        <fieldset className="grid gap-2">
+        <fieldset className="grid min-w-0 gap-2">
           <legend
             id={`provider-rating-label-${providerId}`}
-            className="text-sm font-semibold text-stone-900"
+            className="mb-2 text-sm font-medium text-stone-700"
           >
             Your rating
           </legend>
-          <input
-            type="hidden"
-            name="rating"
-            value={selectedRating > 0 ? String(selectedRating) : ""}
-          />
           <div
             role="radiogroup"
             aria-labelledby={`provider-rating-label-${providerId}`}
-            className="flex items-center gap-1"
+            className="flex flex-wrap items-center gap-2"
             aria-describedby={
               state.fieldErrors.rating
                 ? `provider-rating-error-${providerId}`
@@ -135,45 +130,40 @@ export function ProviderRatingForm({
             }
           >
             {ratingValues.map((value) => (
-              <button
+              <label
                 key={value}
-                type="button"
-                role="radio"
-                aria-checked={selectedRating === value}
-                aria-label={`${value} star${value === 1 ? "" : "s"}`}
                 title={`${value} star${value === 1 ? "" : "s"}`}
-                disabled={isBusy}
-                onClick={() => setSelectedRating(value)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowRight" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setSelectedRating((currentValue) =>
-                      Math.min(5, Math.max(1, currentValue + 1)),
-                    );
-                  }
-
-                  if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setSelectedRating((currentValue) =>
-                      Math.max(1, currentValue - 1 || 1),
-                    );
-                  }
-                }}
-                className={`rounded-md px-1 text-3xl leading-none transition focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed ${
-                  value <= selectedRating
-                    ? "text-amber-400 hover:text-amber-500"
-                    : "text-stone-300 hover:text-amber-300"
-                }`}
+                className="relative cursor-pointer"
               >
-                <span aria-hidden="true">★</span>
-              </button>
+                <input
+                  type="radio"
+                  name="rating"
+                  value={value}
+                  checked={selectedRating === value}
+                  onChange={() => setSelectedRating(value)}
+                  required
+                  disabled={isBusy}
+                  aria-label={`${value} star${value === 1 ? "" : "s"}`}
+                  className="peer sr-only"
+                />
+                <span
+                  aria-hidden="true"
+                  className={`grid size-11 place-items-center rounded-xl border text-2xl leading-none transition peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-emerald-700 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 ${
+                    value <= selectedRating
+                      ? "border-amber-200 bg-amber-50 text-amber-500 hover:bg-amber-100"
+                      : "border-stone-200 bg-white text-stone-300 hover:border-amber-200 hover:text-amber-400"
+                  }`}
+                >
+                  &#9733;
+                </span>
+              </label>
             ))}
-            <span className="ml-2 text-sm font-medium text-stone-600">
-              {selectedRating > 0
-                ? `${selectedRating} out of 5`
-                : "Choose a rating"}
-            </span>
           </div>
+          <p className="mt-1 text-xs text-stone-500">
+            {selectedRating > 0
+              ? `${selectedRating} out of 5`
+              : "Choose 1 to 5 stars"}
+          </p>
           {state.fieldErrors.rating ? (
             <p
               id={`provider-rating-error-${providerId}`}
@@ -186,9 +176,12 @@ export function ProviderRatingForm({
 
         <label
           htmlFor={`provider-review-${providerId}`}
-          className="grid gap-2 text-sm font-semibold text-stone-900"
+          className="grid min-w-0 gap-2 text-sm font-medium text-stone-700"
         >
-          Written review <span className="font-normal text-stone-500">Optional</span>
+          <span className="flex items-center justify-between">
+            Written review{" "}
+            <span className="text-xs font-normal text-stone-400">Optional</span>
+          </span>
           <textarea
             id={`provider-review-${providerId}`}
             name="review"
@@ -196,7 +189,8 @@ export function ProviderRatingForm({
             onChange={(event) => setReview(event.target.value)}
             maxLength={reviewMaxLength}
             placeholder="Share what stood out about working with this provider."
-            className="min-h-28 rounded-md border border-stone-300 bg-white px-3 py-3 text-sm font-normal leading-6 text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+            className="public-profile-textarea"
+            aria-invalid={Boolean(state.fieldErrors.review)}
             aria-describedby={`provider-review-help-${providerId}${
               state.fieldErrors.review
                 ? ` provider-review-error-${providerId}`
@@ -224,7 +218,7 @@ export function ProviderRatingForm({
         <button
           type="submit"
           disabled={isBusy}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+          className="public-profile-primary-button w-full sm:w-fit"
         >
           {pending
             ? "Saving..."
@@ -237,7 +231,7 @@ export function ProviderRatingForm({
       {currentRating ? (
         <form
           action={removeFormAction}
-          className="border-t border-stone-200 pt-4"
+          className="border-t border-stone-100 pt-4"
         >
           <input type="hidden" name="providerId" value={providerId} />
           <input type="hidden" name="returnPath" value={returnPath} />
@@ -248,7 +242,7 @@ export function ProviderRatingForm({
               setSelectedRating(0);
               setReview("");
             }}
-            className="inline-flex h-10 w-full items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700 transition hover:border-red-300 hover:text-red-700 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
+            className="public-profile-secondary-button w-full hover:border-red-300 hover:text-red-700 sm:w-auto"
           >
             {removePending ? "Removing..." : "Remove my rating"}
           </button>

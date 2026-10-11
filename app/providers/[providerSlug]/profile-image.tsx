@@ -29,8 +29,8 @@ export function ProfileImage({
   const showImage = Boolean(src) && !imageFailed;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-stone-200 bg-gradient-to-br from-emerald-50 to-stone-100">
-      <div className="grid aspect-square place-items-center">
+    <div className="size-20 shrink-0 overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50 sm:size-28">
+      <div className="grid size-full place-items-center">
         {showImage ? (
           <img
             src={src ?? ""}
@@ -39,7 +39,7 @@ export function ProfileImage({
             onError={() => setImageFailed(true)}
           />
         ) : (
-          <span className="flex size-20 items-center justify-center rounded-full bg-emerald-700 text-2xl font-semibold text-white shadow-sm">
+          <span className="text-2xl font-semibold tracking-tight text-emerald-800 sm:text-3xl">
             {getInitials(name)}
           </span>
         )}

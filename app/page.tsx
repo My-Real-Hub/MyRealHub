@@ -3,11 +3,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { AudienceTabs } from "@/components/home/audience-tabs";
 import { ProviderRegionFilterFields } from "@/components/providers/provider-region-filter-fields";
+import { canJoinAsProvider } from "@/lib/auth/roles";
+import { getCurrentProfile } from "@/lib/auth/session";
 import { featuredProviders, serviceCategories } from "@/lib/service-directory";
 import type {
   ServiceRegionOption,
   SubdivisionOption,
 } from "@/lib/service-regions";
+import { getSupabaseConfig } from "@/lib/supabase/client";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type HomepageCategoryRow = {
@@ -79,6 +82,7 @@ const categoryIcons: Record<string, string> = {
   mortgage: "$",
   photographer: "◎",
   property: "⌂",
+  "real estate agent": "⌂",
   realtor: "⌂",
   stager: "✧",
 };
@@ -458,7 +462,7 @@ function StarRating({ rating }: { rating: number }) {
           key={value}
           className={value <= roundedRating ? "text-amber-400" : "text-stone-300"}
         >
-          ★
+          &#9733;
         </span>
       ))}
     </span>
@@ -475,7 +479,7 @@ function SectionHeader({
   description?: string;
 }) {
   return (
-    <div className="max-w-2xl">
+    <div className="min-w-0 max-w-2xl">
       <p className="text-sm font-semibold uppercase text-teal-700">
         {eyebrow}
       </p>
@@ -557,7 +561,7 @@ function HeroSearchForm({
       <div className="mt-4 flex flex-col gap-2 border-t border-stone-200 pt-4 text-sm text-stone-600 sm:flex-row sm:items-center sm:justify-between">
         <Link
           href="/search#provider-search-address"
-          className="font-semibold text-teal-800 hover:text-teal-950"
+          className="shrink-0 rounded-sm font-semibold text-teal-800 hover:text-teal-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
         >
           Search by address or map pin
         </Link>
@@ -571,16 +575,16 @@ function ServiceCategoryCard({ category }: { category: HomepageCategory }) {
   return (
     <Link
       href={category.href}
-      className="group flex min-h-52 flex-col rounded-lg border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5 hover:border-teal-700 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-teal-100"
+      className="group flex min-h-52 min-w-0 flex-col rounded-lg border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5 hover:border-teal-700 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-teal-100"
     >
       <div className="flex items-start justify-between gap-4">
         <span
-          className="grid size-10 place-items-center rounded-md bg-teal-900 text-lg font-semibold text-white"
+          className="grid size-10 shrink-0 place-items-center rounded-md bg-teal-900 text-lg font-semibold text-white"
           aria-hidden="true"
         >
           {getCategoryIcon(category.name)}
         </span>
-        <span className="text-sm font-semibold text-stone-500">
+        <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-stone-500">
           {category.providerCount > 0
             ? `${category.providerCount} provider${
                 category.providerCount === 1 ? "" : "s"
@@ -588,7 +592,7 @@ function ServiceCategoryCard({ category }: { category: HomepageCategory }) {
             : "Explore"}
         </span>
       </div>
-      <h3 className="mt-5 text-lg font-semibold text-stone-950">
+      <h3 className="mt-5 break-words text-lg font-semibold text-stone-950">
         {category.name}
       </h3>
       <p className="mt-2 text-sm leading-6 text-stone-600">
@@ -603,7 +607,7 @@ function ServiceCategoryCard({ category }: { category: HomepageCategory }) {
 
 function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
   return (
-    <article className="flex h-full flex-col rounded-lg border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5 hover:border-teal-700 hover:shadow-md">
+    <article className="flex h-full min-w-0 flex-col rounded-lg border border-stone-200 bg-white p-5 shadow-sm motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5 hover:border-teal-700 hover:shadow-md">
       <div className="flex gap-4">
         <div className="size-14 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-teal-900">
           {provider.avatarUrl ? (
@@ -622,12 +626,15 @@ function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
         <div className="min-w-0">
           <Link
             href={provider.categoryHref}
-            className="text-sm font-semibold uppercase text-teal-700 hover:text-teal-950"
+            className="break-words rounded-sm text-sm font-semibold uppercase text-teal-700 hover:text-teal-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
           >
             {provider.categoryName}
           </Link>
-          <h3 className="mt-1 text-lg font-semibold text-stone-950">
-            <Link href={provider.href} className="hover:text-teal-800">
+          <h3 className="mt-1 break-words text-lg font-semibold text-stone-950">
+            <Link
+              href={provider.href}
+              className="rounded-sm hover:text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            >
               {provider.name}
             </Link>
           </h3>
@@ -641,9 +648,9 @@ function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
         className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-stone-700"
         aria-label={
           provider.ratingCount > 0
-            ? `${provider.averageRating.toFixed(1)} rating from ${
+            ? `${provider.averageRating.toFixed(1)} out of 5 from ${
                 provider.ratingCount
-              } review${provider.ratingCount === 1 ? "" : "s"}`
+              } rating${provider.ratingCount === 1 ? "" : "s"}`
             : "No ratings yet"
         }
       >
@@ -654,22 +661,24 @@ function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
           {provider.ratingCount > 0
             ? `${provider.averageRating.toFixed(1)} · ${
                 provider.ratingCount
-              } review${provider.ratingCount === 1 ? "" : "s"}`
+              } rating${provider.ratingCount === 1 ? "" : "s"}`
             : "No ratings yet"}
         </span>
       </p>
 
-      <p className="mt-4 flex-1 text-sm leading-6 text-stone-600">{provider.bio}</p>
+      <p className="mt-4 flex-1 break-words text-sm leading-6 text-stone-600">
+        {provider.bio}
+      </p>
 
       {provider.serviceRegionNames.length > 0 ? (
-        <p className="mt-4 text-sm font-semibold text-teal-800">
+        <p className="mt-4 break-words text-sm font-semibold text-teal-800">
           Serves {provider.serviceRegionNames.slice(0, 2).join(" · ")}
         </p>
       ) : null}
 
       <Link
         href={provider.href}
-        className="mt-5 inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+        className="mt-5 inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
       >
         View profile
       </Link>
@@ -773,11 +782,11 @@ function HowItWorksSection() {
 
 export default async function Home() {
   const topProvidersPromise = getTopRatedProviderPreviews();
-  const {
-    categories,
-    regions,
-    subdivisions,
-  } = await getHomepageShellData();
+  const [{ categories, regions, subdivisions }, currentProfile] =
+    await Promise.all([
+      getHomepageShellData(),
+      getSupabaseConfig() ? getCurrentProfile() : Promise.resolve(null),
+    ]);
   const featuredCategories = getFeaturedCategories(categories);
 
   return (
@@ -807,8 +816,7 @@ export default async function Home() {
                   Real estate services directory
                 </p>
                 <h1 className="mt-4 text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
-                  One directory for anyone hiring and the providers serving
-                  them
+                  One directory for anyone hiring and the providers serving them
                 </h1>
                 <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-100">
                   Search real estate agents, mortgage pros, inspectors, lawyers,
@@ -834,7 +842,7 @@ export default async function Home() {
             title="One directory for the people hiring and the providers serving them"
             description="Consumers can shortlist trusted help by area. Providers can keep coverage, contact preferences, and public profiles up to date."
           />
-          <AudienceTabs />
+          <AudienceTabs profileRole={currentProfile?.role ?? null} />
         </div>
       </section>
 
@@ -848,7 +856,7 @@ export default async function Home() {
             />
             <Link
               href="/search"
-              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+              className="inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 motion-safe:transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
             >
               View all providers
             </Link>
@@ -872,7 +880,7 @@ export default async function Home() {
             />
             <Link
               href="/search"
-              className="inline-flex h-11 items-center justify-center rounded-md bg-stone-950 px-4 text-sm font-semibold text-white motion-safe:transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
+              className="inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-md bg-stone-950 px-4 text-sm font-semibold text-white motion-safe:transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100"
             >
               Search directory
             </Link>
@@ -886,36 +894,42 @@ export default async function Home() {
 
       <HowItWorksSection />
 
-      <section id="join" className="bg-stone-950 text-white">
-        <div className="mx-auto grid w-full max-w-7xl gap-6 px-6 py-14 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase text-amber-300">
-              Service providers
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
-              Be found in the regions you actually serve.
-            </h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-stone-300">
-              Join MyRealHub to define your service areas, manage inquiries,
-              collect ratings, and keep your profile current from Settings.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:min-w-80">
-            <Link
-              href="/signup?role=provider"
-              className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-semibold text-stone-950 motion-safe:transition hover:bg-stone-200 focus:outline-none focus:ring-4 focus:ring-white/20"
+      {canJoinAsProvider(currentProfile?.role) ? (
+        <section id="join" className="bg-stone-950 text-white">
+          <div className="mx-auto grid w-full max-w-7xl gap-6 px-6 py-14 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <p className="text-sm font-semibold uppercase text-amber-300">
+                Service providers
+              </p>
+              <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
+                Be found in the regions you actually serve.
+              </h2>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-stone-300">
+                Join MyRealHub to define your service areas, manage inquiries,
+                collect ratings, and keep your profile current from Settings.
+              </p>
+            </div>
+            <div
+              className={`grid gap-3 lg:min-w-80 ${!currentProfile ? "sm:grid-cols-2" : ""}`}
             >
-              Join as Provider
-            </Link>
-            <Link
-              href="/login?next=/provider/dashboard"
-              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-600 px-5 text-sm font-semibold text-white motion-safe:transition hover:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
-            >
-              Provider login
-            </Link>
+              <Link
+                href="/signup?role=provider"
+                className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-semibold text-stone-950 motion-safe:transition hover:bg-stone-200 focus:outline-none focus:ring-4 focus:ring-white/20"
+              >
+                Join as Provider
+              </Link>
+              {!currentProfile ? (
+                <Link
+                  href="/login?next=/provider/dashboard"
+                  className="inline-flex h-11 items-center justify-center rounded-md border border-stone-600 px-5 text-sm font-semibold text-white motion-safe:transition hover:border-white focus:outline-none focus:ring-4 focus:ring-white/20"
+                >
+                  Provider login
+                </Link>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
     </>
   );
 }

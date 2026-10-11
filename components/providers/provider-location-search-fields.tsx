@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { LocationPickerMap } from "@/components/providers/location-picker-map";
 import type {
   LocationApiErrorResponse,
@@ -30,11 +24,9 @@ type LocationStatus = {
 
 type CoordinateResolveSource = "device" | "map";
 
-const inputClassName =
-  "h-12 w-full rounded-md border border-stone-300 bg-white px-4 text-base text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-teal-700 focus:ring-4 focus:ring-teal-100";
+const inputClassName = "search-input scroll-mt-60 lg:scroll-mt-28";
 
-const secondaryButtonClassName =
-  "inline-flex h-11 items-center justify-center whitespace-nowrap rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-teal-800 hover:text-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-60";
+const secondaryButtonClassName = "search-secondary-button";
 
 async function resolveLocation(
   body:
@@ -362,9 +354,7 @@ export function ProviderLocationSearchFields({
       );
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveSuggestionIndex((currentIndex) =>
-        Math.max(currentIndex - 1, 0),
-      );
+      setActiveSuggestionIndex((currentIndex) => Math.max(currentIndex - 1, 0));
     } else if (event.key === "Enter" && activeSuggestionIndex >= 0) {
       event.preventDefault();
       applyLocation(suggestions[activeSuggestionIndex]);
@@ -376,37 +366,29 @@ export function ProviderLocationSearchFields({
   const isResolving = status.kind === "loading" || isLocatingDevice;
 
   return (
-    <section className="p-4 sm:p-5 lg:p-6">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.75fr)] lg:items-start">
-        <div className="min-w-0">
-          <LocationPickerMap
-            className="h-80 lg:h-[20rem]"
-            coordinates={coordinates}
-            disabled={isResolving}
-            onCoordinatesChange={handleCoordinatesChange}
-          />
-          <p className="mt-3 text-xs leading-5 text-stone-500">
-            Your search location is used only to identify a service area. It is
-            not saved or shown to providers.
-          </p>
-        </div>
-
-        <div className="min-w-0">
-          <p className="text-sm font-semibold uppercase text-teal-700">
+    <section
+      className="p-4 sm:p-5 lg:p-6"
+      aria-labelledby="search-area-heading"
+    >
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.8fr)] lg:gap-6">
+        <div className="min-w-0 lg:col-start-2 lg:row-start-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
             Search area
           </p>
-          <h2 className="mt-2 text-xl font-semibold leading-tight text-stone-950">
-            Address or map pin
+          <h2
+            id="search-area-heading"
+            className="mt-2 text-lg font-semibold tracking-tight text-stone-950"
+          >
+            Choose your search area
           </h2>
-          <p className="mt-3 text-sm leading-6 text-stone-600">
-            Choose an address, postal code, or pin so results match the right
-            service area.
+          <p className="mt-2 text-sm leading-6 text-stone-500">
+            Enter an address or postal code, or place a pin on the map.
           </p>
 
-          <div className="relative mt-5">
+          <div className="relative mt-4">
             <label
               htmlFor="provider-search-address"
-              className="grid gap-2 text-sm font-semibold text-stone-900"
+              className="grid gap-2 text-sm font-medium text-stone-700"
             >
               Address or postal code
               <input
@@ -428,8 +410,7 @@ export function ProviderLocationSearchFields({
                   setStatus({
                     kind: "idle",
                     message:
-                      nextQuery.trim().length > 0 &&
-                      nextQuery.trim().length < 3
+                      nextQuery.trim().length > 0 && nextQuery.trim().length < 3
                         ? "Enter at least 3 characters to search addresses."
                         : nextQuery.trim()
                           ? "Searching will begin after you pause typing."
@@ -442,9 +423,7 @@ export function ProviderLocationSearchFields({
                   );
                 }}
                 onKeyDown={handleInputKeyDown}
-                onFocus={() =>
-                  setIsSuggestionListOpen(suggestions.length > 0)
-                }
+                onFocus={() => setIsSuggestionListOpen(suggestions.length > 0)}
                 onBlur={() => {
                   window.setTimeout(() => {
                     setIsSuggestionListOpen(false);
@@ -456,6 +435,7 @@ export function ProviderLocationSearchFields({
                 role="combobox"
                 aria-autocomplete="list"
                 aria-controls={listboxId}
+                aria-describedby={`${listboxId}-status`}
                 aria-expanded={isSuggestionListOpen}
                 aria-activedescendant={
                   activeSuggestionIndex >= 0
@@ -469,7 +449,7 @@ export function ProviderLocationSearchFields({
               <ul
                 id={listboxId}
                 role="listbox"
-                className="absolute z-[1000] mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-stone-200 bg-white p-2 shadow-xl"
+                className="absolute z-[1000] mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-stone-200 bg-white p-2 shadow-xl"
               >
                 {suggestions.map((suggestion, index) => (
                   <li
@@ -480,9 +460,9 @@ export function ProviderLocationSearchFields({
                   >
                     <button
                       type="button"
-                      className={`w-full rounded-md px-3 py-3 text-left transition ${
+                      className={`w-full rounded-lg px-3 py-3 text-left transition ${
                         index === activeSuggestionIndex
-                          ? "bg-teal-50"
+                          ? "bg-emerald-50"
                           : "hover:bg-stone-50"
                       }`}
                       onMouseDown={(event) => event.preventDefault()}
@@ -514,18 +494,18 @@ export function ProviderLocationSearchFields({
                 : "Use my current location"}
             </button>
             <span className="text-xs leading-5 text-stone-500">
-              Browser permission is required. Exact coordinates are not saved
-              or submitted with the search.
+              Uses your browser&apos;s location permission.
             </span>
           </div>
 
           <p
-            className={`mt-3 rounded-md border px-3 py-2 text-sm leading-6 ${
+            id={`${listboxId}-status`}
+            className={`mt-3 rounded-xl px-3 py-2 text-xs leading-5 ${
               status.kind === "error"
-                ? "border-red-200 bg-red-50 text-red-800"
+                ? "bg-red-50 text-red-800"
                 : status.kind === "resolved"
-                  ? "border-teal-200 bg-teal-50 text-teal-900"
-                  : "border-stone-200 bg-white text-stone-600"
+                  ? "bg-emerald-50 text-emerald-900"
+                  : "bg-stone-50 text-stone-500"
             }`}
             role={status.kind === "error" ? "alert" : "status"}
             aria-live="polite"
@@ -536,11 +516,23 @@ export function ProviderLocationSearchFields({
           <button
             type="submit"
             form={formId}
-            className="mt-4 h-12 w-full rounded-md bg-stone-950 px-6 text-sm font-semibold text-white transition hover:bg-teal-900 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="search-primary-button mt-3 w-full"
             disabled={isResolving}
           >
             Search providers
           </button>
+        </div>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+          <LocationPickerMap
+            className="h-60 sm:h-72 lg:h-[20rem]"
+            coordinates={coordinates}
+            disabled={isResolving}
+            onCoordinatesChange={handleCoordinatesChange}
+          />
+          <p className="mt-3 text-xs leading-5 text-stone-500">
+            We use this location to find a service area. Your exact location is
+            not saved or shared with providers.
+          </p>
         </div>
       </div>
     </section>

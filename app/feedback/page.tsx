@@ -1,5 +1,13 @@
 import Link from "next/link";
 import { FeedbackForm } from "@/components/feedback/feedback-form";
+import {
+  FeedbackGuide,
+  FeedbackIcon,
+  feedbackPrimaryButton,
+  feedbackSecondaryButton,
+} from "@/components/feedback/feedback-ui";
+import { ProviderDashboardIcon } from "@/components/dashboard/provider-dashboard-icon";
+import { getDashboardPathForRole } from "@/lib/auth/roles";
 import { getCurrentProfile } from "@/lib/auth/session";
 
 type FeedbackPageProps = {
@@ -26,9 +34,7 @@ function getFeedbackSource(value: string | string[] | undefined) {
   try {
     const url = new URL(source);
 
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? source
-      : "";
+    return url.protocol === "http:" || url.protocol === "https:" ? source : "";
   } catch {
     return "";
   }
@@ -45,33 +51,38 @@ function getAuthHref(pathname: "/login" | "/signup", source: string) {
 
 function SignInPrompt({ source }: { source: string }) {
   return (
-    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-emerald-950">
+    <section className="flex flex-col items-start rounded-2xl border border-stone-200 bg-white p-6 sm:p-8">
+      <span className="flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+        <FeedbackIcon name="lock" className="size-6" />
+      </span>
+      <h2 className="mt-5 text-xl font-semibold tracking-tight text-stone-950">
         Log in to send feedback
       </h2>
-      <p className="mt-3 text-sm leading-6 text-emerald-900">
-        Feedback is tied to your MyRealHub account so admins can understand
-        context, follow up internally, and keep screenshot uploads private.
+      <p className="mt-2 max-w-lg text-sm leading-6 text-stone-600">
+        Use your MyRealHub account to report a problem or share an idea. You can
+        also attach a screenshot that only the admin team can view.
       </p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-6 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
         <Link
           href={getAuthHref("/login", source)}
-          className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          className={feedbackPrimaryButton}
         >
           Log in
         </Link>
         <Link
           href={getAuthHref("/signup", source)}
-          className="inline-flex h-11 items-center justify-center rounded-md border border-emerald-200 bg-white px-4 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+          className={feedbackSecondaryButton}
         >
           Create account
         </Link>
       </div>
-    </div>
+    </section>
   );
 }
 
-export default async function FeedbackPage({ searchParams }: FeedbackPageProps) {
+export default async function FeedbackPage({
+  searchParams,
+}: FeedbackPageProps) {
   const query = await searchParams;
   const profile = await getCurrentProfile();
   const source = getFeedbackSource(query.from);
@@ -79,29 +90,46 @@ export default async function FeedbackPage({ searchParams }: FeedbackPageProps) 
     profile?.email ?? profile?.fullName ?? "Signed-in MyRealHub account";
 
   return (
-    <section className="mx-auto grid w-full max-w-3xl gap-8 px-6 py-10">
-      <header>
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-          Feedback
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold text-stone-950">
-          Report a bug or suggest an improvement
-        </h1>
-        <p className="mt-4 text-base leading-7 text-stone-600">
-          Send the MyRealHub team what you noticed. We automatically attach the
-          page you came from and your account context.
-        </p>
-      </header>
-
-      {profile ? (
-        <FeedbackForm
-          accountId={profile.id}
-          initialCurrentPageUrl={source}
-          reporterLabel={reporterLabel}
-        />
-      ) : (
-        <SignInPrompt source={source} />
-      )}
-    </section>
+    <div className="min-h-screen border-t border-stone-200 bg-[#f6f7f5]">
+      <section className="mx-auto w-full max-w-[1200px] space-y-8 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+              Feedback
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
+              Share your feedback
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-stone-600">
+              Report a problem or share an idea to help improve MyRealHub.
+            </p>
+          </div>
+          <Link
+            href={profile ? getDashboardPathForRole(profile.role) : "/search"}
+            className={`${feedbackSecondaryButton} shrink-0 self-start sm:self-auto`}
+          >
+            <ProviderDashboardIcon
+              name={profile ? "arrow" : "search"}
+              className={`size-[18px] ${profile ? "rotate-180" : ""}`}
+            />
+            {profile ? "Back to dashboard" : "Browse directory"}
+          </Link>
+        </header>
+        {profile ? (
+          <FeedbackForm
+            accountId={profile.id}
+            initialCurrentPageUrl={source}
+            reporterLabel={reporterLabel}
+          />
+        ) : (
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            <SignInPrompt source={source} />
+            <aside>
+              <FeedbackGuide />
+            </aside>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
