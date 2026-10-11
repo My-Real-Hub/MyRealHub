@@ -11,6 +11,7 @@ import {
   type ProfileRole,
 } from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { NavigationLink } from "@/components/layout/navigation-link";
 
 export function AuthMenu({
   initialRole,
@@ -121,27 +122,12 @@ export function AuthMenu({
           </Link>
         ) : null}
         {profileRole === "provider" ? (
-          <Link
-            href="/dashboard"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-          >
-            Consumer tools
-          </Link>
+          <NavigationLink href="/dashboard">Consumer tools</NavigationLink>
         ) : null}
         {profileRole === "user" || profileRole === "provider" ? (
-          <Link
-            href="/settings"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-          >
-            Settings
-          </Link>
+          <NavigationLink href="/settings">Settings</NavigationLink>
         ) : null}
-        <Link
-          href={dashboardPath}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
-        >
-          Dashboard
-        </Link>
+        <NavigationLink href={dashboardPath}>Dashboard</NavigationLink>
         <button
           type="button"
           onClick={handleSignOut}
@@ -156,18 +142,8 @@ export function AuthMenu({
 
   return (
     <>
-      <Link
-        href="/login"
-        className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-      >
-        Log In
-      </Link>
-      <Link
-        href="/signup"
-        className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-      >
-        Sign Up
-      </Link>
+      <NavigationLink href="/login">Log In</NavigationLink>
+      <NavigationLink href="/signup">Sign Up</NavigationLink>
       <Link
         href="/signup?role=provider"
         className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"

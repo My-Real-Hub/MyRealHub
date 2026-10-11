@@ -6,8 +6,8 @@ import { ProviderDashboardIcon } from "./provider-dashboard-icon";
 
 const sections = [
   { id: "overview", label: "Overview", icon: "overview" },
-  { id: "saved-providers", label: "Saved providers", icon: "bookmark" },
   { id: "sent-messages", label: "Messages", icon: "inquiries" },
+  { id: "saved-providers", label: "Saved providers", icon: "bookmark" },
 ] as const;
 
 export function ConsumerDashboardNavigation({
@@ -86,14 +86,18 @@ export function ConsumerDashboardNavigation({
     >
       <div className="hidden px-3 pb-6 lg:block">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-          Consumer tools
+          {isProvider ? "Consumer tools" : "Customer workspace"}
         </p>
         <p className="mt-2 break-words text-base font-semibold text-stone-950">
           {displayName}
         </p>
       </div>
       <nav
-        aria-label="Consumer tools navigation"
+        aria-label={
+          isProvider
+            ? "Consumer tools navigation"
+            : "Customer dashboard navigation"
+        }
         className="grid grid-cols-3 gap-1.5 rounded-2xl border border-stone-200 bg-white p-2 lg:grid-cols-1 lg:border-0 lg:bg-transparent lg:p-0"
       >
         {sections.map((section) => {

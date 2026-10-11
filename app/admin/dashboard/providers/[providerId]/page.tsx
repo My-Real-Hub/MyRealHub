@@ -1,5 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
-
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -14,6 +12,7 @@ import {
   DashboardShell,
   DashboardStatCard,
 } from "@/components/dashboard/dashboard-shell";
+import { ProfileImage } from "@/components/providers/provider-profile-image";
 import { requireProfileRole } from "@/lib/auth/session";
 import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
@@ -122,7 +121,8 @@ const reviewMessages: Record<
   },
   inactive: {
     tone: "success",
-    message: "Provider set inactive. The profile is hidden from public listings.",
+    message:
+      "Provider set inactive. The profile is hidden from public listings.",
   },
   active: {
     tone: "success",
@@ -312,7 +312,7 @@ async function getProviderRatings(providerId: string) {
 function StatusBadge({ status }: { status: ProviderProfileStatus }) {
   return (
     <span
-      className={`inline-flex w-fit rounded-md border px-3 py-1 text-sm font-semibold ${statusClassNames[status]}`}
+      className={`inline-flex w-fit rounded-xl border px-3 py-1 text-sm font-semibold ${statusClassNames[status]}`}
     >
       {statusLabels[status]}
     </span>
@@ -326,7 +326,7 @@ function RatingStatusBadge({
 }) {
   return (
     <span
-      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${ratingStatusClassNames[status]}`}
+      className={`inline-flex w-fit rounded-xl border px-2.5 py-1 text-xs font-semibold ${ratingStatusClassNames[status]}`}
     >
       {ratingStatusLabels[status]}
     </span>
@@ -341,7 +341,7 @@ function DetailItem({
   value: string | number | null;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
         {label}
       </dt>
@@ -362,7 +362,7 @@ function TagList({ items }: { items: string[] }) {
       {items.map((item) => (
         <span
           key={item}
-          className="rounded-md bg-stone-100 px-2.5 py-1.5 text-sm font-medium text-stone-800"
+          className="rounded-xl bg-stone-100 px-2.5 py-1.5 text-sm font-medium text-stone-800"
         >
           {item}
         </span>
@@ -406,7 +406,7 @@ function ReviewMessage({
 
   return (
     <p
-      className={`rounded-md border px-4 py-3 text-sm leading-6 ${className}`}
+      className={`rounded-xl border px-4 py-3 text-sm leading-6 ${className}`}
       role={message.tone === "error" ? "alert" : "status"}
       aria-live="polite"
     >
@@ -419,7 +419,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
   return (
     <article
       id="review"
-      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+      className="admin-dashboard-section rounded-2xl border border-stone-200 bg-white p-5 sm:p-6"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -439,7 +439,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
             <input name="providerId" type="hidden" value={provider.id} />
             <button
               type="submit"
-              className="h-11 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+              className="h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
             >
               Approve provider
             </button>
@@ -447,7 +447,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
 
           <form
             action={rejectProviderProfile}
-            className="grid gap-3 rounded-md border border-red-100 bg-red-50 p-4"
+            className="grid gap-3 rounded-xl border border-red-100 bg-red-50 p-4"
           >
             <input name="providerId" type="hidden" value={provider.id} />
             <label
@@ -459,13 +459,13 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
                 id="rejection-reason"
                 name="rejectionReason"
                 defaultValue={provider.rejection_reason ?? ""}
-                className="min-h-28 rounded-md border border-red-200 bg-white px-3 py-3 text-sm leading-6 text-stone-950 outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                className="min-h-28 rounded-xl border border-red-200 bg-white min-w-0 w-full px-3 py-3 text-base leading-6 sm:text-sm text-stone-950 outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
                 required
               />
             </label>
             <button
               type="submit"
-              className="h-11 w-fit rounded-md bg-red-700 px-4 text-sm font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-100"
+              className="h-11 w-fit rounded-xl bg-red-700 px-4 text-sm font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-100"
             >
               Reject provider
             </button>
@@ -478,7 +478,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
           <input name="providerId" type="hidden" value={provider.id} />
           <button
             type="submit"
-            className="h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
+            className="h-11 rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
           >
             Set provider inactive
           </button>
@@ -490,7 +490,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
           <input name="providerId" type="hidden" value={provider.id} />
           <button
             type="submit"
-            className="h-11 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            className="h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
           >
             Set provider active
           </button>
@@ -498,7 +498,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
       ) : null}
 
       {!["pending_approval", "active", "inactive"].includes(provider.status) ? (
-        <p className="mt-6 rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm leading-6 text-stone-600">
+        <p className="mt-6 rounded-xl border border-dashed border-stone-300 px-4 py-5 text-sm leading-6 text-stone-600">
           No review action is available for this status.
         </p>
       ) : null}
@@ -533,7 +533,7 @@ function RatingModerationButton({
       <input name="moderationStatus" type="hidden" value={status} />
       <button
         type="submit"
-        className={`h-9 rounded-md px-3 text-xs font-semibold transition focus:outline-none focus:ring-4 ${className}`}
+        className={`min-h-11 rounded-xl px-3 text-xs font-semibold transition focus:outline-none focus:ring-4 ${className}`}
       >
         {label}
       </button>
@@ -551,7 +551,7 @@ function RatingModerationPanel({
   return (
     <article
       id="ratings"
-      className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+      className="admin-dashboard-section rounded-2xl border border-stone-200 bg-white p-5 sm:p-6"
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -568,7 +568,7 @@ function RatingModerationPanel({
       </div>
 
       {ratings.length === 0 ? (
-        <p className="mt-6 rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm leading-6 text-stone-600">
+        <p className="mt-6 rounded-xl border border-dashed border-stone-300 px-4 py-5 text-sm leading-6 text-stone-600">
           This provider has not received ratings yet.
         </p>
       ) : (
@@ -576,7 +576,7 @@ function RatingModerationPanel({
           {ratings.map((rating) => (
             <section
               key={rating.id}
-              className="rounded-md border border-stone-200 bg-stone-50 p-4"
+              className="rounded-xl border border-stone-200 bg-stone-50 p-4"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -586,7 +586,7 @@ function RatingModerationPanel({
                     </p>
                     <RatingStatusBadge status={rating.moderation_status} />
                   </div>
-                  <p className="mt-1 text-sm text-stone-500">
+                  <p className="mt-1 break-words text-sm text-stone-500">
                     {rating.reviewer_email ?? "No reviewer email"} ·{" "}
                     {formatDate(rating.updated_at)}
                   </p>
@@ -673,7 +673,7 @@ export default async function AdminProviderReviewPage({
               <StatusBadge status={provider.status} />
               <Link
                 href="/admin/dashboard#providers"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
               >
                 Back to admin dashboard
               </Link>
@@ -704,111 +704,116 @@ export default async function AdminProviderReviewPage({
           <ReviewMessage message={reviewMessage} />
 
           {provider.rejection_reason ? (
-            <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">
               {provider.rejection_reason}
             </p>
           ) : null}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
+        <div className="grid min-w-0 gap-6">
           <div className="grid gap-6">
-          <article
-            id="profile"
-            className="scroll-mt-28 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-          >
-            <h2 className="text-xl font-semibold text-stone-950">
-              Profile details
-            </h2>
-            <div className="mt-6 grid gap-6 lg:grid-cols-[13rem_1fr]">
-              <div className="overflow-hidden rounded-lg border border-stone-200 bg-stone-100">
-                <div className="grid aspect-square place-items-center">
-                  {provider.profile_image_url ? (
-                    <img
-                      src={provider.profile_image_url}
-                      alt={`${getProviderName(provider)} profile`}
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-3xl font-semibold text-stone-500">
-                      MRH
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <dl className="grid gap-5 sm:grid-cols-2">
-                <DetailItem label="Full name" value={provider.display_name} />
-                <DetailItem label="Business name" value={provider.business_name} />
-                <DetailItem label="Profession" value={provider.categoryName} />
-                <DetailItem label="Email" value={provider.email} />
-                <DetailItem label="Phone" value={provider.phone} />
-                <DetailItem label="Website" value={provider.website_url} />
-                <DetailItem label="City" value={provider.city} />
-                <DetailItem label="State or region" value={provider.province_state} />
-                <DetailItem label="Service area" value={provider.service_area} />
-                <DetailItem
-                  label="Years experience"
-                  value={provider.years_experience}
+            <article
+              id="profile"
+              className="admin-dashboard-section rounded-2xl border border-stone-200 bg-white p-5 sm:p-6"
+            >
+              <h2 className="text-xl font-semibold text-stone-950">
+                Profile details
+              </h2>
+              <div className="mt-6 grid min-w-0 gap-6 sm:grid-cols-[7rem_minmax(0,1fr)]">
+                <ProfileImage
+                  src={provider.profile_image_url}
+                  name={getProviderName(provider)}
+                  alt={`${getProviderName(provider)} profile`}
                 />
-                <DetailItem label="License" value={provider.license_number} />
-              </dl>
-            </div>
 
-            <div className="mt-6 border-t border-stone-200 pt-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                Bio
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-stone-700">
-                {provider.bio ?? "No bio added."}
-              </p>
-            </div>
+                <dl className="grid gap-5 sm:grid-cols-2">
+                  <DetailItem label="Full name" value={provider.display_name} />
+                  <DetailItem
+                    label="Business name"
+                    value={provider.business_name}
+                  />
+                  <DetailItem
+                    label="Profession"
+                    value={provider.categoryName}
+                  />
+                  <DetailItem label="Email" value={provider.email} />
+                  <DetailItem label="Phone" value={provider.phone} />
+                  <DetailItem label="Website" value={provider.website_url} />
+                  <DetailItem label="City" value={provider.city} />
+                  <DetailItem
+                    label="State or region"
+                    value={provider.province_state}
+                  />
+                  <DetailItem
+                    label="Service area"
+                    value={provider.service_area}
+                  />
+                  <DetailItem
+                    label="Years experience"
+                    value={provider.years_experience}
+                  />
+                  <DetailItem label="License" value={provider.license_number} />
+                </dl>
+              </div>
 
-            <div className="mt-6 grid gap-6 border-t border-stone-200 pt-6 md:grid-cols-2">
-              <div>
+              <div className="mt-6 border-t border-stone-200 pt-6">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                  Languages
+                  Bio
                 </h3>
-                <div className="mt-3">
-                  <TagList items={provider.languageNames} />
+                <p className="mt-3 break-words text-sm leading-7 text-stone-700">
+                  {provider.bio ?? "No bio added."}
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-6 border-t border-stone-200 pt-6 md:grid-cols-2">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+                    Languages
+                  </h3>
+                  <div className="mt-3">
+                    <TagList items={provider.languageNames} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+                    Specialties
+                  </h3>
+                  <div className="mt-3">
+                    <TagList items={provider.specialtyNames} />
+                  </div>
                 </div>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                  Specialties
-                </h3>
-                <div className="mt-3">
-                  <TagList items={provider.specialtyNames} />
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <RatingModerationPanel
-            providerId={provider.id}
-            ratings={ratings}
-          />
+            </article>
           </div>
 
-        <div className="grid gap-6 lg:sticky lg:top-28">
-          <ReviewActions provider={provider} />
+          <div className="grid min-w-0 gap-6">
+            <ReviewActions provider={provider} />
 
-          <article className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-stone-950">Timeline</h2>
-            <dl className="mt-5 grid gap-4">
-              <DetailItem label="Created" value={formatDate(provider.created_at)} />
-              <DetailItem
-                label="Submitted"
-                value={formatDate(provider.submitted_at)}
-              />
-              <DetailItem
-                label="Approved"
-                value={formatDate(provider.approved_at)}
-              />
-              <DetailItem label="Updated" value={formatDate(provider.updated_at)} />
-            </dl>
-          </article>
+            <RatingModerationPanel providerId={provider.id} ratings={ratings} />
+
+            <article className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6">
+              <h2 className="text-xl font-semibold text-stone-950">Timeline</h2>
+              <dl className="mt-5 grid gap-4">
+                <DetailItem
+                  label="Created"
+                  value={formatDate(provider.created_at)}
+                />
+                <DetailItem
+                  label="Submitted"
+                  value={formatDate(provider.submitted_at)}
+                />
+                <DetailItem
+                  label="Approved"
+                  value={formatDate(provider.approved_at)}
+                />
+                <DetailItem
+                  label="Updated"
+                  value={formatDate(provider.updated_at)}
+                />
+              </dl>
+            </article>
+          </div>
         </div>
-      </div>
       </div>
     </DashboardShell>
   );
