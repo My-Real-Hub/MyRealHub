@@ -40,8 +40,10 @@ export default async function UserDashboardPage({
     >
       <section id="overview" className="consumer-dashboard-section space-y-6">
         <ConsumerWorkspaceHeader
-          title="Consumer tools"
-          description="Revisit saved providers and keep your conversations in one place."
+          title={
+            profile.role === "provider" ? "Consumer tools" : "Your dashboard"
+          }
+          description="Catch up on provider replies and keep your shortlist close at hand."
           actions={
             <Link href="/search" className={consumerPrimaryButton}>
               <ProviderDashboardIcon name="search" className="size-[18px]" />
@@ -50,18 +52,6 @@ export default async function UserDashboardPage({
           }
         />
         <div className="grid gap-4 sm:grid-cols-3">
-          <ConsumerMetric
-            href="#saved-providers"
-            icon="bookmark"
-            label="Saved providers"
-            value={
-              savedProviderData.errorMessage
-                ? "—"
-                : savedProviderData.savedProviders.length
-            }
-            description="Available profiles in your shortlist."
-            accent
-          />
           <ConsumerMetric
             href="#sent-messages"
             icon="inquiries"
@@ -73,6 +63,7 @@ export default async function UserDashboardPage({
             href="#sent-messages"
             icon="mail"
             label="Unread conversations"
+            accent={conversationData.unreadCount > 0}
             value={conversationData.unreadCount}
             description={
               conversationData.unreadCount > 0
@@ -80,8 +71,31 @@ export default async function UserDashboardPage({
                 : "You are all caught up."
             }
           />
+          <ConsumerMetric
+            href="#saved-providers"
+            icon="bookmark"
+            label="Saved providers"
+            value={
+              savedProviderData.errorMessage
+                ? "—"
+                : savedProviderData.savedProviders.length
+            }
+            description="Available profiles in your shortlist."
+          />
         </div>
       </section>
+
+      <ConversationCenter
+        appearance="workspace"
+        copy={{
+          eyebrow: "",
+          title: "Your conversations",
+          description: "Read provider replies and pick up where you left off.",
+          emptyDescription:
+            "Contact a provider from their profile to start a conversation. Your messages will appear here.",
+        }}
+        data={conversationData}
+      />
 
       <section id="saved-providers" className="consumer-dashboard-section">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -122,18 +136,6 @@ export default async function UserDashboardPage({
           </div>
         ) : null}
       </section>
-
-      <ConversationCenter
-        appearance="workspace"
-        copy={{
-          eyebrow: "",
-          title: "Your conversations",
-          description: "Read provider replies and pick up where you left off.",
-          emptyDescription:
-            "Contact a provider from their profile to start a conversation. Your messages will appear here.",
-        }}
-        data={conversationData}
-      />
     </ConsumerWorkspace>
   );
 }

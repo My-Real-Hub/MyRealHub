@@ -77,7 +77,7 @@ export function SavedProviderCard({
           Saved {savedDate}
         </p>
       ) : null}
-      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-stone-100 pt-4">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 border-t border-stone-100 pt-4">
         <Link
           href={providerHref}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"

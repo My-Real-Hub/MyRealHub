@@ -50,7 +50,7 @@ export function ConsumerWorkspaceHeader({
   title: string;
 }) {
   return (
-    <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+    <header className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
       <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
           Your workspace
@@ -62,7 +62,7 @@ export function ConsumerWorkspaceHeader({
           {description}
         </p>
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+      <div className="grid shrink-0 gap-2 sm:flex sm:flex-wrap">{actions}</div>
     </header>
   );
 }
