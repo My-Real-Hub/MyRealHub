@@ -114,12 +114,9 @@ export function AuthMenu({
     return (
       <>
         {profileRole && canJoinAsProvider(profileRole) ? (
-          <Link
-            href="/signup?role=provider"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-          >
+          <NavigationLink href="/signup?role=provider">
             Join as Provider
-          </Link>
+          </NavigationLink>
         ) : null}
         {profileRole === "provider" ? (
           <NavigationLink href="/dashboard">Consumer tools</NavigationLink>
@@ -132,7 +129,7 @@ export function AuthMenu({
           type="button"
           onClick={handleSignOut}
           disabled={isSigningOut}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950 disabled:cursor-not-allowed disabled:text-stone-400"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 px-3 py-2 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50 hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:text-stone-400"
         >
           {isSigningOut ? "Logging out..." : "Log Out"}
         </button>
@@ -142,11 +139,13 @@ export function AuthMenu({
 
   return (
     <>
-      <NavigationLink href="/login">Log In</NavigationLink>
+      <NavigationLink href="/login" relatedPath="/forgot-password">
+        Log In
+      </NavigationLink>
       <NavigationLink href="/signup">Sign Up</NavigationLink>
       <Link
         href="/signup?role=provider"
-        className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-700 px-3 py-2 font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
       >
         Join as Provider
       </Link>
