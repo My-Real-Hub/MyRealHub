@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:auth": "tsx --test tests/auth.test.ts",
     "db:dry-run": "supabase db push --dry-run",
     "db:push": "supabase db push --include-seed",
     "db:migrations": "supabase migration list"
@@ -17,7 +18,7 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "leaflet": "^1.9.4",
-    "next": "16.2.6",
+    "next": "16.4.0",
     "nodemailer": "^9.0.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -31,9 +32,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.4.0",
     "supabase": "^2.101.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   DEFAULT_PROFILE_ROLE,
@@ -20,7 +19,6 @@ export function AuthMenu({
   initialRole: ProfileRole | null;
   initialUserId: string | null;
 }) {
-  const router = useRouter();
   const [isSignedIn, setIsSignedIn] = useState(Boolean(initialRole));
   const [dashboardPath, setDashboardPath] = useState(
     getDashboardPathForRole(initialRole ?? DEFAULT_PROFILE_ROLE),
@@ -29,6 +27,7 @@ export function AuthMenu({
     initialRole,
   );
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -91,6 +90,7 @@ export function AuthMenu({
 
   async function handleSignOut() {
     setIsSigningOut(true);
+    setSignOutError(null);
 
     try {
       const supabase = getSupabaseClient();
@@ -103,8 +103,11 @@ export function AuthMenu({
       setIsSignedIn(false);
       setProfileRole(null);
       setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
-      router.push("/login");
-      router.refresh();
+      // Reload to discard pages prefetched under the previous session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/login");
+    } catch {
+      setSignOutError("Log out failed. Please try again.");
     } finally {
       setIsSigningOut(false);
     }
@@ -124,7 +127,11 @@ export function AuthMenu({
         {profileRole === "user" || profileRole === "provider" ? (
           <NavigationLink href="/settings">Settings</NavigationLink>
         ) : null}
-        <NavigationLink href={dashboardPath}>Dashboard</NavigationLink>
+        {profileRole ? (
+          <NavigationLink href={dashboardPath}>Dashboard</NavigationLink>
+        ) : (
+          <NavigationLink href="/login">Finish login</NavigationLink>
+        )}
         <button
           type="button"
           onClick={handleSignOut}
@@ -133,6 +140,11 @@ export function AuthMenu({
         >
           {isSigningOut ? "Logging out..." : "Log Out"}
         </button>
+        {signOutError ? (
+          <p role="alert" className="text-xs text-red-700">
+            {signOutError}
+          </p>
+        ) : null}
       </>
     );
   }

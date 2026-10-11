@@ -35,7 +35,7 @@ export function validateEmail(email: string) {
 }
 
 export function validateSignUpFields(fields: SignUpFields) {
-  const errors: AuthFieldErrors = {};
+  const errors = validatePasswordFields(fields);
   const email = normalizeEmail(fields.email);
 
   if (!fields.fullName.trim()) {
@@ -47,6 +47,14 @@ export function validateSignUpFields(fields: SignUpFields) {
     errors.email = emailError;
   }
 
+  return errors;
+}
+
+export function validatePasswordFields(fields: {
+  password: string;
+  confirmPassword: string;
+}) {
+  const errors: AuthFieldErrors = {};
   if (!fields.password) {
     errors.password = "Password is required.";
   } else if (fields.password.length < PASSWORD_MIN_LENGTH) {
