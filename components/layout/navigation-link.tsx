@@ -21,10 +21,12 @@ export function NavigationLink({
   relatedPath?: string;
 }) {
   const pathname = usePathname();
+  const targetPath = href.split("?")[0];
   const isActive =
-    pathname === href ||
-    (href !== "/" && pathname.startsWith(`${href}/`)) ||
-    (relatedPath && pathname.startsWith(`${relatedPath}/`));
+    pathname === targetPath ||
+    (targetPath !== "/" && pathname.startsWith(`${targetPath}/`)) ||
+    (relatedPath &&
+      (pathname === relatedPath || pathname.startsWith(`${relatedPath}/`)));
 
   return (
     <Link

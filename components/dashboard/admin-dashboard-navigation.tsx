@@ -20,8 +20,8 @@ const icons: Record<string, ProviderDashboardIconName> = {
   Categories: "listing",
   Languages: "mail",
   Specialties: "bookmark",
-  Profile: "listing",
-  Status: "check",
+  "Profile details": "listing",
+  "Status controls": "check",
   Ratings: "inquiries",
 };
 
@@ -119,6 +119,7 @@ export function AdminDashboardNavigation({
             <a
               key={item.href}
               href={item.href}
+              onClick={() => setActiveHref(item.href)}
               aria-current={activeHref === item.href ? "location" : undefined}
               className={className}
             >

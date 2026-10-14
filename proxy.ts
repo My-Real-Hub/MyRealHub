@@ -55,21 +55,25 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  const supabase = createServerClient(config.supabaseUrl, config.supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet, headers) {
-        pendingCookies = cookiesToSet;
-        pendingHeaders = headers;
+  const supabase = createServerClient(
+    config.supabaseUrl,
+    config.supabaseAnonKey,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet, headers) {
+          pendingCookies = cookiesToSet;
+          pendingHeaders = headers;
 
-        cookiesToSet.forEach(({ name, value }) => {
-          request.cookies.set(name, value);
-        });
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+        },
       },
     },
-  });
+  );
 
   const { data } = await supabase.auth.getClaims();
   const userId = data?.claims?.sub;
@@ -89,7 +93,10 @@ export async function proxy(request: NextRequest) {
   const role = await getProfileRoleForUser(supabase, userId);
 
   if (!role) {
-    return redirectTo("/login");
+    if (shouldRedirectSignedInUser) {
+      return applyPendingSession(NextResponse.next({ request }));
+    }
+    return redirectTo("/login?auth=profile-unavailable");
   }
 
   const dashboardPath = getDashboardPathForRole(role);
@@ -98,10 +105,7 @@ export async function proxy(request: NextRequest) {
     return redirectTo(dashboardPath);
   }
 
-  if (
-    requiredCapability &&
-    !hasProfileCapability(role, requiredCapability)
-  ) {
+  if (requiredCapability && !hasProfileCapability(role, requiredCapability)) {
     return redirectTo(dashboardPath);
   }
 

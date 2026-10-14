@@ -1,9 +1,12 @@
 import { LoginForm } from "@/components/auth/auth-forms";
+import { ACCOUNT_PROFILE_ERROR } from "@/lib/auth/account";
+import { getSafeRedirectPath } from "@/lib/auth/redirects";
 
 type LoginPageProps = {
   searchParams: Promise<{
     next?: string | string[];
     reason?: string | string[];
+    auth?: string | string[];
   }>;
 };
 
@@ -13,20 +16,21 @@ function getSearchParam(value: string | string[] | undefined) {
   return rawValue?.trim() ?? "";
 }
 
-function getSafeRedirectPath(value: string) {
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
-
-  return value;
-}
-
 export default async function LogInPage({ searchParams }: LoginPageProps) {
   const query = await searchParams;
   const redirectTo = getSafeRedirectPath(getSearchParam(query.next));
   const reason = getSearchParam(query.reason);
   const showSavePrompt = reason === "save-provider";
   const showContactPrompt = reason === "contact-provider";
+  const auth = getSearchParam(query.auth);
+  const authMessage =
+    auth === "password-updated"
+      ? "Your password was changed. Log in with your new password."
+      : auth === "profile-unavailable"
+        ? ACCOUNT_PROFILE_ERROR
+        : auth === "confirmation-expired"
+          ? "This confirmation link is invalid or has expired. Try logging in if you have already confirmed your email, or request a new confirmation below."
+          : null;
 
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
@@ -48,13 +52,27 @@ export default async function LogInPage({ searchParams }: LoginPageProps) {
         ) : null}
         {showContactPrompt ? (
           <p className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-900">
-            Log in to send this provider a contact request. We&apos;ll
-            bring you back to their profile after you sign in.
+            Log in to send this provider a contact request. We&apos;ll bring you
+            back to their profile after you sign in.
           </p>
         ) : null}
       </div>
 
-      <LoginForm reason={reason} redirectTo={redirectTo} />
+      <div className="space-y-4">
+        {authMessage ? (
+          <p
+            role={auth === "password-updated" ? "status" : "alert"}
+            className={`rounded-md border px-4 py-3 text-sm leading-6 ${auth === "password-updated" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+          >
+            {authMessage}
+          </p>
+        ) : null}
+        <LoginForm
+          reason={reason}
+          redirectTo={redirectTo}
+          allowResendConfirmation={auth === "confirmation-expired"}
+        />
+      </div>
     </section>
   );
 }

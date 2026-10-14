@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   DEFAULT_PROFILE_ROLE,
@@ -20,7 +19,6 @@ export function AuthMenu({
   initialRole: ProfileRole | null;
   initialUserId: string | null;
 }) {
-  const router = useRouter();
   const [isSignedIn, setIsSignedIn] = useState(Boolean(initialRole));
   const [dashboardPath, setDashboardPath] = useState(
     getDashboardPathForRole(initialRole ?? DEFAULT_PROFILE_ROLE),
@@ -29,6 +27,7 @@ export function AuthMenu({
     initialRole,
   );
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -91,6 +90,7 @@ export function AuthMenu({
 
   async function handleSignOut() {
     setIsSigningOut(true);
+    setSignOutError(null);
 
     try {
       const supabase = getSupabaseClient();
@@ -103,8 +103,11 @@ export function AuthMenu({
       setIsSignedIn(false);
       setProfileRole(null);
       setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
-      router.push("/login");
-      router.refresh();
+      // Reload to discard pages prefetched under the previous session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/login");
+    } catch {
+      setSignOutError("Log out failed. Please try again.");
     } finally {
       setIsSigningOut(false);
     }
@@ -114,12 +117,9 @@ export function AuthMenu({
     return (
       <>
         {profileRole && canJoinAsProvider(profileRole) ? (
-          <Link
-            href="/signup?role=provider"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-          >
+          <NavigationLink href="/signup?role=provider">
             Join as Provider
-          </Link>
+          </NavigationLink>
         ) : null}
         {profileRole === "provider" ? (
           <NavigationLink href="/dashboard">Consumer tools</NavigationLink>
@@ -127,26 +127,37 @@ export function AuthMenu({
         {profileRole === "user" || profileRole === "provider" ? (
           <NavigationLink href="/settings">Settings</NavigationLink>
         ) : null}
-        <NavigationLink href={dashboardPath}>Dashboard</NavigationLink>
+        {profileRole ? (
+          <NavigationLink href={dashboardPath}>Dashboard</NavigationLink>
+        ) : (
+          <NavigationLink href="/login">Finish login</NavigationLink>
+        )}
         <button
           type="button"
           onClick={handleSignOut}
           disabled={isSigningOut}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950 disabled:cursor-not-allowed disabled:text-stone-400"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 px-3 py-2 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50 hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:text-stone-400"
         >
           {isSigningOut ? "Logging out..." : "Log Out"}
         </button>
+        {signOutError ? (
+          <p role="alert" className="text-xs text-red-700">
+            {signOutError}
+          </p>
+        ) : null}
       </>
     );
   }
 
   return (
     <>
-      <NavigationLink href="/login">Log In</NavigationLink>
+      <NavigationLink href="/login" relatedPath="/forgot-password">
+        Log In
+      </NavigationLink>
       <NavigationLink href="/signup">Sign Up</NavigationLink>
       <Link
         href="/signup?role=provider"
-        className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-700 px-3 py-2 font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
       >
         Join as Provider
       </Link>

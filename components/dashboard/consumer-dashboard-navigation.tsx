@@ -118,6 +118,7 @@ export function ConsumerDashboardNavigation({
             <a
               key={section.id}
               href={href}
+              onClick={() => setActiveSection(section.id)}
               aria-current={
                 activeSection === section.id ? "location" : undefined
               }

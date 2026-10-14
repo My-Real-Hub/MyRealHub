@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import {
   DEFAULT_PROFILE_ROLE,
   getDashboardPathForRole,
-  getProfileRoleForUser,
   type SignUpRole,
 } from "@/lib/auth/roles";
 import {
@@ -16,9 +14,12 @@ import {
   validateEmail,
   validateLoginFields,
   validateSignUpFields,
+  validatePasswordFields,
   type AuthFieldErrors,
 } from "@/lib/auth/validation";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { ensureAccountRole } from "@/lib/auth/account";
+import { getAuthCallbackUrl } from "@/lib/auth/redirects";
 
 type FormStatus = {
   type: "error" | "success";
@@ -32,6 +33,7 @@ type SignUpFormProps = {
 };
 
 type LoginFormProps = {
+  allowResendConfirmation?: boolean;
   reason?: string | null;
   redirectTo?: string | null;
 };
@@ -49,13 +51,13 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function FieldError({ message }: { message?: string }) {
+function FieldError({ message, id }: { message?: string; id?: string }) {
   if (!message) {
     return null;
   }
 
   return (
-    <p className="text-sm font-medium text-red-700" role="alert">
+    <p id={id} className="text-sm font-medium text-red-700" role="alert">
       {message}
     </p>
   );
@@ -84,6 +86,41 @@ function StatusMessage({ status }: { status: FormStatus }) {
 
 function inputClassName(hasError: boolean) {
   return `${fieldClassName} ${hasError ? errorFieldClassName : ""}`;
+}
+
+function AuthTextField({
+  id,
+  name,
+  label,
+  type,
+  autoComplete,
+  errorMessage,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  type: "text" | "email";
+  autoComplete: string;
+  errorMessage?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="text-sm font-medium text-stone-700">
+        {label}
+      </label>
+      <input
+        id={id}
+        name={name}
+        type={type}
+        autoComplete={autoComplete}
+        className={inputClassName(Boolean(errorMessage))}
+        aria-invalid={Boolean(errorMessage)}
+        aria-describedby={errorMessage ? `${id}-error` : undefined}
+        required
+      />
+      <FieldError id={`${id}-error`} message={errorMessage} />
+    </div>
+  );
 }
 
 function EyeIcon({ isVisible }: { isVisible: boolean }) {
@@ -158,6 +195,7 @@ function PasswordField({
           minLength={minLength}
           className={`${inputClassName(hasError)} w-full pr-12`}
           aria-invalid={hasError}
+          aria-describedby={errorMessage ? `${id}-error` : undefined}
           required
         />
         <button
@@ -171,7 +209,7 @@ function PasswordField({
           <EyeIcon isVisible={isVisible} />
         </button>
       </div>
-      <FieldError message={errorMessage} />
+      <FieldError id={`${id}-error`} message={errorMessage} />
     </div>
   );
 }
@@ -206,7 +244,6 @@ export function SignUpForm({
   reason = null,
   redirectTo = null,
 }: SignUpFormProps) {
-  const router = useRouter();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -239,6 +276,10 @@ export function SignUpForm({
         email: normalizeEmail(fields.email),
         password: fields.password,
         options: {
+          emailRedirectTo: getAuthCallbackUrl(
+            window.location.origin,
+            redirectTo ?? getDashboardPathForRole(initialRole),
+          ),
           data: {
             full_name: fields.fullName.trim(),
             role: initialRole,
@@ -252,8 +293,8 @@ export function SignUpForm({
       }
 
       if (data.session) {
-        router.push(redirectTo ?? getDashboardPathForRole(initialRole));
-        router.refresh();
+        const role = await ensureAccountRole(supabase, data.session.user.id);
+        window.location.assign(redirectTo ?? getDashboardPathForRole(role));
         return;
       }
 
@@ -261,7 +302,7 @@ export function SignUpForm({
       setStatus({
         type: "success",
         message:
-          "Account created. Check your email to confirm your account before logging in.",
+          "Check your email to confirm your account before logging in. If you already have an account, log in or reset your password.",
       });
     } catch (error) {
       setStatus({
@@ -278,39 +319,23 @@ export function SignUpForm({
       <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
         <StatusMessage status={status} />
 
-        <label
-          htmlFor="signup-full-name"
-          className="flex flex-col gap-2 text-sm font-medium text-stone-700"
-        >
-          Full name
-          <input
-            id="signup-full-name"
-            name="fullName"
-            type="text"
-            autoComplete="name"
-            className={inputClassName(Boolean(fieldErrors.fullName))}
-            aria-invalid={Boolean(fieldErrors.fullName)}
-            required
-          />
-          <FieldError message={fieldErrors.fullName} />
-        </label>
+        <AuthTextField
+          id="signup-full-name"
+          name="fullName"
+          label="Full name"
+          type="text"
+          autoComplete="name"
+          errorMessage={fieldErrors.fullName}
+        />
 
-        <label
-          htmlFor="signup-email"
-          className="flex flex-col gap-2 text-sm font-medium text-stone-700"
-        >
-          Email
-          <input
-            id="signup-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            className={inputClassName(Boolean(fieldErrors.email))}
-            aria-invalid={Boolean(fieldErrors.email)}
-            required
-          />
-          <FieldError message={fieldErrors.email} />
-        </label>
+        <AuthTextField
+          id="signup-email"
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          errorMessage={fieldErrors.email}
+        />
 
         <PasswordField
           id="signup-password"
@@ -332,7 +357,11 @@ export function SignUpForm({
           errorMessage={fieldErrors.confirmPassword}
         />
 
-        <button type="submit" className={buttonClassName} disabled={isSubmitting}>
+        <button
+          type="submit"
+          className={buttonClassName}
+          disabled={isSubmitting}
+        >
           {isSubmitting ? "Creating account..." : "Create account"}
         </button>
       </form>
@@ -350,11 +379,61 @@ export function SignUpForm({
   );
 }
 
-export function LoginForm({ reason = null, redirectTo = null }: LoginFormProps) {
-  const router = useRouter();
+export function LoginForm({
+  reason = null,
+  redirectTo = null,
+  allowResendConfirmation = false,
+}: LoginFormProps) {
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResendConfirmation, setShowResendConfirmation] = useState(
+    allowResendConfirmation,
+  );
+  const [isResending, setIsResending] = useState(false);
+
+  async function resendConfirmation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const email = normalizeEmail(
+      String(new FormData(event.currentTarget).get("email") ?? ""),
+    );
+    const emailError = validateEmail(email);
+    setStatus(null);
+    if (emailError) {
+      setStatus({ type: "error", message: emailError });
+      return;
+    }
+    setIsResending(true);
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          emailRedirectTo: getAuthCallbackUrl(
+            window.location.origin,
+            redirectTo,
+          ),
+        },
+      });
+      if (error) throw error;
+      setStatus({
+        type: "success",
+        message:
+          "If this account is awaiting confirmation, a new confirmation email will arrive shortly.",
+      });
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message: getErrorMessage(
+          error,
+          "Confirmation email could not be sent. Please try again.",
+        ),
+      });
+    } finally {
+      setIsResending(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -377,27 +456,22 @@ export function LoginForm({ reason = null, redirectTo = null }: LoginFormProps) 
 
     try {
       const supabase = getSupabaseClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: normalizeEmail(fields.email),
         password: fields.password,
       });
 
       if (error) {
+        setShowResendConfirmation(error.code === "email_not_confirmed");
         setStatus({ type: "error", message: error.message });
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const role = user
-        ? await getProfileRoleForUser(supabase, user.id)
-        : DEFAULT_PROFILE_ROLE;
-
-      router.push(
-        redirectTo ?? getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
-      );
-      router.refresh();
+      if (!data.user || !data.session) {
+        throw new Error("Login could not be completed. Please try again.");
+      }
+      const role = await ensureAccountRole(supabase, data.user.id);
+      window.location.assign(redirectTo ?? getDashboardPathForRole(role));
     } catch (error) {
       setStatus({
         type: "error",
@@ -413,22 +487,14 @@ export function LoginForm({ reason = null, redirectTo = null }: LoginFormProps) 
       <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
         <StatusMessage status={status} />
 
-        <label
-          htmlFor="login-email"
-          className="flex flex-col gap-2 text-sm font-medium text-stone-700"
-        >
-          Email
-          <input
-            id="login-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            className={inputClassName(Boolean(fieldErrors.email))}
-            aria-invalid={Boolean(fieldErrors.email)}
-            required
-          />
-          <FieldError message={fieldErrors.email} />
-        </label>
+        <AuthTextField
+          id="login-email"
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          errorMessage={fieldErrors.email}
+        />
 
         <PasswordField
           id="login-password"
@@ -440,7 +506,10 @@ export function LoginForm({ reason = null, redirectTo = null }: LoginFormProps) 
         />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/forgot-password" className="text-sm font-semibold text-emerald-800">
+          <Link
+            href="/forgot-password"
+            className="text-sm font-semibold text-emerald-800"
+          >
             Forgot password?
           </Link>
           <button
@@ -452,6 +521,32 @@ export function LoginForm({ reason = null, redirectTo = null }: LoginFormProps) 
           </button>
         </div>
       </form>
+
+      {showResendConfirmation ? (
+        <form
+          className="mt-5 grid gap-3 border-t border-stone-200 pt-5"
+          onSubmit={resendConfirmation}
+          noValidate
+        >
+          <p className="text-sm leading-6 text-stone-600">
+            Confirm your email before logging in.
+          </p>
+          <AuthTextField
+            id="resend-confirmation-email"
+            name="email"
+            label="Confirmation email"
+            type="email"
+            autoComplete="email"
+          />
+          <button
+            type="submit"
+            className={buttonClassName}
+            disabled={isResending}
+          >
+            {isResending ? "Sending..." : "Resend confirmation email"}
+          </button>
+        </form>
+      ) : null}
 
       <p className="mt-5 text-sm text-stone-600">
         New here?{" "}
@@ -492,7 +587,15 @@ export function ForgotPasswordForm() {
 
     try {
       const supabase = getSupabaseClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        normalizedEmail,
+        {
+          redirectTo: getAuthCallbackUrl(
+            window.location.origin,
+            "/reset-password",
+          ),
+        },
+      );
 
       if (error) {
         setStatus({ type: "error", message: error.message });
@@ -523,24 +626,20 @@ export function ForgotPasswordForm() {
       <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
         <StatusMessage status={status} />
 
-        <label
-          htmlFor="forgot-password-email"
-          className="flex flex-col gap-2 text-sm font-medium text-stone-700"
-        >
-          Email
-          <input
-            id="forgot-password-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            className={inputClassName(Boolean(fieldErrors.email))}
-            aria-invalid={Boolean(fieldErrors.email)}
-            required
-          />
-          <FieldError message={fieldErrors.email} />
-        </label>
+        <AuthTextField
+          id="forgot-password-email"
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          errorMessage={fieldErrors.email}
+        />
 
-        <button type="submit" className={buttonClassName} disabled={isSubmitting}>
+        <button
+          type="submit"
+          className={buttonClassName}
+          disabled={isSubmitting}
+        >
           {isSubmitting ? "Sending..." : "Send reset email"}
         </button>
       </form>
@@ -549,6 +648,118 @@ export function ForgotPasswordForm() {
         Remembered it?{" "}
         <Link href="/login" className="font-semibold text-emerald-800">
           Back to login
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+export function ResetPasswordForm() {
+  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
+  const [status, setStatus] = useState<FormStatus>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const fields = {
+      password: String(formData.get("password") ?? ""),
+      confirmPassword: String(formData.get("confirmPassword") ?? ""),
+    };
+    const errors = validatePasswordFields(fields);
+    setFieldErrors(errors);
+    setStatus(null);
+    if (hasAuthFieldErrors(errors)) return;
+    setIsSubmitting(true);
+
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.auth.updateUser({
+        password: fields.password,
+      });
+      if (error) {
+        setStatus({ type: "error", message: error.message });
+        return;
+      }
+      form.reset();
+      setIsComplete(true);
+      const signOut = await supabase.auth.signOut({ scope: "local" });
+      if (signOut.error) {
+        setStatus({
+          type: "success",
+          message:
+            "Your password was changed. Log out, then log in with your new password.",
+        });
+        return;
+      }
+      // Reload to discard pages prefetched before the recovery session ended.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/login?auth=password-updated");
+    } catch (error) {
+      setStatus({
+        type: "error",
+        message: getErrorMessage(
+          error,
+          "Your password could not be changed. Please try again.",
+        ),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+      <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+        <StatusMessage status={status} />
+        {!isComplete ? (
+          <>
+            <PasswordField
+              id="reset-password"
+              name="password"
+              label="New password"
+              autoComplete="new-password"
+              minLength={PASSWORD_MIN_LENGTH}
+              hasError={Boolean(fieldErrors.password)}
+              errorMessage={fieldErrors.password}
+            />
+            <PasswordField
+              id="reset-confirm-password"
+              name="confirmPassword"
+              label="Confirm new password"
+              autoComplete="new-password"
+              minLength={PASSWORD_MIN_LENGTH}
+              hasError={Boolean(fieldErrors.confirmPassword)}
+              errorMessage={fieldErrors.confirmPassword}
+            />
+            <p className="text-sm text-stone-500">
+              Use at least {PASSWORD_MIN_LENGTH} characters.
+            </p>
+            <button
+              type="submit"
+              className={buttonClassName}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Saving password..." : "Save new password"}
+            </button>
+          </>
+        ) : (
+          <Link
+            href="/login"
+            className="text-sm font-semibold text-emerald-800"
+          >
+            Back to login
+          </Link>
+        )}
+      </form>
+      <p className="mt-5 text-sm text-stone-600">
+        <Link
+          href="/forgot-password"
+          className="font-semibold text-emerald-800"
+        >
+          Request another reset email
         </Link>
       </p>
     </div>
