@@ -74,21 +74,17 @@ type UploadStatus = {
   message: string;
 };
 
-const inputBaseClassName =
-  "h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+const inputBaseClassName = "settings-input";
 
 const textAreaClassName =
-  "min-h-36 w-full rounded-md border border-stone-300 bg-white px-3 py-3 text-sm leading-7 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+  "min-h-36 w-full rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm font-normal leading-7 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 
 const errorFieldClassName =
   "border-red-300 focus:border-red-600 focus:ring-red-100";
 
 const labelClassName = "flex flex-col gap-2 text-sm font-medium text-stone-800";
 
-const sectionClassName = "grid gap-5 border-t border-stone-200 pt-6";
-
-const buttonClassName =
-  "h-11 rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:bg-stone-400";
+const sectionClassName = "grid min-w-0 gap-5 border-t border-stone-100 pt-6";
 
 const extensionByMimeType: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -243,13 +239,13 @@ export function ProviderProfileForm({
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [imagePath, setImagePath] = useState(
     manageSharedFieldsExternally
-      ? accountProfileImagePath ?? profile?.profile_image_path ?? ""
-      : profile?.profile_image_path ?? "",
+      ? (accountProfileImagePath ?? profile?.profile_image_path ?? "")
+      : (profile?.profile_image_path ?? ""),
   );
   const [imagePreviewUrl, setImagePreviewUrl] = useState(
     manageSharedFieldsExternally
-      ? accountProfileImageUrl ?? profile?.profile_image_url ?? ""
-      : profile?.profile_image_url ?? "",
+      ? (accountProfileImageUrl ?? profile?.profile_image_url ?? "")
+      : (profile?.profile_image_url ?? ""),
   );
   const [objectPreviewUrl, setObjectPreviewUrl] = useState("");
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({
@@ -444,7 +440,12 @@ export function ProviderProfileForm({
         </>
       ) : null}
       {selectedLanguageIds.map((languageId) => (
-        <input key={languageId} name="languageIds" type="hidden" value={languageId} />
+        <input
+          key={languageId}
+          name="languageIds"
+          type="hidden"
+          value={languageId}
+        />
       ))}
       <StatusMessage status={state.status} message={state.message} />
 
@@ -461,7 +462,10 @@ export function ProviderProfileForm({
             title="Business identity"
             description="Add the business name shown on your public provider listing."
           />
-          <label htmlFor="provider-business-name" className={labelClassName}>
+          <label
+            htmlFor="provider-business-name"
+            className={`${labelClassName} max-w-xl`}
+          >
             Business name
             <input
               id="provider-business-name"
@@ -478,95 +482,101 @@ export function ProviderProfileForm({
         </section>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr] lg:items-start">
-        <div className="grid gap-4">
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-stone-100">
-            <div className="grid aspect-square place-items-center">
-              {imagePreviewUrl ? (
-                <img
-                  src={imagePreviewUrl}
-                  alt={`${fallbackName} profile`}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span className="text-4xl font-semibold text-stone-500">
-                  {getInitials(fallbackName)}
-                </span>
-              )}
+          <div className="grid gap-4">
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-stone-100">
+              <div className="grid aspect-square place-items-center">
+                {imagePreviewUrl ? (
+                  <img
+                    src={imagePreviewUrl}
+                    alt={`${fallbackName} profile`}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <span className="text-4xl font-semibold text-stone-500">
+                    {getInitials(fallbackName)}
+                  </span>
+                )}
+              </div>
             </div>
+
+            <label
+              htmlFor="provider-profile-image"
+              className="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus-within:ring-4 focus-within:ring-stone-100"
+            >
+              {isUploading ? "Uploading..." : "Upload image"}
+              <input
+                id="provider-profile-image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={handleImageChange}
+                disabled={isBusy}
+              />
+            </label>
+            <p className="text-xs leading-5 text-stone-500">
+              JPG, PNG, or WebP. Max 5 MB.
+            </p>
+            <UploadMessage status={uploadStatus} />
           </div>
 
-          <label
-            htmlFor="provider-profile-image"
-            className="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus-within:ring-4 focus-within:ring-stone-100"
-          >
-            {isUploading ? "Uploading..." : "Upload image"}
-            <input
-              id="provider-profile-image"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="sr-only"
-              onChange={handleImageChange}
-              disabled={isBusy}
+          <div className="grid gap-4">
+            <SectionHeading
+              title="Listing identity"
+              description="This is the name and public introduction people will see in search results and on your profile."
             />
-          </label>
-          <p className="text-xs leading-5 text-stone-500">
-            JPG, PNG, or WebP. Max 5 MB.
-          </p>
-          <UploadMessage status={uploadStatus} />
-        </div>
 
-        <div className="grid gap-4">
-          <SectionHeading
-            title="Listing identity"
-            description="This is the name and public introduction people will see in search results and on your profile."
-          />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label htmlFor="provider-full-name" className={labelClassName}>
+                Full name
+                <input
+                  id="provider-full-name"
+                  name="fullName"
+                  type="text"
+                  autoComplete="name"
+                  defaultValue={profile?.display_name ?? accountFullName ?? ""}
+                  className={inputClassName(Boolean(fieldErrors.fullName))}
+                  aria-invalid={Boolean(fieldErrors.fullName)}
+                  required
+                />
+                <FieldError message={fieldErrors.fullName} />
+              </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label htmlFor="provider-full-name" className={labelClassName}>
-              Full name
-              <input
-                id="provider-full-name"
-                name="fullName"
-                type="text"
-                autoComplete="name"
-                defaultValue={profile?.display_name ?? accountFullName ?? ""}
-                className={inputClassName(Boolean(fieldErrors.fullName))}
-                aria-invalid={Boolean(fieldErrors.fullName)}
+              <label
+                htmlFor="provider-business-name"
+                className={labelClassName}
+              >
+                Business name
+                <input
+                  id="provider-business-name"
+                  name="businessName"
+                  type="text"
+                  autoComplete="organization"
+                  defaultValue={profile?.business_name ?? ""}
+                  className={inputClassName(Boolean(fieldErrors.businessName))}
+                  aria-invalid={Boolean(fieldErrors.businessName)}
+                  required
+                />
+                <FieldError message={fieldErrors.businessName} />
+              </label>
+            </div>
+
+            <label htmlFor="provider-bio" className={labelClassName}>
+              Bio
+              <textarea
+                id="provider-bio"
+                name="bio"
+                defaultValue={profile?.bio ?? ""}
+                placeholder="Briefly describe your services, ideal clients, and coverage."
+                className={inputClassName(
+                  Boolean(fieldErrors.bio),
+                  textAreaClassName,
+                )}
+                aria-invalid={Boolean(fieldErrors.bio)}
                 required
               />
-              <FieldError message={fieldErrors.fullName} />
-            </label>
-
-            <label htmlFor="provider-business-name" className={labelClassName}>
-              Business name
-              <input
-                id="provider-business-name"
-                name="businessName"
-                type="text"
-                autoComplete="organization"
-                defaultValue={profile?.business_name ?? ""}
-                className={inputClassName(Boolean(fieldErrors.businessName))}
-                aria-invalid={Boolean(fieldErrors.businessName)}
-                required
-              />
-              <FieldError message={fieldErrors.businessName} />
+              <FieldError message={fieldErrors.bio} />
             </label>
           </div>
-
-          <label htmlFor="provider-bio" className={labelClassName}>
-            Bio
-            <textarea
-              id="provider-bio"
-              name="bio"
-              defaultValue={profile?.bio ?? ""}
-              placeholder="Briefly describe your services, ideal clients, and coverage."
-              className={inputClassName(Boolean(fieldErrors.bio), textAreaClassName)}
-              aria-invalid={Boolean(fieldErrors.bio)}
-              required
-            />
-            <FieldError message={fieldErrors.bio} />
-          </label>
-        </div>
         </div>
       )}
 
@@ -576,8 +586,11 @@ export function ProviderProfileForm({
           description="Choose the main profession first, then select the specialties that match the service."
         />
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <label htmlFor="provider-category" className={labelClassName}>
+        <div className="grid gap-5">
+          <label
+            htmlFor="provider-category"
+            className={`${labelClassName} max-w-xl`}
+          >
             Profession/category
             <select
               id="provider-category"
@@ -599,15 +612,15 @@ export function ProviderProfileForm({
           </label>
 
           <fieldset className="grid gap-3">
-            <legend className="text-sm font-medium text-stone-800">
+            <legend className="mb-3 text-sm font-medium text-stone-800">
               Specialties
             </legend>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {availableSpecialties.length > 0 ? (
                 availableSpecialties.map((specialty) => (
                   <label
                     key={specialty.id}
-                    className="flex min-h-11 items-center gap-3 rounded-md border border-stone-200 px-3 text-sm font-medium text-stone-700 transition hover:border-emerald-200 hover:bg-emerald-50"
+                    className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm font-medium transition ${selectedSpecialtyIds.includes(specialty.id) ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-stone-200 text-stone-700 hover:border-emerald-200 hover:bg-emerald-50"}`}
                   >
                     <input
                       name="specialtyIds"
@@ -620,7 +633,7 @@ export function ProviderProfileForm({
                           event.target.checked,
                         )
                       }
-                      className="size-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-100"
+                      className="size-4 shrink-0 rounded border-stone-300 accent-emerald-700 focus:ring-emerald-100"
                     />
                     {specialty.name}
                   </label>
@@ -639,9 +652,7 @@ export function ProviderProfileForm({
 
       <section className={sectionClassName}>
         <SectionHeading
-          title={
-            manageSharedFieldsExternally ? "Business website" : "Contact"
-          }
+          title={manageSharedFieldsExternally ? "Business website" : "Contact"}
           description={
             manageSharedFieldsExternally
               ? "Add the website associated with your provider listing."
@@ -649,7 +660,13 @@ export function ProviderProfileForm({
           }
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className={
+            manageSharedFieldsExternally
+              ? "grid max-w-xl gap-4"
+              : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          }
+        >
           {!manageSharedFieldsExternally ? (
             <>
               <label htmlFor="provider-email" className={labelClassName}>
@@ -754,14 +771,14 @@ export function ProviderProfileForm({
           </label>
         </div>
 
-        <fieldset className="grid gap-3">
+        <fieldset className="grid min-w-0 max-w-xl gap-3">
           <legend className="text-sm font-medium text-stone-800">
             Languages
           </legend>
           <div className="relative">
             <button
               type="button"
-              className="flex min-h-12 w-full items-center justify-between gap-3 rounded-md border border-stone-300 bg-white px-3 text-left text-sm text-stone-900 transition hover:border-stone-400 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3 text-left text-sm text-stone-900 transition hover:border-stone-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100"
               aria-expanded={isLanguagePickerOpen}
               onClick={() => setIsLanguagePickerOpen((isOpen) => !isOpen)}
             >
@@ -776,11 +793,8 @@ export function ProviderProfileForm({
             </button>
 
             {isLanguagePickerOpen ? (
-              <div className="absolute z-20 mt-2 w-full rounded-lg border border-stone-200 bg-white p-3 shadow-lg">
-                <label
-                  htmlFor="provider-language-search"
-                  className="sr-only"
-                >
+              <div className="absolute z-10 mt-2 w-full rounded-xl border border-stone-200 bg-white p-3 shadow-lg">
+                <label htmlFor="provider-language-search" className="sr-only">
                   Search languages
                 </label>
                 <input
@@ -809,7 +823,7 @@ export function ProviderProfileForm({
                               event.target.checked,
                             )
                           }
-                          className="size-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-100"
+                          className="size-4 shrink-0 rounded border-stone-300 accent-emerald-700 focus:ring-emerald-100"
                         />
                         {language.name}
                       </label>
@@ -829,7 +843,7 @@ export function ProviderProfileForm({
               selectedLanguages.map((language) => (
                 <span
                   key={language.id}
-                  className="inline-flex items-center gap-2 rounded-md bg-emerald-50 px-2.5 py-1.5 text-sm font-medium text-emerald-900 ring-1 ring-inset ring-emerald-100"
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-sm font-medium text-emerald-900 ring-1 ring-inset ring-emerald-100"
                 >
                   {language.name}
                   <button
@@ -850,35 +864,44 @@ export function ProviderProfileForm({
         </fieldset>
       </section>
 
-      <div className="flex flex-col-reverse gap-3 border-t border-stone-200 pt-6 sm:flex-row sm:items-center sm:justify-end">
-        <button
-          type="submit"
-          name="intent"
-          value="draft"
-          className={`${buttonClassName} border border-stone-300 text-stone-800 hover:border-stone-950 hover:text-stone-950 focus:ring-stone-100`}
-          disabled={isBusy}
-          onClick={() => setPendingIntent("draft")}
-        >
-          {isUploading ? "Uploading..." : isSavingDraft ? "Saving..." : "Save draft"}
-        </button>
-        <button
-          type="submit"
-          name="intent"
-          value={approvalIntent}
-          className={`${buttonClassName} bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-100`}
-          disabled={isBusy}
-          onClick={() => setPendingIntent(approvalIntent)}
-        >
-          {isUploading
-            ? "Uploading..."
-            : isRequestingReactivation
-              ? "Requesting..."
-              : isSubmitting
-                ? "Submitting..."
-                : isInactiveProfile
-                  ? "Request reactivation"
-                  : "Submit for approval"}
-        </button>
+      <div className="flex flex-col gap-4 border-t border-stone-100 pt-6 xl:flex-row xl:items-center xl:justify-between">
+        <p className="text-xs leading-5 text-stone-500">
+          Save your changes as a draft or send your listing for review.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="submit"
+            name="intent"
+            value="draft"
+            className="settings-secondary-button"
+            disabled={isBusy}
+            onClick={() => setPendingIntent("draft")}
+          >
+            {isUploading
+              ? "Uploading..."
+              : isSavingDraft
+                ? "Saving..."
+                : "Save draft"}
+          </button>
+          <button
+            type="submit"
+            name="intent"
+            value={approvalIntent}
+            className="settings-primary-button"
+            disabled={isBusy}
+            onClick={() => setPendingIntent(approvalIntent)}
+          >
+            {isUploading
+              ? "Uploading..."
+              : isRequestingReactivation
+                ? "Requesting..."
+                : isSubmitting
+                  ? "Submitting..."
+                  : isInactiveProfile
+                    ? "Request reactivation"
+                    : "Submit for approval"}
+          </button>
+        </div>
       </div>
     </form>
   );

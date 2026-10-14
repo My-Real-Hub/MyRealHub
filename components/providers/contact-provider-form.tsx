@@ -11,11 +11,10 @@ type ContactProviderFormProps = {
   returnPath: string;
 };
 
-const inputBaseClassName =
-  "h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
-const textAreaClassName =
-  "min-h-32 w-full resize-y rounded-md border border-stone-300 bg-white px-3 py-3 text-sm leading-6 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
-const errorFieldClassName = "border-red-400 focus:border-red-600 focus:ring-red-100";
+const inputBaseClassName = "public-profile-input";
+const textAreaClassName = "public-profile-textarea";
+const errorFieldClassName =
+  "border-red-400 focus:border-red-600 focus:ring-red-100";
 const initialContactProviderFormState = {
   status: "idle" as const,
   message: "",
@@ -26,13 +25,13 @@ function inputClassName(hasError: boolean, className = inputBaseClassName) {
   return `${className} ${hasError ? errorFieldClassName : ""}`;
 }
 
-function FieldError({ message }: { message?: string }) {
+function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) {
     return null;
   }
 
   return (
-    <p className="text-sm font-medium text-red-700" role="alert">
+    <p id={id} className="text-xs leading-5 text-red-700" role="alert">
       {message}
     </p>
   );
@@ -56,7 +55,7 @@ function StatusMessage({
 
   return (
     <p
-      className={`rounded-md border px-4 py-3 text-sm leading-6 ${className}`}
+      className={`rounded-xl border px-4 py-3 text-sm leading-6 ${className}`}
       role={status === "error" ? "alert" : "status"}
       aria-live="polite"
     >
@@ -86,7 +85,8 @@ export function ContactProviderForm({
   }, [state.status]);
 
   return (
-    <form ref={formRef} action={formAction} className="grid gap-4" noValidate>
+    <form ref={formRef} action={formAction} className="grid min-w-0 gap-4">
+      <h3 className="text-sm font-semibold text-stone-950">Send an inquiry</h3>
       <input type="hidden" name="providerId" value={providerId} />
       <input type="hidden" name="returnPath" value={returnPath} />
 
@@ -95,7 +95,7 @@ export function ContactProviderForm({
       <div className="grid gap-2">
         <label
           htmlFor="contact-name"
-          className="text-sm font-semibold text-stone-900"
+          className="text-sm font-medium text-stone-700"
         >
           Name
         </label>
@@ -105,18 +105,20 @@ export function ContactProviderForm({
           type="text"
           defaultValue={defaultName}
           autoComplete="name"
+          placeholder="Your name"
           required
           maxLength={120}
           className={inputClassName(Boolean(fieldErrors.name))}
           aria-invalid={Boolean(fieldErrors.name)}
+          aria-describedby={fieldErrors.name ? "contact-name-error" : undefined}
         />
-        <FieldError message={fieldErrors.name} />
+        <FieldError id="contact-name-error" message={fieldErrors.name} />
       </div>
 
       <div className="grid gap-2">
         <label
           htmlFor="contact-email"
-          className="text-sm font-semibold text-stone-900"
+          className="text-sm font-medium text-stone-700"
         >
           Email
         </label>
@@ -126,36 +128,45 @@ export function ContactProviderForm({
           type="email"
           defaultValue={defaultEmail}
           autoComplete="email"
+          placeholder="you@example.com"
           required
           className={inputClassName(Boolean(fieldErrors.email))}
           aria-invalid={Boolean(fieldErrors.email)}
+          aria-describedby={
+            fieldErrors.email ? "contact-email-error" : undefined
+          }
         />
-        <FieldError message={fieldErrors.email} />
+        <FieldError id="contact-email-error" message={fieldErrors.email} />
       </div>
 
       <div className="grid gap-2">
         <label
           htmlFor="contact-phone"
-          className="text-sm font-semibold text-stone-900"
+          className="flex items-center justify-between text-sm font-medium text-stone-700"
         >
-          Phone
+          Phone{" "}
+          <span className="text-xs font-normal text-stone-400">Optional</span>
         </label>
         <input
           id="contact-phone"
           name="phone"
           type="tel"
           autoComplete="tel"
+          placeholder="Your phone number"
           maxLength={40}
           className={inputClassName(Boolean(fieldErrors.phone))}
           aria-invalid={Boolean(fieldErrors.phone)}
+          aria-describedby={
+            fieldErrors.phone ? "contact-phone-error" : undefined
+          }
         />
-        <FieldError message={fieldErrors.phone} />
+        <FieldError id="contact-phone-error" message={fieldErrors.phone} />
       </div>
 
       <div className="grid gap-2">
         <label
           htmlFor="contact-subject"
-          className="text-sm font-semibold text-stone-900"
+          className="text-sm font-medium text-stone-700"
         >
           Subject
         </label>
@@ -168,14 +179,17 @@ export function ContactProviderForm({
           maxLength={160}
           className={inputClassName(Boolean(fieldErrors.subject))}
           aria-invalid={Boolean(fieldErrors.subject)}
+          aria-describedby={
+            fieldErrors.subject ? "contact-subject-error" : undefined
+          }
         />
-        <FieldError message={fieldErrors.subject} />
+        <FieldError id="contact-subject-error" message={fieldErrors.subject} />
       </div>
 
       <div className="grid gap-2">
         <label
           htmlFor="contact-message"
-          className="text-sm font-semibold text-stone-900"
+          className="text-sm font-medium text-stone-700"
         >
           Message
         </label>
@@ -184,21 +198,29 @@ export function ContactProviderForm({
           name="message"
           required
           maxLength={2000}
+          placeholder="Tell the provider what you need, where your property is, and your preferred timing."
+          aria-invalid={Boolean(fieldErrors.message)}
+          aria-describedby={
+            fieldErrors.message ? "contact-message-error" : undefined
+          }
           className={inputClassName(
             Boolean(fieldErrors.message),
             textAreaClassName,
           )}
         />
-        <FieldError message={fieldErrors.message} />
+        <FieldError id="contact-message-error" message={fieldErrors.message} />
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-stone-300"
+        className="public-profile-primary-button w-full"
       >
         {pending ? "Sending..." : "Send message"}
       </button>
+      <p className="text-xs leading-5 text-stone-500">
+        Your name and contact details are shared with this provider.
+      </p>
     </form>
   );
 }

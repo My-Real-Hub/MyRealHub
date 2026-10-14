@@ -223,13 +223,13 @@ const lookupActionMessages: Record<
 };
 
 const inputClassName =
-  "h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+  "h-11 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 text-base sm:text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 
 const textareaClassName =
-  "min-h-20 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm leading-6 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+  "min-h-20 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-base sm:text-sm leading-6 text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 
 const selectClassName =
-  "h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
+  "h-11 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 text-base sm:text-sm text-stone-950 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100";
 
 const dashboardNavItems = [
   { href: "#overview", label: "Overview" },
@@ -279,7 +279,8 @@ const feedbackActionMessages: Record<
   },
   invalid: {
     tone: "error",
-    message: "Choose a valid status and keep internal notes under 3,000 characters.",
+    message:
+      "Choose a valid status and keep internal notes under 3,000 characters.",
   },
   error: {
     tone: "error",
@@ -585,7 +586,10 @@ function getProviderRangeLabel(providerPage: ProviderPageData) {
   }
 
   const start = (providerPage.page - 1) * PROVIDERS_PER_PAGE + 1;
-  const end = Math.min(providerPage.total, providerPage.page * PROVIDERS_PER_PAGE);
+  const end = Math.min(
+    providerPage.total,
+    providerPage.page * PROVIDERS_PER_PAGE,
+  );
 
   return `${start}-${end} of ${providerPage.total}`;
 }
@@ -704,7 +708,7 @@ async function addFeedbackScreenshotUrls(
 
       return {
         ...row,
-        screenshotUrl: error ? null : data?.signedUrl ?? null,
+        screenshotUrl: error ? null : (data?.signedUrl ?? null),
       };
     }),
   );
@@ -897,13 +901,15 @@ async function getAdminDashboardData({
       providerProfiles:
         getCountValue(growthCounts.provider_profile_count) || providerProfiles,
       pending,
-      active: getCountValue(growthCounts.active_provider_profile_count) || active,
+      active:
+        getCountValue(growthCounts.active_provider_profile_count) || active,
       newFeedback: getCountValue(growthCounts.new_feedback_count),
       categories,
       languages,
       specialties,
     } satisfies Record<DashboardCountKey, number>,
-    pendingProviders: (pendingProviders.data ?? []) as unknown as ProviderSummaryRow[],
+    pendingProviders: (pendingProviders.data ??
+      []) as unknown as ProviderSummaryRow[],
     feedbackQueue,
     providerPage,
     categoryPage,
@@ -915,11 +921,13 @@ async function getAdminDashboardData({
 
 function CountCard({
   description,
+  href,
   label,
   value,
   tone = "light",
 }: {
   description?: string;
+  href?: string;
   label: string;
   value: number;
   tone?: "light" | "accent" | "info" | "warning" | "danger";
@@ -927,6 +935,7 @@ function CountCard({
   return (
     <DashboardStatCard
       description={description}
+      href={href}
       label={label}
       tone={tone}
       value={value}
@@ -934,37 +943,41 @@ function CountCard({
   );
 }
 
-function ProviderReviewListItem({ provider }: { provider: ProviderSummaryRow }) {
+function ProviderReviewListItem({
+  provider,
+}: {
+  provider: ProviderSummaryRow;
+}) {
   return (
-    <div className="rounded-md border border-stone-200 px-4 py-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-stone-950">
-            {getProviderName(provider)}
-          </p>
-          <p className="mt-1 text-sm text-stone-600">
-            {getProviderLocation(provider)}
-          </p>
-          <p className="mt-1 break-words text-xs text-stone-500">
-            {provider.email ?? "Email not added"}
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 md:items-end">
+    <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-stone-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="break-words text-sm font-semibold text-stone-950">
+          {getProviderName(provider)}
+        </p>
+        <p className="mt-1 text-sm text-stone-500">
+          {getProviderLocation(provider)}
+        </p>
+        <p className="mt-1 break-all text-xs leading-5 text-stone-500">
+          {provider.email ?? "Email not added"}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
+        <div className="sm:text-right">
           <span
-            className={`w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClassNames[provider.status]}`}
+            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClassNames[provider.status]}`}
           >
             {statusLabels[provider.status]}
           </span>
-          <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
+          <p className="mt-1 text-xs text-stone-500">
             {formatDate(provider.submitted_at ?? provider.updated_at)}
           </p>
-          <Link
-            href={`/admin/dashboard/providers/${provider.id}`}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-          >
-            Review profile
-          </Link>
         </div>
+        <Link
+          href={`/admin/dashboard/providers/${provider.id}`}
+          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 px-3 text-sm font-semibold text-stone-700 transition hover:border-emerald-700 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+        >
+          Review profile
+        </Link>
       </div>
     </div>
   );
@@ -985,7 +998,7 @@ function ProviderStatusFilters({
             key={option.value}
             href={getProviderDashboardHref(option.value, 1)}
             aria-current={isSelected ? "page" : undefined}
-            className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
+            className={`inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-semibold transition ${
               isSelected
                 ? "border-emerald-700 bg-emerald-700 text-white"
                 : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
@@ -999,14 +1012,18 @@ function ProviderStatusFilters({
   );
 }
 
-function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }) {
+function ProviderPagination({
+  providerPage,
+}: {
+  providerPage: ProviderPageData;
+}) {
   if (providerPage.totalPages <= 1) {
     return null;
   }
 
-  const pageNumbers = Array.from(
-    { length: providerPage.totalPages },
-    (_, index) => index + 1,
+  const pageNumbers = getPaginationItems(
+    providerPage.page,
+    providerPage.totalPages,
   );
   const previousPage = Math.max(1, providerPage.page - 1);
   const nextPage = Math.min(providerPage.totalPages, providerPage.page + 1);
@@ -1019,7 +1036,8 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
       <Link
         href={getProviderDashboardHref(providerPage.statusFilter, previousPage)}
         aria-disabled={providerPage.page === 1}
-        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
+        tabIndex={providerPage.page === 1 ? -1 : undefined}
+        className={`inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
           providerPage.page === 1 ? "pointer-events-none opacity-50" : ""
         }`}
       >
@@ -1028,6 +1046,15 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
 
       <div className="flex flex-wrap gap-2">
         {pageNumbers.map((pageNumber) => {
+          if (typeof pageNumber !== "number")
+            return (
+              <span
+                key={pageNumber}
+                className="inline-flex size-11 items-center justify-center text-xs text-stone-400"
+              >
+                ...
+              </span>
+            );
           const isCurrent = pageNumber === providerPage.page;
 
           return (
@@ -1038,7 +1065,7 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
                 pageNumber,
               )}
               aria-current={isCurrent ? "page" : undefined}
-              className={`inline-flex size-9 items-center justify-center rounded-md border text-xs font-semibold transition ${
+              className={`inline-flex size-11 items-center justify-center rounded-xl border text-xs font-semibold transition ${
                 isCurrent
                   ? "border-emerald-700 bg-emerald-700 text-white"
                   : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
@@ -1053,7 +1080,10 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
       <Link
         href={getProviderDashboardHref(providerPage.statusFilter, nextPage)}
         aria-disabled={providerPage.page === providerPage.totalPages}
-        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
+        tabIndex={
+          providerPage.page === providerPage.totalPages ? -1 : undefined
+        }
+        className={`inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
           providerPage.page === providerPage.totalPages
             ? "pointer-events-none opacity-50"
             : ""
@@ -1068,7 +1098,7 @@ function ProviderPagination({ providerPage }: { providerPage: ProviderPageData }
 function FeedbackStatusBadge({ status }: { status: PlatformFeedbackStatus }) {
   return (
     <span
-      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${feedbackStatusClassNames[status]}`}
+      className={`inline-flex w-fit rounded-xl border px-2.5 py-1 text-xs font-semibold ${feedbackStatusClassNames[status]}`}
     >
       {feedbackStatusLabels[status]}
     </span>
@@ -1078,7 +1108,7 @@ function FeedbackStatusBadge({ status }: { status: PlatformFeedbackStatus }) {
 function FeedbackTypeBadge({ type }: { type: PlatformFeedbackType }) {
   return (
     <span
-      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${feedbackTypeClassNames[type]}`}
+      className={`inline-flex w-fit rounded-xl border px-2.5 py-1 text-xs font-semibold ${feedbackTypeClassNames[type]}`}
     >
       {feedbackTypeLabels[type]}
     </span>
@@ -1101,7 +1131,7 @@ function FeedbackActionMessage({
 
   return (
     <p
-      className={`mt-5 rounded-md border px-4 py-3 text-sm leading-6 ${className}`}
+      className={`mt-5 rounded-xl border px-4 py-3 text-sm leading-6 ${className}`}
       role={message.tone === "error" ? "alert" : "status"}
       aria-live="polite"
     >
@@ -1123,7 +1153,7 @@ function FeedbackFilterLink({
     <Link
       href={href}
       aria-current={isSelected ? "page" : undefined}
-      className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition ${
+      className={`inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-semibold transition ${
         isSelected
           ? "border-emerald-700 bg-emerald-700 text-white"
           : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
@@ -1142,7 +1172,7 @@ function FeedbackFilters({
   typeFilter: FeedbackTypeFilter;
 }) {
   return (
-    <div className="mt-6 grid gap-4 rounded-md border border-stone-200 bg-stone-50 p-4">
+    <div className="mt-6 grid gap-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
           Status
@@ -1225,7 +1255,7 @@ function FeedbackQueueSection({
       title="Bug reports and suggestions"
       description="Review customer feedback, keep internal notes, and move items through triage."
       actions={
-        <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
+        <span className="w-fit rounded-xl bg-white px-3 py-1 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
           {queueLabel}
         </span>
       }
@@ -1239,7 +1269,7 @@ function FeedbackQueueSection({
           rows.map((feedback) => (
             <details
               key={feedback.id}
-              className="group rounded-md border border-stone-200 bg-white px-4 py-3"
+              className="group rounded-xl border border-stone-200 bg-white px-4 py-3"
             >
               <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between [&::-webkit-details-marker]:hidden">
                 <div className="flex items-start gap-3">
@@ -1282,7 +1312,7 @@ function FeedbackQueueSection({
                       {feedback.description}
                     </p>
                   </div>
-                  <div className="grid gap-3 rounded-md bg-stone-50 p-4 text-sm text-stone-700">
+                  <div className="grid gap-3 rounded-xl bg-stone-50 p-4 text-sm text-stone-700">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
                         Page
@@ -1321,7 +1351,9 @@ function FeedbackQueueSection({
                       <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
                         Last updated
                       </p>
-                      <p className="mt-1">{formatDateTime(feedback.updated_at)}</p>
+                      <p className="mt-1">
+                        {formatDateTime(feedback.updated_at)}
+                      </p>
                     </div>
                     {feedback.reviewed_at ? (
                       <div>
@@ -1338,7 +1370,7 @@ function FeedbackQueueSection({
 
                 <form
                   action={updateFeedbackSubmission}
-                  className="grid gap-4 rounded-md border border-stone-200 bg-stone-50 p-4"
+                  className="grid gap-4 rounded-xl border border-stone-200 bg-stone-50 p-4"
                 >
                   <input name="feedbackId" type="hidden" value={feedback.id} />
                   <input
@@ -1351,10 +1383,10 @@ function FeedbackQueueSection({
                     type="hidden"
                     value={typeFilter}
                   />
-                  <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
+                  <div className="grid gap-4 xl:grid-cols-[16rem_minmax(0,1fr)]">
                     <label
                       htmlFor={`feedback-${feedback.id}-status`}
-                      className="grid gap-2 text-sm font-medium text-stone-800"
+                      className="grid min-w-0 gap-2 text-sm font-medium text-stone-800"
                     >
                       Status
                       <select
@@ -1372,7 +1404,7 @@ function FeedbackQueueSection({
                     </label>
                     <label
                       htmlFor={`feedback-${feedback.id}-notes`}
-                      className="grid gap-2 text-sm font-medium text-stone-800"
+                      className="grid min-w-0 gap-2 text-sm font-medium text-stone-800"
                     >
                       Internal notes
                       <textarea
@@ -1388,7 +1420,7 @@ function FeedbackQueueSection({
                   <div className="flex justify-end">
                     <button
                       type="submit"
-                      className="h-10 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                      className="h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
                     >
                       Save feedback
                     </button>
@@ -1398,19 +1430,23 @@ function FeedbackQueueSection({
             </details>
           ))
         ) : (
-          <div className="rounded-md border border-dashed border-stone-300 px-4 py-8 text-center">
+          <div className="rounded-xl border border-dashed border-stone-300 px-4 py-8 text-center">
             <p className="text-sm font-medium text-stone-700">
-              No feedback matches these filters.
+              {statusFilter === "all" && typeFilter === "all"
+                ? "No feedback to review yet."
+                : "No feedback matches these filters."}
             </p>
-            <Link
-              href={getFeedbackDashboardHref({
-                statusFilter: "all",
-                typeFilter: "all",
-              })}
-              className="mt-3 inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
-            >
-              Clear filters
-            </Link>
+            {statusFilter !== "all" || typeFilter !== "all" ? (
+              <Link
+                href={getFeedbackDashboardHref({
+                  statusFilter: "all",
+                  typeFilter: "all",
+                })}
+                className="mt-3 inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+              >
+                Clear filters
+              </Link>
+            ) : null}
           </div>
         )}
       </div>
@@ -1421,7 +1457,7 @@ function FeedbackQueueSection({
 function LookupStatusBadge({ isActive }: { isActive: boolean }) {
   return (
     <span
-      className={`inline-flex w-fit rounded-md border px-2.5 py-1 text-xs font-semibold ${
+      className={`inline-flex w-fit rounded-xl border px-2.5 py-1 text-xs font-semibold ${
         isActive
           ? "border-emerald-200 bg-emerald-50 text-emerald-900"
           : "border-stone-200 bg-stone-100 text-stone-700"
@@ -1448,7 +1484,7 @@ function LookupActionMessage({
 
   return (
     <p
-      className={`mt-5 rounded-md border px-4 py-3 text-sm leading-6 ${className}`}
+      className={`mt-5 rounded-xl border px-4 py-3 text-sm leading-6 ${className}`}
       role={message.tone === "error" ? "alert" : "status"}
       aria-live="polite"
     >
@@ -1531,7 +1567,7 @@ function LookupSearchControls({
   return (
     <form
       action={`/admin/dashboard#${id}`}
-      className="mt-6 grid gap-3 rounded-md border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[1fr_auto_auto]"
+      className="mt-6 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
     >
       <PreservedLookupSearchInputs
         currentKind={kind}
@@ -1541,13 +1577,14 @@ function LookupSearchControls({
       />
       <label
         htmlFor={`${kind}-search`}
-        className="grid gap-2 text-sm font-medium text-stone-800"
+        className="grid min-w-0 gap-2 text-sm font-medium text-stone-800"
       >
         Search {title.toLowerCase()}
         <input
           id={`${kind}-search`}
           name={lookupParamNames[kind].search}
           type="search"
+          key={lookupPage.search}
           defaultValue={lookupPage.search}
           placeholder={`Search ${title.toLowerCase()}`}
           className={inputClassName}
@@ -1555,7 +1592,7 @@ function LookupSearchControls({
       </label>
       <button
         type="submit"
-        className="h-10 self-end rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+        className="h-11 self-end rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
       >
         Search
       </button>
@@ -1569,7 +1606,7 @@ function LookupSearchControls({
             search: "",
             page: 1,
           })}
-          className="inline-flex h-10 items-center justify-center self-end rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+          className="inline-flex h-11 items-center justify-center self-end rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
         >
           Clear
         </Link>
@@ -1617,7 +1654,8 @@ function LookupPagination({
           page: previousPage,
         })}
         aria-disabled={lookupPage.page === 1}
-        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
+        tabIndex={lookupPage.page === 1 ? -1 : undefined}
+        className={`inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
           lookupPage.page === 1 ? "pointer-events-none opacity-50" : ""
         }`}
       >
@@ -1630,7 +1668,7 @@ function LookupPagination({
             return (
               <span
                 key={pageNumber}
-                className="inline-flex size-9 items-center justify-center text-xs font-semibold text-stone-400"
+                className="inline-flex size-11 items-center justify-center text-xs font-semibold text-stone-400"
               >
                 ...
               </span>
@@ -1651,8 +1689,8 @@ function LookupPagination({
                 page: pageNumber,
               })}
               aria-current={isCurrent ? "page" : undefined}
-              className={`inline-flex size-9 items-center justify-center rounded-md border text-xs font-semibold transition ${
-                  isCurrent
+              className={`inline-flex size-11 items-center justify-center rounded-xl border text-xs font-semibold transition ${
+                isCurrent
                   ? "border-emerald-700 bg-emerald-700 text-white"
                   : "border-stone-300 text-stone-700 hover:border-stone-950 hover:text-stone-950"
               }`}
@@ -1673,7 +1711,8 @@ function LookupPagination({
           page: nextPage,
         })}
         aria-disabled={lookupPage.page === lookupPage.totalPages}
-        className={`inline-flex h-9 items-center justify-center rounded-md border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
+        tabIndex={lookupPage.page === lookupPage.totalPages ? -1 : undefined}
+        className={`inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 ${
           lookupPage.page === lookupPage.totalPages
             ? "pointer-events-none opacity-50"
             : ""
@@ -1686,7 +1725,7 @@ function LookupPagination({
 }
 
 function getLookupRowCategoryId(row: LookupRow | SpecialtyLookupRow | null) {
-  return row && "category_id" in row ? row.category_id ?? "" : "";
+  return row && "category_id" in row ? (row.category_id ?? "") : "";
 }
 
 function LookupFormFields({
@@ -1707,7 +1746,7 @@ function LookupFormFields({
     <div className="grid gap-3 lg:grid-cols-2">
       <label
         htmlFor={`${idPrefix}-name`}
-        className="grid gap-2 text-sm font-medium text-stone-800"
+        className="grid min-w-0 gap-2 text-sm font-medium text-stone-800"
       >
         Name
         <input
@@ -1722,7 +1761,7 @@ function LookupFormFields({
 
       <label
         htmlFor={`${idPrefix}-slug`}
-        className="grid gap-2 text-sm font-medium text-stone-800"
+        className="grid min-w-0 gap-2 text-sm font-medium text-stone-800"
       >
         Slug
         <input
@@ -1738,7 +1777,7 @@ function LookupFormFields({
       {showCategory ? (
         <label
           htmlFor={`${idPrefix}-category`}
-          className="grid gap-2 text-sm font-medium text-stone-800"
+          className="grid min-w-0 gap-2 text-sm font-medium text-stone-800"
         >
           Category
           <select
@@ -1762,7 +1801,7 @@ function LookupFormFields({
       {showDescription ? (
         <label
           htmlFor={`${idPrefix}-description`}
-          className={`grid gap-2 text-sm font-medium text-stone-800 ${
+          className={`grid min-w-0 gap-2 text-sm font-medium text-stone-800 ${
             showCategory ? "" : "lg:col-span-2"
           }`}
         >
@@ -1816,7 +1855,7 @@ function LookupManagementSection({
         lookupPage.search ? ` for "${lookupPage.search}"` : ""
       }`}
       actions={
-        <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
+        <span className="w-fit rounded-xl bg-white px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
           {count}
         </span>
       }
@@ -1833,36 +1872,44 @@ function LookupManagementSection({
         providerPage={providerPage}
       />
 
-      <form
-        action={createLookupItem}
-        className="mt-6 grid gap-4 rounded-md border border-stone-200 bg-stone-50 p-4"
-      >
-        <input name="lookupKind" type="hidden" value={kind} />
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-            Add {singularTitle}
-          </h3>
-          <button
-            type="submit"
-            className="h-10 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+      <details className="group mt-4 rounded-xl border border-emerald-200 bg-emerald-50/40">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-emerald-800 [&::-webkit-details-marker]:hidden">
+          Add {singularTitle.toLowerCase()}
+          <span
+            aria-hidden="true"
+            className="text-xl leading-none transition group-open:rotate-45"
           >
-            Add
-          </button>
-        </div>
-        <LookupFormFields
-          kind={kind}
-          row={null}
-          categories={categories}
-          idPrefix={`${kind}-new`}
-        />
-      </form>
+            +
+          </span>
+        </summary>
+        <form
+          action={createLookupItem}
+          className="grid gap-4 border-t border-emerald-100 p-4"
+        >
+          <input name="lookupKind" type="hidden" value={kind} />
+          <LookupFormFields
+            kind={kind}
+            row={null}
+            categories={categories}
+            idPrefix={`${kind}-new`}
+          />
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            >
+              Add {singularTitle.toLowerCase()}
+            </button>
+          </div>
+        </form>
+      </details>
 
       <div className="mt-6 grid gap-3">
         {lookupPage.rows.length > 0 ? (
           lookupPage.rows.map((row) => (
             <details
               key={row.id}
-              className={`group rounded-md border px-4 py-3 ${
+              className={`group rounded-xl border px-4 py-3 ${
                 row.is_active
                   ? "border-stone-200 bg-white"
                   : "border-stone-200 bg-stone-50"
@@ -1899,7 +1946,7 @@ function LookupManagementSection({
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                     <button
                       type="submit"
-                      className="h-10 rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
+                      className="h-11 rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
                     >
                       Save changes
                     </button>
@@ -1915,7 +1962,7 @@ function LookupManagementSection({
                   />
                   <button
                     type="submit"
-                    className={`h-10 rounded-md px-4 text-sm font-semibold transition focus:outline-none focus:ring-4 ${
+                    className={`h-11 rounded-xl px-4 text-sm font-semibold transition focus:outline-none focus:ring-4 ${
                       row.is_active
                         ? "border border-red-200 text-red-700 hover:border-red-700 hover:text-red-800 focus:ring-red-100"
                         : "bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-100"
@@ -1928,7 +1975,7 @@ function LookupManagementSection({
             </details>
           ))
         ) : (
-          <p className="rounded-md border border-dashed border-stone-300 px-4 py-5 text-sm text-stone-600">
+          <p className="rounded-xl border border-dashed border-stone-300 px-4 py-5 text-sm text-stone-600">
             No records found.
           </p>
         )}
@@ -1972,7 +2019,7 @@ export default async function AdminDashboardPage({
       navLabel="Admin"
       signedInValue={profile.email ?? profile.fullName ?? "Admin account"}
     >
-      <div className="grid gap-6">
+      <div className="grid gap-8">
         <DashboardHeader
           eyebrow="Admin dashboard"
           title="Operations dashboard"
@@ -1980,180 +2027,196 @@ export default async function AdminDashboardPage({
           actions={
             <Link
               href="/search"
-              className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950"
             >
               View directory
             </Link>
           }
         />
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section aria-label="Dashboard totals" className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <CountCard
-              description="Customer-facing accounts."
-              label="User accounts"
-              value={dashboardData.counts.userAccounts}
-            />
-            <CountCard
-              description="Accounts with provider access."
-              label="Provider accounts"
-              value={dashboardData.counts.providerAccounts}
-            />
-            <CountCard
+              href="#providers"
               description="Listings waiting for review."
               label="Pending approval"
               value={dashboardData.counts.pending}
               tone={dashboardData.counts.pending > 0 ? "warning" : "light"}
             />
             <CountCard
-              description="Approved profiles in search."
-              label="Active listings"
-              tone="accent"
-              value={dashboardData.counts.active}
+              href={getFeedbackDashboardHref({
+                statusFilter: "new",
+                typeFilter: "all",
+              })}
+              description="Customer reports to triage."
+              label="New feedback"
+              value={dashboardData.counts.newFeedback}
+              tone={dashboardData.counts.newFeedback > 0 ? "info" : "light"}
             />
             <CountCard
-              description="Total provider profile records."
+              href={getProviderDashboardHref("active", 1)}
+              description="Approved profiles in search."
+              label="Active listings"
+              value={dashboardData.counts.active}
+              tone="accent"
+            />
+            <CountCard
+              href={getProviderDashboardHref("all", 1)}
+              description="All provider profile records."
               label="Provider profiles"
               value={dashboardData.counts.providerProfiles}
             />
-            <CountCard
-              description="Unreviewed customer reports."
-              label="New feedback"
-              tone={dashboardData.counts.newFeedback > 0 ? "info" : "light"}
-              value={dashboardData.counts.newFeedback}
-            />
-            <CountCard
-              description="Service types available."
-              label="Categories"
-              value={dashboardData.counts.categories}
-            />
-            <CountCard
-              description="Languages providers can select."
-              label="Languages"
-              value={dashboardData.counts.languages}
-            />
-            <CountCard
-              description="Specialized service tags."
-              label="Specialties"
-              value={dashboardData.counts.specialties}
-            />
+          </div>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-2xl border border-stone-200 bg-white px-5 py-4 sm:grid-cols-3 xl:grid-cols-5">
+            <div>
+              <dt className="text-xs text-stone-500">Customer accounts</dt>
+              <dd className="mt-1 text-lg font-semibold text-stone-950">
+                {dashboardData.counts.userAccounts}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-500">Provider accounts</dt>
+              <dd className="mt-1 text-lg font-semibold text-stone-950">
+                {dashboardData.counts.providerAccounts}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-500">Categories</dt>
+              <dd className="mt-1 text-lg font-semibold text-stone-950">
+                {dashboardData.counts.categories}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-500">Languages</dt>
+              <dd className="mt-1 text-lg font-semibold text-stone-950">
+                {dashboardData.counts.languages}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-stone-500">Specialties</dt>
+              <dd className="mt-1 text-lg font-semibold text-stone-950">
+                {dashboardData.counts.specialties}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <DashboardSection
+          id="providers"
+          eyebrow="Providers"
+          title="Approval queue"
+          description="Review new and updated provider listings before they appear in search."
+          actions={
+            <span className="w-fit rounded-xl bg-white px-3 py-1 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
+              {dashboardData.counts.pending} pending
+            </span>
+          }
+        >
+          <div className="mt-6 grid gap-3">
+            {dashboardData.pendingProviders.length > 0 ? (
+              dashboardData.pendingProviders.map((provider) => (
+                <ProviderReviewListItem key={provider.id} provider={provider} />
+              ))
+            ) : (
+              <p className="rounded-xl border border-dashed border-stone-300 px-4 py-8 text-center text-sm font-medium text-stone-600">
+                No providers are pending approval.
+              </p>
+            )}
           </div>
 
-          <DashboardSection
-            id="providers"
-            eyebrow="Providers"
-            title="Approval queue"
-            description="Review new and updated provider listings before they appear in search."
-            actions={
-              <span className="w-fit rounded-md bg-white px-3 py-1 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
-                {dashboardData.counts.pending} pending
-              </span>
-            }
-          >
-            <div className="mt-6 grid gap-3">
-              {dashboardData.pendingProviders.length > 0 ? (
-                dashboardData.pendingProviders.map((provider) => (
-                  <ProviderReviewListItem key={provider.id} provider={provider} />
+          <div className="mt-8 border-t border-stone-200 pt-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+                  All provider profiles
+                </h3>
+                <p className="mt-2 text-sm text-stone-600">
+                  Showing {getProviderRangeLabel(dashboardData.providerPage)}
+                </p>
+              </div>
+              <ProviderStatusFilters
+                selectedStatus={dashboardData.providerPage.statusFilter}
+              />
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {dashboardData.providerPage.rows.length > 0 ? (
+                dashboardData.providerPage.rows.map((provider) => (
+                  <ProviderReviewListItem
+                    key={provider.id}
+                    provider={provider}
+                  />
                 ))
               ) : (
-                <p className="rounded-md border border-dashed border-stone-300 px-4 py-8 text-center text-sm font-medium text-stone-600">
-                  No providers are pending approval.
+                <p className="rounded-xl border border-dashed border-stone-300 px-4 py-8 text-center text-sm font-medium text-stone-600">
+                  No provider profiles found for this filter.
                 </p>
               )}
             </div>
 
-            <div className="mt-8 border-t border-stone-200 pt-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                    All provider profiles
-                  </h3>
-                  <p className="mt-2 text-sm text-stone-600">
-                    Showing {getProviderRangeLabel(dashboardData.providerPage)}
-                  </p>
-                </div>
-                <ProviderStatusFilters
-                  selectedStatus={dashboardData.providerPage.statusFilter}
-                />
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                {dashboardData.providerPage.rows.length > 0 ? (
-                  dashboardData.providerPage.rows.map((provider) => (
-                    <ProviderReviewListItem
-                      key={provider.id}
-                      provider={provider}
-                    />
-                  ))
-                ) : (
-                  <p className="rounded-md border border-dashed border-stone-300 px-4 py-8 text-center text-sm font-medium text-stone-600">
-                    No provider profiles found for this filter.
-                  </p>
-                )}
-              </div>
-
-              <ProviderPagination providerPage={dashboardData.providerPage} />
-            </div>
-          </DashboardSection>
-
-          <FeedbackQueueSection
-            rows={dashboardData.feedbackQueue}
-            statusFilter={feedbackStatusFilter}
-            typeFilter={feedbackTypeFilter}
-            actionMessage={
-              feedbackAction ? feedbackActionMessages[feedbackAction] : null
-            }
-          />
-
-          <div className="grid gap-6 xl:grid-cols-2">
-            <LookupManagementSection
-              id="categories"
-              kind="categories"
-              title="Categories"
-              count={dashboardData.counts.categories}
-              lookupPage={dashboardData.categoryPage}
-              categories={dashboardData.categoryOptions}
-              lookupStates={lookupStates}
-              providerStatusFilter={statusFilter}
-              providerPage={providerPageNumber}
-              message={getLookupMessage({
-                activeKind: "categories",
-                currentKind: activeLookupKind,
-                currentAction: activeLookupAction,
-              })}
-            />
-            <LookupManagementSection
-              id="languages"
-              kind="languages"
-              title="Languages"
-              count={dashboardData.counts.languages}
-              lookupPage={dashboardData.languagePage}
-              categories={dashboardData.categoryOptions}
-              lookupStates={lookupStates}
-              providerStatusFilter={statusFilter}
-              providerPage={providerPageNumber}
-              message={getLookupMessage({
-                activeKind: "languages",
-                currentKind: activeLookupKind,
-                currentAction: activeLookupAction,
-              })}
-            />
-            <LookupManagementSection
-              id="specialties"
-              kind="specialties"
-              title="Specialties"
-              count={dashboardData.counts.specialties}
-              lookupPage={dashboardData.specialtyPage}
-              categories={dashboardData.categoryOptions}
-              lookupStates={lookupStates}
-              providerStatusFilter={statusFilter}
-              providerPage={providerPageNumber}
-              message={getLookupMessage({
-                activeKind: "specialties",
-                currentKind: activeLookupKind,
-                currentAction: activeLookupAction,
-              })}
-            />
+            <ProviderPagination providerPage={dashboardData.providerPage} />
           </div>
+        </DashboardSection>
+
+        <FeedbackQueueSection
+          rows={dashboardData.feedbackQueue}
+          statusFilter={feedbackStatusFilter}
+          typeFilter={feedbackTypeFilter}
+          actionMessage={
+            feedbackAction ? feedbackActionMessages[feedbackAction] : null
+          }
+        />
+
+        <div className="grid gap-8">
+          <LookupManagementSection
+            id="categories"
+            kind="categories"
+            title="Categories"
+            count={dashboardData.counts.categories}
+            lookupPage={dashboardData.categoryPage}
+            categories={dashboardData.categoryOptions}
+            lookupStates={lookupStates}
+            providerStatusFilter={statusFilter}
+            providerPage={providerPageNumber}
+            message={getLookupMessage({
+              activeKind: "categories",
+              currentKind: activeLookupKind,
+              currentAction: activeLookupAction,
+            })}
+          />
+          <LookupManagementSection
+            id="languages"
+            kind="languages"
+            title="Languages"
+            count={dashboardData.counts.languages}
+            lookupPage={dashboardData.languagePage}
+            categories={dashboardData.categoryOptions}
+            lookupStates={lookupStates}
+            providerStatusFilter={statusFilter}
+            providerPage={providerPageNumber}
+            message={getLookupMessage({
+              activeKind: "languages",
+              currentKind: activeLookupKind,
+              currentAction: activeLookupAction,
+            })}
+          />
+          <LookupManagementSection
+            id="specialties"
+            kind="specialties"
+            title="Specialties"
+            count={dashboardData.counts.specialties}
+            lookupPage={dashboardData.specialtyPage}
+            categories={dashboardData.categoryOptions}
+            lookupStates={lookupStates}
+            providerStatusFilter={statusFilter}
+            providerPage={providerPageNumber}
+            message={getLookupMessage({
+              activeKind: "specialties",
+              currentKind: activeLookupKind,
+              currentAction: activeLookupAction,
+            })}
+          />
+        </div>
       </div>
     </DashboardShell>
   );

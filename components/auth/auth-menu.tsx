@@ -1,69 +1,66 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   DEFAULT_PROFILE_ROLE,
+  canJoinAsProvider,
   getDashboardPathForRole,
   getProfileRoleForUser,
   type ProfileRole,
 } from "@/lib/auth/roles";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { NavigationLink } from "@/components/layout/navigation-link";
 
-export function AuthMenu() {
-  const router = useRouter();
-  const [isSignedIn, setIsSignedIn] = useState(false);
+export function AuthMenu({
+  initialRole,
+  initialUserId,
+}: {
+  initialRole: ProfileRole | null;
+  initialUserId: string | null;
+}) {
+  const [isSignedIn, setIsSignedIn] = useState(Boolean(initialRole));
   const [dashboardPath, setDashboardPath] = useState(
-    getDashboardPathForRole(DEFAULT_PROFILE_ROLE),
+    getDashboardPathForRole(initialRole ?? DEFAULT_PROFILE_ROLE),
   );
-  const [profileRole, setProfileRole] = useState<ProfileRole | null>(null);
+  const [profileRole, setProfileRole] = useState<ProfileRole | null>(
+    initialRole,
+  );
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+    let currentUserId = initialUserId;
+    let roleRequest = 0;
 
     try {
       const supabase = getSupabaseClient();
 
-      supabase.auth
-        .getSession()
-        .then(({ data }) => {
-          if (isMounted) {
-            setIsSignedIn(Boolean(data.session));
-          }
-
-          if (data.session?.user.id) {
-            return getProfileRoleForUser(supabase, data.session.user.id);
-          }
-
-          return null;
-        })
-        .then((role) => {
-          if (isMounted) {
-            setProfileRole(role);
-            setDashboardPath(
-              getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
-            );
-          }
-        })
-        .catch(() => {
-          // Keep the public auth links visible if session lookup is unavailable.
-        });
-
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((_event, session) => {
-          setIsSignedIn(Boolean(session));
-          if (!session?.user.id) {
-            setProfileRole(null);
-            setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
-            return;
+        if (!isMounted) {
+          return;
         }
 
-        getProfileRoleForUser(supabase, session.user.id)
+        const request = ++roleRequest;
+        const nextUserId = session?.user.id ?? null;
+        setIsSignedIn(Boolean(session));
+
+        if (!nextUserId || nextUserId !== currentUserId) {
+          setProfileRole(null);
+          setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
+        }
+        currentUserId = nextUserId;
+
+        if (!nextUserId) {
+          return;
+        }
+
+        getProfileRoleForUser(supabase, nextUserId)
           .then((role) => {
-            if (isMounted) {
+            if (isMounted && request === roleRequest) {
               setProfileRole(role);
               setDashboardPath(
                 getDashboardPathForRole(role ?? DEFAULT_PROFILE_ROLE),
@@ -71,7 +68,7 @@ export function AuthMenu() {
             }
           })
           .catch(() => {
-            if (isMounted) {
+            if (isMounted && request === roleRequest) {
               setProfileRole(null);
               setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
             }
@@ -89,10 +86,11 @@ export function AuthMenu() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialUserId]);
 
   async function handleSignOut() {
     setIsSigningOut(true);
+    setSignOutError(null);
 
     try {
       const supabase = getSupabaseClient();
@@ -105,8 +103,11 @@ export function AuthMenu() {
       setIsSignedIn(false);
       setProfileRole(null);
       setDashboardPath(getDashboardPathForRole(DEFAULT_PROFILE_ROLE));
-      router.push("/login");
-      router.refresh();
+      // Reload to discard pages prefetched under the previous session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/login");
+    } catch {
+      setSignOutError("Log out failed. Please try again.");
     } finally {
       setIsSigningOut(false);
     }
@@ -115,57 +116,48 @@ export function AuthMenu() {
   if (isSignedIn) {
     return (
       <>
+        {profileRole && canJoinAsProvider(profileRole) ? (
+          <NavigationLink href="/signup?role=provider">
+            Join as Provider
+          </NavigationLink>
+        ) : null}
         {profileRole === "provider" ? (
-          <Link
-            href="/dashboard"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-          >
-            Consumer tools
-          </Link>
+          <NavigationLink href="/dashboard">Consumer tools</NavigationLink>
         ) : null}
         {profileRole === "user" || profileRole === "provider" ? (
-          <Link
-            href="/settings"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-          >
-            Settings
-          </Link>
+          <NavigationLink href="/settings">Settings</NavigationLink>
         ) : null}
-        <Link
-          href={dashboardPath}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
-        >
-          Dashboard
-        </Link>
+        {profileRole ? (
+          <NavigationLink href={dashboardPath}>Dashboard</NavigationLink>
+        ) : (
+          <NavigationLink href="/login">Finish login</NavigationLink>
+        )}
         <button
           type="button"
           onClick={handleSignOut}
           disabled={isSigningOut}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950 disabled:cursor-not-allowed disabled:text-stone-400"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-200 px-3 py-2 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50 hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:text-stone-400"
         >
           {isSigningOut ? "Logging out..." : "Log Out"}
         </button>
+        {signOutError ? (
+          <p role="alert" className="text-xs text-red-700">
+            {signOutError}
+          </p>
+        ) : null}
       </>
     );
   }
 
   return (
     <>
-      <Link
-        href="/login"
-        className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-      >
+      <NavigationLink href="/login" relatedPath="/forgot-password">
         Log In
-      </Link>
-      <Link
-        href="/signup"
-        className="inline-flex h-10 items-center justify-center rounded-md border border-stone-300 px-4 text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-      >
-        Sign Up
-      </Link>
+      </NavigationLink>
+      <NavigationLink href="/signup">Sign Up</NavigationLink>
       <Link
         href="/signup?role=provider"
-        className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-700 px-4 font-semibold text-white transition hover:bg-emerald-800"
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-700 px-3 py-2 font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
       >
         Join as Provider
       </Link>

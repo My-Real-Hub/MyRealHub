@@ -2,6 +2,8 @@ import Link from "next/link";
 import { saveProvider, unsaveProvider } from "@/app/providers/save-actions";
 
 type SaveProviderButtonProps = {
+  appearance?: "default" | "workspace" | "search" | "profile";
+  ariaLabel?: string;
   isSaved: boolean;
   isSignedIn: boolean;
   providerId: string;
@@ -24,6 +26,8 @@ function getLoginHref(returnPath: string) {
 }
 
 export function SaveProviderButton({
+  appearance = "default",
+  ariaLabel,
   isSaved,
   isSignedIn,
   providerId,
@@ -38,7 +42,13 @@ export function SaveProviderButton({
     return (
       <Link
         href={getLoginHref(returnPath)}
-        className={`${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-teal-800 hover:text-teal-900 focus:ring-teal-100`}
+        className={
+          appearance === "profile"
+            ? "public-profile-secondary-button w-full"
+            : appearance === "search"
+              ? "search-secondary-button w-full"
+              : `${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-teal-800 hover:text-teal-900 focus:ring-teal-100`
+        }
       >
         Log in to save
       </Link>
@@ -51,10 +61,17 @@ export function SaveProviderButton({
       <input type="hidden" name="returnPath" value={returnPath} />
       <button
         type="submit"
+        aria-label={ariaLabel}
         className={
-          isSaved
-            ? `${baseClassName} ${sizeClassName} w-full border border-teal-700 bg-teal-50 text-teal-800 hover:bg-teal-100 focus:ring-teal-100`
-            : `${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-teal-800 hover:text-teal-900 focus:ring-teal-100`
+          appearance === "workspace"
+            ? "inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-600 transition hover:border-stone-400 hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            : appearance === "profile"
+              ? `public-profile-secondary-button w-full ${isSaved ? "border-emerald-200 bg-emerald-50 text-emerald-800" : ""}`
+              : appearance === "search"
+                ? `search-secondary-button w-full ${isSaved ? "border-emerald-200 bg-emerald-50 text-emerald-800" : ""}`
+                : isSaved
+                  ? `${baseClassName} ${sizeClassName} w-full border border-teal-700 bg-teal-50 text-teal-800 hover:bg-teal-100 focus:ring-teal-100`
+                  : `${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-teal-800 hover:text-teal-900 focus:ring-teal-100`
         }
       >
         {isSaved ? savedLabel : unsavedLabel}

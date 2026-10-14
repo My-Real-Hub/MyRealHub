@@ -1,18 +1,11 @@
 import { SignUpForm } from "@/components/auth/auth-forms";
 import { getSignUpRole } from "@/lib/auth/roles";
+import { getSafeRedirectPath } from "@/lib/auth/redirects";
 
 function getSearchParam(value: string | string[] | undefined) {
   const rawValue = Array.isArray(value) ? value[0] : value;
 
   return rawValue?.trim() ?? "";
-}
-
-function getSafeRedirectPath(value: string) {
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
-
-  return value;
 }
 
 export default async function SignUpPage({
@@ -43,9 +36,9 @@ export default async function SignUpPage({
         </p>
         {showContactPrompt ? (
           <p className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-900">
-            Create an account to send this provider a contact request. We&apos;ll
-            bring you back to their profile after sign-up when your session is
-            active.
+            Create an account to send this provider a contact request.
+            We&apos;ll bring you back to their profile after sign-up when your
+            session is active.
           </p>
         ) : null}
       </div>
