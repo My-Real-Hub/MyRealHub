@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasProfileCapability } from "@/lib/auth/roles";
-import { normalizeEmail, validateEmail } from "@/lib/auth/validation";
+import { normalizeEmail } from "@/lib/auth/validation";
+import { getSafeRedirectPath } from "@/lib/auth/redirects";
 import {
   getContactDeliveryMethod,
+  validateContactRequest,
+  type ContactProviderFieldErrors,
   type ContactDeliveryMethod,
   type ContactEmailDeliveryStatus,
 } from "@/lib/contact-requests";
@@ -18,9 +21,7 @@ import { isProviderProfileId } from "@/lib/providers/slug";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
-export type ContactProviderFieldErrors = Partial<
-  Record<"name" | "email" | "phone" | "subject" | "message", string>
->;
+export type { ContactProviderFieldErrors } from "@/lib/contact-requests";
 
 export type ContactProviderFormState = {
   status: "idle" | "success" | "error";
@@ -35,11 +36,7 @@ function getFormString(formData: FormData, key: string) {
 }
 
 function getSafeReturnPath(value: string) {
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/search";
-  }
-
-  return value;
+  return getSafeRedirectPath(value) ?? "/search";
 }
 
 function getRevalidationPath(returnPath: string) {
@@ -68,45 +65,6 @@ type ActiveProvider = {
 type ProviderNotificationPreferenceRow = {
   notification_email: string | null;
 };
-
-function validateContactRequest(values: {
-  name: string;
-  email: string;
-  phone: string;
-  subject: string;
-  message: string;
-}) {
-  const errors: ContactProviderFieldErrors = {};
-
-  if (!values.name) {
-    errors.name = "Name is required.";
-  } else if (values.name.length > 120) {
-    errors.name = "Name must be 120 characters or fewer.";
-  }
-
-  const emailError = validateEmail(values.email);
-  if (emailError) {
-    errors.email = emailError;
-  }
-
-  if (values.phone.length > 40) {
-    errors.phone = "Phone must be 40 characters or fewer.";
-  }
-
-  if (!values.subject) {
-    errors.subject = "Subject is required.";
-  } else if (values.subject.length > 160) {
-    errors.subject = "Subject must be 160 characters or fewer.";
-  }
-
-  if (!values.message) {
-    errors.message = "Message is required.";
-  } else if (values.message.length > 2000) {
-    errors.message = "Message must be 2,000 characters or fewer.";
-  }
-
-  return errors;
-}
 
 async function getActiveProvider(providerId: string) {
   const supabase = await getServerSupabaseClient();

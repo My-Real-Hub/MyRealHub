@@ -7,7 +7,7 @@ import {
   isContactDeliveryMethod,
   type ContactDeliveryMethod,
 } from "@/lib/contact-requests";
-import { PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
+import { isOwnedProfileImagePath, PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
 import { isProviderProfileId } from "@/lib/providers/slug";
 import { MAX_PROVIDER_SERVICE_REGIONS } from "@/lib/service-regions";
 import { PROFILE_BIO_MAX_LENGTH } from "@/lib/settings/profile";
@@ -105,7 +105,7 @@ export async function saveAccountSettings(
 
   if (
     values.profileImagePath &&
-    !values.profileImagePath.startsWith(`${profile.id}/`)
+    !isOwnedProfileImagePath(values.profileImagePath, profile.id)
   ) {
     fieldErrors.profileImagePath =
       "The uploaded image does not belong to this account.";
@@ -157,7 +157,9 @@ export async function saveAccountSettings(
     .from("profiles")
     .update({
       full_name: values.displayName,
-      email: values.email,
+      // Supabase keeps the original email until a requested change is verified.
+      // Keep app identity in sync with that confirmed address.
+      email: authUpdate.data.user?.email ?? user?.email ?? profile.email,
       phone: values.phone || null,
       bio: values.bio || null,
       avatar_path: values.profileImagePath || null,

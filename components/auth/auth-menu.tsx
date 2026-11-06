@@ -39,8 +39,19 @@ export function AuthMenu({
 
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
+      } = supabase.auth.onAuthStateChange((event, session) => {
         if (!isMounted) {
+          return;
+        }
+
+        // If recovery completes in the client on another page, show the
+        // password form after Supabase has saved its session cookies.
+        if (
+          event === "PASSWORD_RECOVERY" &&
+          session &&
+          window.location.pathname !== "/reset-password"
+        ) {
+          window.location.replace("/reset-password");
           return;
         }
 
