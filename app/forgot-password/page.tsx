@@ -29,8 +29,9 @@ export default async function ForgotPasswordPage({
             role="alert"
             className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"
           >
-            Open a fresh password reset link from your email. If the link has
-            expired or was already used, request another one below.
+            Open a fresh password reset link in the same browser where you
+            requested it. If the link has expired or was already used, request
+            another one below.
           </p>
         ) : null}
         <ForgotPasswordForm />

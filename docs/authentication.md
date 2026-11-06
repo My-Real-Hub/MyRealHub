@@ -4,6 +4,33 @@ Supabase Auth stores credentials in `auth.users`. The application reads role,
 name, and account details from `public.profiles`. A successful authentication
 request alone does not prove that the application profile is available.
 
+## What happens when someone signs up
+
+1. The website sends the name, email, password, and customer/provider choice
+   to Supabase Auth over HTTPS. Passwords are hashed by Supabase and are not
+   stored in the application profile or readable as plain text.
+2. For a new email, Supabase creates the Auth account and the database trigger
+   creates `public.profiles` with the same user ID. A provider's public listing
+   is separate from its login account and is completed through onboarding.
+3. Supabase Auth sends a confirmation link through its configured email
+   service. The callback verifies the link and establishes a session; the
+   application then loads the profile and selects the correct dashboard.
+4. Login checks the original password and email confirmation, then uses the
+   profile's role to decide which pages the account can access.
+
+Registering an already confirmed email again does not change that account's
+password or send a new confirmation email. Supabase may return an obfuscated
+user with an empty `identities` array to avoid disclosing existing accounts.
+The signup form treats that response as a possible existing account and
+offers login/password reset, rather than saying a confirmation was sent.
+Missing or incomplete signup data is an error, not a successful registration.
+
+For an existing account with a forgotten password, use **Forgot password**.
+Confirmation resend only applies to accounts that still need confirmation;
+it cannot reset the password of an already confirmed account. Both signup
+and login expose the appropriate recovery options. An accepted email request
+does not prove delivery to the inbox.
+
 ## Deployment configuration
 
 1. Set the Vercel build variables `NEXT_PUBLIC_SUPABASE_URL` and
@@ -28,6 +55,20 @@ request alone does not prove that the application profile is available.
    Example recovery link:
    `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`.
    Never put email tokens or passwords in logs, issues, or test reports.
+
+For production password resets, the ready-to-use template is
+`supabase/templates/recovery.html`. After deploying the `/auth/confirm` route,
+copy this file into Supabase Authentication > Emails > Reset password. Set
+the Site URL to `https://myrealhub.ca` without a trailing slash. This template
+links directly to the verified recovery callback and works across browsers,
+without relying on a PKCE verifier from the browser that requested the email.
+Adding the template file to Git does not change the hosted Supabase template.
+
+Email codes or token hashes arriving at the homepage, login, or signup now
+forward to `/auth/callback`. The callback recognizes Supabase's recovery
+metadata even when the original redirect lost its `next` parameter. A client
+`PASSWORD_RECOVERY` event also opens the reset form once a valid session has
+been established. No password form is unlocked without a verified session.
 
 See the official [redirect URL guide](https://supabase.com/docs/guides/auth/redirect-urls),
 [server-side authentication guide](https://supabase.com/docs/guides/auth/server-side/nextjs),

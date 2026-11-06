@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACCOUNT_PROFILE_ERROR, ensureAccountRole } from "../lib/auth/account";
-import { getAuthCallbackUrl, getSafeRedirectPath } from "../lib/auth/redirects";
+import {
+  getAuthCallbackUrl,
+  getSafeRedirectPath,
+  getFallbackAuthCallbackPath,
+  isPasswordRecoveryCallback,
+  getLoginRedirectPath,
+  getPostAuthRedirectPath,
+} from "../lib/auth/redirects";
+import {
+  EXISTING_ACCOUNT_MESSAGE,
+  getAuthErrorMessage,
+  getPendingSignUpState,
+} from "../lib/auth/feedback";
 import {
   getSignUpRole,
   hasProfileCapability,
@@ -23,6 +36,49 @@ test("email normalization accepts surrounding whitespace without changing passwo
   assert.deepEqual(
     validateLoginFields({ email: " CUSTOMER@EXAMPLE.COM ", password: "short" }),
     {},
+  );
+});
+
+test("repeat signup's obfuscated response is not treated as a new confirmation email", () => {
+  assert.equal(
+    getPendingSignUpState({ id: "obfuscated-account", identities: [] }),
+    "account-may-exist",
+  );
+  assert.equal(
+    getAuthErrorMessage({ code: "user_already_exists" }, "failed"),
+    EXISTING_ACCOUNT_MESSAGE,
+  );
+});
+
+test("only an actual signup response can enter the confirmation flow", () => {
+  assert.equal(getPendingSignUpState(null), "incomplete");
+  assert.equal(getPendingSignUpState({ id: "", identities: [] }), "incomplete");
+  assert.equal(
+    getPendingSignUpState({ id: "new-account", identities: [{}] }),
+    "confirmation-required",
+  );
+});
+
+test("login and email delivery errors offer the appropriate recovery path", () => {
+  assert.match(
+    getAuthErrorMessage({ code: "invalid_credentials" }, "failed"),
+    /Forgot password/,
+  );
+  assert.match(
+    getAuthErrorMessage({ code: "email_not_confirmed" }, "failed"),
+    /Resend confirmation/,
+  );
+  assert.match(
+    getAuthErrorMessage({ code: "email_address_not_authorized" }, "failed"),
+    /cannot currently send/,
+  );
+  assert.match(
+    getAuthErrorMessage({ code: "over_email_send_rate_limit" }, "failed"),
+    /wait/,
+  );
+  assert.match(
+    getAuthErrorMessage(new Error("Error sending recovery email"), "failed"),
+    /could not be sent/,
   );
 });
 
@@ -89,6 +145,73 @@ test("email callbacks use the current deployment and a safe return path", () => 
   );
 });
 
+test("an email code landing on the homepage reaches the auth callback instead of the homepage", () => {
+  const params = new URLSearchParams({
+    code: "example-code",
+    next: "/reset-password",
+    tracking: "unused",
+  });
+  const destination = new URL(
+    getFallbackAuthCallbackPath("/", params)!,
+    "https://myrealhub.ca",
+  );
+  assert.equal(destination.pathname, "/auth/callback");
+  assert.equal(destination.searchParams.get("code"), "example-code");
+  assert.equal(destination.searchParams.get("next"), "/reset-password");
+  assert.equal(destination.searchParams.has("tracking"), false);
+  assert.equal(getFallbackAuthCallbackPath("/auth/callback", params), null);
+  assert.equal(getFallbackAuthCallbackPath("/search", params), null);
+  assert.equal(
+    getFallbackAuthCallbackPath("/", new URLSearchParams({ q: "plumber" })),
+    null,
+  );
+});
+
+test("legacy token-hash links keep their recovery type when forwarded from the site URL", () => {
+  const params = new URLSearchParams({
+    token_hash: "example-token-hash",
+    type: "recovery",
+  });
+  const path = getFallbackAuthCallbackPath("/login", params)!;
+  const forwarded = new URL(path, "https://myrealhub.ca").searchParams;
+  assert.equal(forwarded.get("token_hash"), "example-token-hash");
+  assert.equal(isPasswordRecoveryCallback(forwarded), true);
+});
+
+test("PKCE recovery metadata still selects the password form when the redirect lost next and type", () => {
+  const params = new URLSearchParams({ code: "example-code" });
+  assert.equal(isPasswordRecoveryCallback(params, "recovery"), true);
+  assert.equal(isPasswordRecoveryCallback(params, null), false);
+  assert.equal(
+    isPasswordRecoveryCallback(
+      new URLSearchParams({ next: "/reset-password" }),
+    ),
+    true,
+  );
+  assert.equal(
+    isPasswordRecoveryCallback(
+      new URLSearchParams({ next: "https://other.example/reset-password" }),
+    ),
+    false,
+  );
+});
+
+test("the hosted recovery template links to verification with an explicit recovery type", () => {
+  const template = readFileSync("supabase/templates/recovery.html", "utf8");
+  const href = template.match(/href="([^"]+)"/)?.[1];
+  assert.ok(href);
+  const url = new URL(
+    href
+      .replace("{{ .SiteURL }}", "https://myrealhub.ca")
+      .replace("{{ .TokenHash }}", "example-hash")
+      .replaceAll("&amp;", "&"),
+  );
+  assert.equal(url.origin, "https://myrealhub.ca");
+  assert.equal(url.pathname, "/auth/confirm");
+  assert.equal(url.searchParams.get("type"), "recovery");
+  assert.equal(url.searchParams.get("token_hash"), "example-hash");
+});
+
 test("public signup cannot request admin access and role destinations remain distinct", () => {
   assert.equal(getSignUpRole("admin"), "user");
   assert.equal(getSignUpRole("provider"), "provider");
@@ -96,6 +219,28 @@ test("public signup cannot request admin access and role destinations remain dis
   assert.equal(hasProfileCapability("provider", "administer_platform"), false);
   assert.equal(getDashboardPathForRole("admin"), "/admin/dashboard");
   assert.equal(getDashboardPathForRole("provider"), "/provider/dashboard");
+});
+
+test("protected destinations and their query strings survive the trip through login", () => {
+  const destination = new URL(
+    getLoginRedirectPath("/dashboard/saved?sort=recent"),
+    "https://myrealhub.ca",
+  );
+  assert.equal(destination.pathname, "/login");
+  assert.equal(destination.searchParams.get("next"), "/dashboard/saved?sort=recent");
+  assert.equal(getLoginRedirectPath("//other.example"), "/login");
+  assert.equal(getLoginRedirectPath(null), "/login");
+});
+
+test("authenticated return destinations respect capabilities and cannot redirect back to login", () => {
+  assert.equal(getPostAuthRedirectPath("user", "/admin/dashboard"), "/dashboard");
+  assert.equal(getPostAuthRedirectPath("user", "/provider/dashboard"), "/dashboard");
+  assert.equal(getPostAuthRedirectPath("provider", "/dashboard/saved"), "/dashboard/saved");
+  assert.equal(getPostAuthRedirectPath("admin", "/settings"), "/admin/dashboard");
+  assert.equal(getPostAuthRedirectPath("provider", "/login?next=/login"), "/provider/dashboard");
+  assert.equal(getPostAuthRedirectPath("provider", "/signup/provider"), "/provider/dashboard");
+  assert.equal(getPostAuthRedirectPath("user", "//other.example"), "/dashboard");
+  assert.equal(getPostAuthRedirectPath("user", "/providers/jane?contact=1#contact"), "/providers/jane?contact=1#contact");
 });
 
 function accountClient(

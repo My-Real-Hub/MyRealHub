@@ -3,14 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentProfile } from "@/lib/auth/session";
 import {
-  isPlatformFeedbackType,
+  validateFeedbackValues,
+  type FeedbackFormFieldErrors,
   type PlatformFeedbackType,
 } from "@/lib/feedback";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
-export type FeedbackFormFieldErrors = Partial<
-  Record<"type" | "title" | "description" | "currentPageUrl" | "screenshotPath", string>
->;
+export type { FeedbackFormFieldErrors } from "@/lib/feedback";
 
 export type FeedbackFormState = {
   status: "idle" | "success" | "error";
@@ -34,78 +33,6 @@ function getBaseErrorState(message: string): FeedbackFormState {
 
 function hasFieldErrors(fieldErrors: FeedbackFormFieldErrors) {
   return Object.values(fieldErrors).some(Boolean);
-}
-
-function validateCurrentPageUrl(value: string) {
-  if (!value || value.length > 2048) {
-    return false;
-  }
-
-  if (value.startsWith("/") && !value.startsWith("//")) {
-    return true;
-  }
-
-  try {
-    const url = new URL(value);
-
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function validateScreenshotPath(value: string, accountId: string) {
-  return (
-    !value ||
-    (value.length <= 512 &&
-      value.startsWith(`${accountId}/`) &&
-      !value.includes(".."))
-  );
-}
-
-function validateFeedbackValues({
-  accountId,
-  currentPageUrl,
-  description,
-  screenshotPath,
-  title,
-  type,
-}: {
-  accountId: string;
-  currentPageUrl: string;
-  description: string;
-  screenshotPath: string;
-  title: string;
-  type: string;
-}) {
-  const fieldErrors: FeedbackFormFieldErrors = {};
-
-  if (!isPlatformFeedbackType(type)) {
-    fieldErrors.type = "Choose bug or suggestion.";
-  }
-
-  if (!title) {
-    fieldErrors.title = "Title is required.";
-  } else if (title.length > 160) {
-    fieldErrors.title = "Title must be 160 characters or fewer.";
-  }
-
-  if (!description) {
-    fieldErrors.description = "Description is required.";
-  } else if (description.length > 3000) {
-    fieldErrors.description = "Description must be 3,000 characters or fewer.";
-  }
-
-  if (!validateCurrentPageUrl(currentPageUrl)) {
-    fieldErrors.currentPageUrl =
-      "The page URL could not be captured. Refresh and try again.";
-  }
-
-  if (!validateScreenshotPath(screenshotPath, accountId)) {
-    fieldErrors.screenshotPath = "The screenshot upload could not be verified.";
-  }
-
-  return fieldErrors;
 }
 
 export async function submitPlatformFeedback(

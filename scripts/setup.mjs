@@ -228,12 +228,12 @@ try {
         (isForcedYes("--apply-migrations") ||
           (await askYesNo(
             rl,
-            "Apply pending remote migrations and seed data? [y/N] ",
+            "Apply pending remote migrations (without demo data)? [y/N] ",
             false,
           )));
 
       if (applyMigrations) {
-        run("npx", ["supabase", "db", "push", "--include-seed"], {
+        run("npx", ["supabase", "db", "push"], {
           required: false,
         });
       } else {

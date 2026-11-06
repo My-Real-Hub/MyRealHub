@@ -1,27 +1,15 @@
 import "server-only";
 
+import { parsePhotonFeatures } from "./photon-data";
+export {
+  getPhotonAddressLabel,
+  getPhotonCoordinates,
+  getPhotonProperty,
+  type PhotonFeature,
+} from "./photon-data";
+
 const DEFAULT_GEOCODER_BASE_URL = "https://photon.komoot.io";
 const SUPPORTED_AREA_BOUNDING_BOX = "-141.1,41.6,-52.5,83.2";
-
-export type PhotonFeature = {
-  geometry?: {
-    coordinates?: unknown;
-    type?: unknown;
-  };
-  properties?: {
-    city?: unknown;
-    country?: unknown;
-    countrycode?: unknown;
-    county?: unknown;
-    district?: unknown;
-    housenumber?: unknown;
-    name?: unknown;
-    postcode?: unknown;
-    state?: unknown;
-    statecode?: unknown;
-    street?: unknown;
-  };
-};
 
 function getGeocoderBaseUrl() {
   const configuredUrl =
@@ -59,63 +47,9 @@ async function fetchPhoton(path: string, params: URLSearchParams) {
     throw new Error(`Geocoder returned ${response.status}.`);
   }
 
-  const payload = (await response.json()) as { features?: unknown };
+  const payload: unknown = await response.json();
 
-  return Array.isArray(payload.features)
-    ? (payload.features as PhotonFeature[])
-    : [];
-}
-
-export function getPhotonCoordinates(feature: PhotonFeature) {
-  const coordinates = feature.geometry?.coordinates;
-
-  if (
-    feature.geometry?.type !== "Point" ||
-    !Array.isArray(coordinates) ||
-    coordinates.length < 2
-  ) {
-    return null;
-  }
-
-  const longitude = Number(coordinates[0]);
-  const latitude = Number(coordinates[1]);
-
-  return Number.isFinite(latitude) && Number.isFinite(longitude)
-    ? { latitude, longitude }
-    : null;
-}
-
-export function getPhotonProperty(
-  feature: PhotonFeature,
-  key: keyof NonNullable<PhotonFeature["properties"]>,
-) {
-  const value = feature.properties?.[key];
-
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-export function getPhotonAddressLabel(feature: PhotonFeature) {
-  const name = getPhotonProperty(feature, "name");
-  const houseNumber = getPhotonProperty(feature, "housenumber");
-  const street = getPhotonProperty(feature, "street");
-  const city =
-    getPhotonProperty(feature, "city") ??
-    getPhotonProperty(feature, "district") ??
-    getPhotonProperty(feature, "county");
-  const state = getPhotonProperty(feature, "state");
-  const postcode = getPhotonProperty(feature, "postcode");
-  const streetAddress = [houseNumber, street].filter(Boolean).join(" ");
-  const parts = [name, streetAddress, city, state, postcode].filter(
-    (value, index, values): value is string =>
-      Boolean(value) &&
-      values.findIndex(
-        (candidate) =>
-          candidate?.toLocaleLowerCase("en-CA") ===
-          value?.toLocaleLowerCase("en-CA"),
-      ) === index,
-  );
-
-  return parts.join(", ");
+  return parsePhotonFeatures(payload);
 }
 
 export async function autocompletePhotonAddress(query: string) {

@@ -4,110 +4,58 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth/session";
 import {
-  getDashboardPathForRole,
-  hasProfileCapability,
-} from "@/lib/auth/roles";
-import { isProviderProfileId } from "@/lib/providers/slug";
+  executeSavedProviderMutation,
+  type SaveProviderFormState,
+} from "@/lib/providers/saved-mutation";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
-function getFormString(formData: FormData, key: string) {
-  const value = formData.get(key);
-
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function getSafeReturnPath(value: string) {
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/search";
-  }
-
-  return value;
-}
-
-async function getActiveProvider(providerId: string) {
-  const supabase = await getServerSupabaseClient();
-  const { data } = await supabase
-    .from("provider_profiles")
-    .select("id,slug")
-    .eq("id", providerId)
-    .eq("status", "active")
-    .maybeSingle();
-
-  return (data ?? null) as { id: string; slug: string } | null;
-}
-
-function revalidateSavedProviderPaths(returnPath: string, providerSlug: string) {
-  revalidatePath(returnPath);
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/saved");
-  revalidatePath("/search");
-  revalidatePath(`/providers/${providerSlug}`);
-}
-
-export async function saveProvider(formData: FormData) {
-  const returnPath = getSafeReturnPath(getFormString(formData, "returnPath"));
-  const providerId = getFormString(formData, "providerId");
-  const profile = await getCurrentProfile();
-
-  if (!profile) {
-    redirect(`/login?next=${encodeURIComponent(returnPath)}&reason=save-provider`);
-  }
-
-  if (!hasProfileCapability(profile.role, "consume_services")) {
-    redirect(getDashboardPathForRole(profile.role));
-  }
-
-  if (!isProviderProfileId(providerId)) {
-    redirect(returnPath);
-  }
-
-  const activeProvider = await getActiveProvider(providerId);
-
-  if (!activeProvider) {
-    redirect(returnPath);
-  }
-
-  const supabase = await getServerSupabaseClient();
-  await supabase.from("saved_providers").upsert(
-    {
-      provider_profile_id: providerId,
-      user_id: profile.id,
+async function runSavedProviderMutation(formData: FormData, operation: "save" | "unsave") {
+  const result = await executeSavedProviderMutation(formData, operation, {
+    getProfile: getCurrentProfile,
+    async getActiveProvider(providerId) {
+      const supabase = await getServerSupabaseClient();
+      const { data } = await supabase
+        .from("provider_profiles")
+        .select("slug")
+        .eq("id", providerId)
+        .eq("status", "active")
+        .maybeSingle();
+      return data;
     },
-    {
-      ignoreDuplicates: true,
-      onConflict: "user_id,provider_profile_id",
+    async save(userId, providerId) {
+      const supabase = await getServerSupabaseClient();
+      return supabase.from("saved_providers").upsert(
+        { provider_profile_id: providerId, user_id: userId },
+        { ignoreDuplicates: true, onConflict: "user_id,provider_profile_id" },
+      );
     },
-  );
+    async unsave(userId, providerId) {
+      const supabase = await getServerSupabaseClient();
+      return supabase
+        .from("saved_providers")
+        .delete()
+        .eq("user_id", userId)
+        .eq("provider_profile_id", providerId);
+    },
+    revalidate(paths) {
+      for (const path of new Set(paths)) revalidatePath(path);
+    },
+  });
 
-  revalidateSavedProviderPaths(returnPath, activeProvider.slug);
-  redirect(returnPath);
+  if (result.status === "redirect") redirect(result.path);
+  return result;
 }
 
-export async function unsaveProvider(formData: FormData) {
-  const returnPath = getSafeReturnPath(getFormString(formData, "returnPath"));
-  const providerId = getFormString(formData, "providerId");
-  const profile = await getCurrentProfile();
+export async function saveProvider(
+  _previousState: SaveProviderFormState,
+  formData: FormData,
+): Promise<SaveProviderFormState> {
+  return runSavedProviderMutation(formData, "save");
+}
 
-  if (!profile) {
-    redirect(`/login?next=${encodeURIComponent(returnPath)}&reason=save-provider`);
-  }
-
-  if (!hasProfileCapability(profile.role, "consume_services")) {
-    redirect(getDashboardPathForRole(profile.role));
-  }
-
-  if (!isProviderProfileId(providerId)) {
-    redirect(returnPath);
-  }
-
-  const activeProvider = await getActiveProvider(providerId);
-  const supabase = await getServerSupabaseClient();
-  await supabase
-    .from("saved_providers")
-    .delete()
-    .eq("user_id", profile.id)
-    .eq("provider_profile_id", providerId);
-
-  revalidateSavedProviderPaths(returnPath, activeProvider?.slug ?? providerId);
-  redirect(returnPath);
+export async function unsaveProvider(
+  _previousState: SaveProviderFormState,
+  formData: FormData,
+): Promise<SaveProviderFormState> {
+  return runSavedProviderMutation(formData, "unsave");
 }

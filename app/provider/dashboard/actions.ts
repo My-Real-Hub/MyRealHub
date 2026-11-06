@@ -12,7 +12,7 @@ import {
   type ProviderProfileFieldErrors,
   type ProviderProfileFormState,
 } from "@/lib/providers/profile-form";
-import { PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
+import { isOwnedProfileImagePath, PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
 import {
   getProviderProfileSlug,
   isProviderProfileId,
@@ -204,9 +204,7 @@ export async function saveProviderProfile(
   }
 
   const imagePath = values.profileImagePath;
-  const providerImagePrefix = `${profile.id}/`;
-
-  if (imagePath && !imagePath.startsWith(providerImagePrefix)) {
+  if (imagePath && !isOwnedProfileImagePath(imagePath, profile.id)) {
     return {
       status: "error",
       message: "The uploaded image could not be linked to this provider account.",

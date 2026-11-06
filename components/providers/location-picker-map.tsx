@@ -254,14 +254,16 @@ export function LocationPickerMap({
     "min-h-9 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
+    <div className="relative isolate overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
       <div
         ref={containerRef}
         className={`myrealhub-location-map w-full ${className}`}
+        role="region"
         aria-label="Map for choosing a property location"
       />
       <div
         className="absolute right-2 top-2 z-[500] flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1.5"
+        role="group"
         aria-label="Map controls"
         onPointerDown={stopMapControlPropagation}
       >

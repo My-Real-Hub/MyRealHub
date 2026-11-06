@@ -21,7 +21,12 @@ export function getProviderProfileSlug({
     "provider";
   const accountSuffix = userId.replace(/-/g, "").slice(-12);
 
-  return `${baseSlug}-${accountSuffix}`;
+  // Public profile routes reject slugs longer than 160 characters. Keep the
+  // account suffix intact so long business names remain distinct and routable.
+  const maxBaseLength = 160 - accountSuffix.length - 1;
+  const boundedBaseSlug = baseSlug.slice(0, maxBaseLength).replace(/-+$/, "");
+
+  return `${boundedBaseSlug}-${accountSuffix}`;
 }
 
 export function isProviderProfileSlug(value: string) {

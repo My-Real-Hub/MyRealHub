@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasProfileCapability } from "@/lib/auth/roles";
+import { getSafeRedirectPath } from "@/lib/auth/redirects";
+import { parseProviderRating, validateProviderRating } from "@/lib/providers/rating";
 import { isProviderProfileId } from "@/lib/providers/slug";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -19,11 +21,7 @@ function getFormString(formData: FormData, key: string) {
 }
 
 function getSafeReturnPath(value: string) {
-  if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/search";
-  }
-
-  return value;
+  return getSafeRedirectPath(value) ?? "/search";
 }
 
 function getRevalidationPath(returnPath: string) {
@@ -38,26 +36,6 @@ function hasFieldErrors(
   fieldErrors: ProviderRatingFormState["fieldErrors"],
 ) {
   return Object.values(fieldErrors).some(Boolean);
-}
-
-function getFormValidationError({
-  rating,
-  review,
-}: {
-  rating: number;
-  review: string;
-}) {
-  const fieldErrors: ProviderRatingFormState["fieldErrors"] = {};
-
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    fieldErrors.rating = "Choose a rating from 1 to 5.";
-  }
-
-  if (review.length > 1000) {
-    fieldErrors.review = "Review must be 1,000 characters or fewer.";
-  }
-
-  return fieldErrors;
 }
 
 function getBaseErrorState(message: string): ProviderRatingFormState {
@@ -108,9 +86,9 @@ export async function submitProviderRating(
 
   const providerId = getFormString(formData, "providerId");
   const returnPath = getSafeReturnPath(getFormString(formData, "returnPath"));
-  const rating = Number.parseInt(getFormString(formData, "rating"), 10);
+  const rating = parseProviderRating(getFormString(formData, "rating"));
   const review = getFormString(formData, "review");
-  const fieldErrors = getFormValidationError({ rating, review });
+  const fieldErrors = validateProviderRating({ rating, review });
 
   if (!isProviderProfileId(providerId)) {
     return getBaseErrorState("This provider profile could not be found.");
