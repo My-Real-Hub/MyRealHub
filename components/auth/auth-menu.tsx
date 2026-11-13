@@ -7,8 +7,10 @@ import {
   canJoinAsProvider,
   getDashboardPathForRole,
   getProfileRoleForUser,
+  getRequiredCapabilityForPath,
   type ProfileRole,
 } from "@/lib/auth/roles";
+import { getLoginRedirectPath } from "@/lib/auth/redirects";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { NavigationLink } from "@/components/layout/navigation-link";
 
@@ -36,6 +38,34 @@ export function AuthMenu({
 
     try {
       const supabase = getSupabaseClient();
+
+      function hideProtectedContent() {
+        const main = document.getElementById("main-content");
+        if (main) main.hidden = true;
+      }
+
+      function leaveSignedOutPage() {
+        if (getRequiredCapabilityForPath(window.location.pathname)) {
+          hideProtectedContent();
+          window.location.replace(
+            getLoginRedirectPath(window.location.pathname + window.location.search),
+          );
+        }
+      }
+
+      // Browser history can restore a whole document without asking the server.
+      // Conceal the old private view and recheck cookies through a fresh request.
+      function onPageHide(event: PageTransitionEvent) {
+        if (event.persisted && getRequiredCapabilityForPath(window.location.pathname)) {
+          hideProtectedContent();
+        }
+      }
+
+      function onPageShow(event: PageTransitionEvent) {
+        if (event.persisted && getRequiredCapabilityForPath(window.location.pathname)) {
+          window.location.reload();
+        }
+      }
 
       const {
         data: { subscription },
@@ -66,6 +96,7 @@ export function AuthMenu({
         currentUserId = nextUserId;
 
         if (!nextUserId) {
+          leaveSignedOutPage();
           return;
         }
 
@@ -86,9 +117,14 @@ export function AuthMenu({
           });
       });
 
+      window.addEventListener("pagehide", onPageHide);
+      window.addEventListener("pageshow", onPageShow);
+
       return () => {
         isMounted = false;
         subscription.unsubscribe();
+        window.removeEventListener("pagehide", onPageHide);
+        window.removeEventListener("pageshow", onPageShow);
       };
     } catch {
       // Keep the public auth links visible if Supabase is not configured.
