@@ -7,11 +7,13 @@ import {
   isPlatformFeedbackStatus,
   type PlatformFeedbackStatus,
 } from "@/lib/feedback";
-import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
+import { getListingRevision, runListingOperation } from "@/lib/providers/listing-save";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type ReviewOutcome =
   | "approved"
+  | "edit-approved"
+  | "edit-rejected"
   | "rejected"
   | "inactive"
   | "active"
@@ -19,7 +21,8 @@ type ReviewOutcome =
   | "rating-removed"
   | "rating-visible"
   | "missing-rejection-reason"
-  | "not-updated";
+  | "not-updated"
+  | "conflict";
 
 type LookupKind = "categories" | "languages" | "specialties";
 
@@ -251,123 +254,43 @@ async function getProviderSlug(providerId: string) {
   return typeof data?.slug === "string" ? data.slug : null;
 }
 
-async function updateProviderStatus({
-  providerId,
-  fromStatus,
-  nextStatus,
-  payload,
-}: {
-  providerId: string;
-  fromStatus?: ProviderProfileStatus;
-  nextStatus: ProviderProfileStatus;
-  payload: Record<string, string | null>;
-}) {
+async function reviewProvider(formData: FormData, decision: "approve" | "reject" | "deactivate" | "reactivate", success: ReviewOutcome) {
   await requireProfileRole("admin");
-
+  const providerId = getProviderId(formData);
+  const revision = getListingRevision(formData.get("expectedRevision"));
+  if (!revision || revision === "0") redirect(getProviderReviewPath(providerId, "conflict"));
+  const reason = getFormString(formData, "rejectionReason");
+  if (decision === "reject" && (!reason || reason.length > 1000)) {
+    redirect(getProviderReviewPath(providerId, "missing-rejection-reason"));
+  }
   const supabase = await getServerSupabaseClient();
-  let updateQuery = supabase
-    .from("provider_profiles")
-    .update({
-      ...payload,
-      status: nextStatus,
-    })
-    .eq("id", providerId);
-
-  if (fromStatus) {
-    updateQuery = updateQuery.eq("status", fromStatus);
-  }
-
-  const { data, error } = await updateQuery.select("id").maybeSingle();
-
-  if (error || !data) {
-    return false;
-  }
-
+  const result = await runListingOperation(supabase, "review_provider_listing", {
+    target_listing_id: providerId, expected_revision: revision, decision, reason: reason || null,
+  });
+  if (result.error !== null) redirect(getProviderReviewPath(providerId, result.conflict ? "conflict" : "not-updated"));
   revalidateProviderReviewPaths(providerId);
-  return true;
+  revalidatePath("/settings");
+  revalidatePath("/provider/dashboard");
+  revalidatePath("/providers/" + result.data.slug);
+  const outcome = result.data.reviewed_edit && decision === "approve" ? "edit-approved"
+    : result.data.reviewed_edit && decision === "reject" ? "edit-rejected" : success;
+  redirect(getProviderReviewPath(providerId, outcome));
 }
 
 export async function approveProviderProfile(formData: FormData) {
-  await requireProfileRole("admin");
-
-  const providerId = getProviderId(formData);
-  const now = new Date().toISOString();
-  const isUpdated = await updateProviderStatus({
-    providerId,
-    fromStatus: "pending_approval",
-    nextStatus: "active",
-    payload: {
-      approved_at: now,
-      rejection_reason: null,
-    },
-  });
-
-  redirect(
-    getProviderReviewPath(providerId, isUpdated ? "approved" : "not-updated"),
-  );
+  await reviewProvider(formData, "approve", "approved");
 }
 
 export async function rejectProviderProfile(formData: FormData) {
-  await requireProfileRole("admin");
-
-  const providerId = getProviderId(formData);
-  const rejectionReason = getFormString(formData, "rejectionReason");
-
-  if (!rejectionReason) {
-    redirect(getProviderReviewPath(providerId, "missing-rejection-reason"));
-  }
-
-  const isUpdated = await updateProviderStatus({
-    providerId,
-    fromStatus: "pending_approval",
-    nextStatus: "rejected",
-    payload: {
-      approved_at: null,
-      rejection_reason: rejectionReason,
-    },
-  });
-
-  redirect(
-    getProviderReviewPath(providerId, isUpdated ? "rejected" : "not-updated"),
-  );
+  await reviewProvider(formData, "reject", "rejected");
 }
 
 export async function setProviderInactive(formData: FormData) {
-  await requireProfileRole("admin");
-
-  const providerId = getProviderId(formData);
-  const isUpdated = await updateProviderStatus({
-    providerId,
-    fromStatus: "active",
-    nextStatus: "inactive",
-    payload: {
-      rejection_reason: null,
-    },
-  });
-
-  redirect(
-    getProviderReviewPath(providerId, isUpdated ? "inactive" : "not-updated"),
-  );
+  await reviewProvider(formData, "deactivate", "inactive");
 }
 
 export async function setProviderActive(formData: FormData) {
-  await requireProfileRole("admin");
-
-  const providerId = getProviderId(formData);
-  const now = new Date().toISOString();
-  const isUpdated = await updateProviderStatus({
-    providerId,
-    fromStatus: "inactive",
-    nextStatus: "active",
-    payload: {
-      approved_at: now,
-      rejection_reason: null,
-    },
-  });
-
-  redirect(
-    getProviderReviewPath(providerId, isUpdated ? "active" : "not-updated"),
-  );
+  await reviewProvider(formData, "reactivate", "active");
 }
 
 export async function setProviderRatingModerationStatus(formData: FormData) {

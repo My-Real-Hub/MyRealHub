@@ -115,6 +115,12 @@ select ok(not exists (
     or has_table_privilege('authenticated', protected_table.name, 'REFERENCES')),
   'application roles cannot create triggers or foreign-key references on protected tables');
 
+-- Trusted fixture construction finishes before publication. Assignment changes
+-- now invalidate approval and all client content writes use versioned RPCs.
+update auth.users set email_confirmed_at = now() where id::text like '91000000-%';
+update public.provider_profiles set status = 'active', approved_at = now()
+where id = '91000000-0000-4000-8100-000000000002';
+
 -- Anonymous visitors can browse public directory information only.
 set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
@@ -198,21 +204,21 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '91000000-0000-4000-8000-000000000003', true);
 select set_config('request.jwt.claims', '{"sub":"91000000-0000-4000-8000-000000000003","role":"authenticated"}', true);
 select is(pg_temp.visible_count($q$select * from public.provider_profiles where id = '91000000-0000-4000-8100-000000000001'$q$), 1::bigint, 'provider can read their own draft');
-select is(pg_temp.mutation_count($q$update public.provider_profiles set bio = 'Allowed own draft edit', status = 'pending_approval' where id = '91000000-0000-4000-8100-000000000001'$q$), 1::bigint, 'provider can edit and submit their own draft for approval');
+select is(pg_temp.mutation_count($q$select public.save_provider_listing((select revision from public.provider_profiles where user_id=auth.uid()), '{"bio":"Allowed own draft edit"}', '{}'::uuid[], '{}'::uuid[], '{}'::uuid[], 'draft')$q$), 1::bigint, 'provider can atomically edit their own draft through the versioned RPC');
 select is(pg_temp.mutation_count($q$update public.provider_profiles set status = 'active', approved_at = now() where id = '91000000-0000-4000-8100-000000000001'$q$), 0::bigint, 'provider cannot approve their own listing');
 select is(pg_temp.mutation_count($q$update public.provider_profiles set bio = 'Hijacked listing', status = 'pending_approval' where id = '91000000-0000-4000-8100-000000000002'$q$), 0::bigint, 'provider cannot edit another provider listing');
 select is(pg_temp.visible_count($q$select * from public.profiles where id = '91000000-0000-4000-8000-000000000004'$q$), 0::bigint, 'provider cannot read another provider private account profile');
 select is(pg_temp.visible_count($q$select * from public.provider_languages where provider_profile_id = '91000000-0000-4000-8100-000000000001'$q$), 1::bigint, 'provider can read their own draft languages');
-select is(pg_temp.mutation_count($q$insert into public.provider_languages(provider_profile_id, language_id) values ('91000000-0000-4000-8100-000000000001', '91000000-0000-4000-8200-000000000012')$q$), 1::bigint, 'provider can add languages to their own draft');
-select is(pg_temp.mutation_count($q$insert into public.provider_specialties(provider_profile_id, specialty_id) values ('91000000-0000-4000-8100-000000000001', '91000000-0000-4000-8200-000000000022')$q$), 1::bigint, 'provider can add specialties to their own draft');
+select is(pg_temp.mutation_count($q$select public.save_provider_listing((select revision from public.provider_profiles where user_id=auth.uid()), '{}', array['91000000-0000-4000-8200-000000000012']::uuid[], '{}'::uuid[], '{}'::uuid[], 'draft')$q$), 1::bigint, 'provider can atomically assign own draft languages');
+select is(pg_temp.mutation_count($q$select public.save_provider_listing((select revision from public.provider_profiles where user_id=auth.uid()), '{"category_id":"91000000-0000-4000-8200-000000000001"}', '{}'::uuid[], array['91000000-0000-4000-8200-000000000022']::uuid[], '{}'::uuid[], 'draft')$q$), 1::bigint, 'provider can atomically assign own draft specialties');
 select is(pg_temp.mutation_count($q$insert into public.provider_languages(provider_profile_id, language_id) values ('91000000-0000-4000-8100-000000000002', '91000000-0000-4000-8200-000000000012')$q$), 0::bigint, 'provider cannot add languages to another provider listing');
 select is(pg_temp.mutation_count($q$delete from public.provider_specialties where provider_profile_id = '91000000-0000-4000-8100-000000000002'$q$), 0::bigint, 'provider cannot remove another provider specialties');
 select is(pg_temp.visible_count($q$select * from public.provider_service_regions where provider_profile_id = '91000000-0000-4000-8100-000000000001'$q$), 1::bigint, 'provider can read their own draft regions');
-select is(pg_temp.mutation_count($q$insert into public.provider_service_regions(provider_profile_id, service_region_id) values ('91000000-0000-4000-8100-000000000001', '91000000-0000-4000-8200-000000000032')$q$), 1::bigint, 'provider can assign their own valid service region');
+select is(pg_temp.mutation_count($q$select public.replace_provider_service_regions('91000000-0000-4000-8100-000000000001', array['91000000-0000-4000-8200-000000000032']::uuid[], (select revision from public.provider_profiles where user_id=auth.uid()))$q$), 1::bigint, 'provider can assign own region through versioned replacement');
 select is(pg_temp.mutation_count($q$insert into public.provider_service_regions(provider_profile_id, service_region_id) values ('91000000-0000-4000-8100-000000000002', '91000000-0000-4000-8200-000000000032')$q$), 0::bigint, 'provider cannot assign another provider service region');
 select throws_ok($q$select public.replace_provider_service_regions('91000000-0000-4000-8100-000000000002', array['91000000-0000-4000-8200-000000000032'::uuid])$q$,
   '42501', null, 'region replacement RPC rejects another provider listing');
-select lives_ok($q$select public.replace_provider_service_regions('91000000-0000-4000-8100-000000000001', array['91000000-0000-4000-8200-000000000031'::uuid])$q$,
+select lives_ok($q$select public.replace_provider_service_regions('91000000-0000-4000-8100-000000000001', array['91000000-0000-4000-8200-000000000031'::uuid], (select revision from public.provider_profiles where user_id=auth.uid()))$q$,
   'region replacement RPC permits the legitimate provider owner');
 select is(pg_temp.visible_count($q$select * from public.saved_providers where user_id = '91000000-0000-4000-8000-000000000001'$q$), 0::bigint, 'provider cannot read an unrelated customer saved providers');
 reset role;
@@ -231,7 +237,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '91000000-0000-4000-8000-000000000007', true);
 select set_config('request.jwt.claims', '{"sub":"91000000-0000-4000-8000-000000000007","role":"authenticated"}', true);
-select is(pg_temp.mutation_count($q$insert into public.provider_profiles(user_id, slug, status) values ('91000000-0000-4000-8000-000000000007', 'rls-new-provider-910', 'draft')$q$), 1::bigint, 'valid provider can create their own draft listing');
+select is(pg_temp.mutation_count($q$select public.save_provider_listing(0, '{}', '{}'::uuid[], '{}'::uuid[], '{}'::uuid[], 'draft')$q$), 1::bigint, 'valid provider can create own draft through the atomic RPC');
 select is(pg_temp.mutation_count($q$insert into public.provider_profiles(user_id, slug, status) values ('91000000-0000-4000-8000-000000000007', 'rls-self-approved-910', 'active')$q$), 0::bigint, 'new provider cannot create an already-approved listing');
 reset role;
 
@@ -253,6 +259,11 @@ select throws_ok($q$select public.replace_provider_service_regions('91000000-000
   '42501', null, 'missing-profile identity cannot replace provider service regions');
 reset role;
 
+-- Prepare complete pending content as the trusted fixture owner. Moderation
+-- must now identify the exact revision rather than bypassing the RPC.
+update public.provider_profiles set status='pending_approval', business_name='Review business', bio='Review biography', phone='555-0101', city='Ottawa', province_state='ON', country='Canada'
+where id='91000000-0000-4000-8100-000000000001';
+
 -- Administrators can inspect and moderate provider content and private feedback.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '91000000-0000-4000-8000-000000000005', true);
@@ -261,16 +272,16 @@ select is(pg_temp.visible_count($q$select * from public.provider_profiles where 
 select is(pg_temp.visible_count($q$select provider_profile_id from public.provider_languages where provider_profile_id = '91000000-0000-4000-8100-000000000001'
   union all select provider_profile_id from public.provider_specialties where provider_profile_id = '91000000-0000-4000-8100-000000000001'$q$), 2::bigint, 'administrator can inspect private draft language and specialty assignments');
 select is(pg_temp.visible_count($q$select * from public.provider_service_regions where provider_profile_id = '91000000-0000-4000-8100-000000000001'$q$), 1::bigint, 'administrator can inspect private draft service-region assignments');
-select is(pg_temp.mutation_count($q$insert into public.provider_service_regions(provider_profile_id, service_region_id) values ('91000000-0000-4000-8100-000000000001', '91000000-0000-4000-8200-000000000032')$q$), 1::bigint, 'administrator can correct service-region assignments');
-select is(pg_temp.mutation_count($q$delete from public.provider_service_regions where provider_profile_id = '91000000-0000-4000-8100-000000000001'$q$), 1::bigint, 'administrator can remove inappropriate service-region assignments');
+select is(pg_temp.mutation_count($q$insert into public.provider_service_regions(provider_profile_id, service_region_id) values ('91000000-0000-4000-8100-000000000001', '91000000-0000-4000-8200-000000000032')$q$), 0::bigint, 'administrator cannot bypass versioned operations with raw region inserts');
+select is(pg_temp.mutation_count($q$delete from public.provider_service_regions where provider_profile_id = '91000000-0000-4000-8100-000000000001'$q$), 0::bigint, 'administrator cannot bypass versioned operations with raw region deletes');
 select is(pg_temp.visible_count($q$select id from public.categories where id = '91000000-0000-4000-8200-000000000002'
   union all select id from public.languages where id = '91000000-0000-4000-8200-000000000013'
   union all select id from public.specialties where id = '91000000-0000-4000-8200-000000000023'$q$), 3::bigint, 'administrator can inspect inactive managed lookup entries');
 select is(pg_temp.mutation_count($q$update public.categories set name = 'Allowed admin rename' where id = '91000000-0000-4000-8200-000000000001'$q$), 1::bigint, 'administrator can update managed lookup entries');
 select is(pg_temp.mutation_count($q$insert into public.specialties(name, slug) values ('Allowed admin specialty', 'rls-admin-specialty-910')$q$), 1::bigint, 'administrator can create managed lookup entries');
 select is(pg_temp.visible_count($q$select * from storage.objects where bucket_id = 'feedback-screenshots' and id::text like '91000000-%'$q$), 3::bigint, 'administrator can inspect private feedback screenshots including orphaned evidence');
-select lives_ok($q$update public.provider_profiles set status = 'active', approved_at = now() where id = '91000000-0000-4000-8100-000000000001'$q$,
-  'administrator can approve an actual draft listing');
+select lives_ok($q$select public.review_provider_listing('91000000-0000-4000-8100-000000000001', (select revision from public.provider_profiles where id='91000000-0000-4000-8100-000000000001'), 'approve')$q$,
+  'administrator can approve the exact complete pending revision');
 select is((select status::text from public.provider_profiles where id = '91000000-0000-4000-8100-000000000001'), 'active', 'administrator approval persists on the intended listing');
 reset role;
 

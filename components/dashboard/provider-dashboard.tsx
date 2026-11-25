@@ -291,7 +291,11 @@ export function ProviderDashboard({
     profile.fullName ||
     "Your business";
   const statusKey = providerProfile?.status ?? "not_started";
-  const status = statusContent[statusKey];
+  const status = statusKey === "active" && providerProfile?.review_status === "pending_edit"
+    ? { ...statusContent.active, label: "Active · Pending edit", summary: "Your approved listing is public while your proposed edits are reviewed.", nextStep: "Your approved details stay visible until the MyRealHub team approves your edit." }
+    : statusKey === "active" && providerProfile?.review_status === "draft"
+      ? { ...statusContent.active, label: "Active · Draft edits", nextStep: "Your approved listing is public. Submit your draft edits from Settings when ready." }
+      : statusContent[statusKey];
   const details = getProfileDetails(providerProfile);
   const completedFields = details.filter((detail) => detail.complete).length;
   const missingDetails = details.filter((detail) => !detail.complete);

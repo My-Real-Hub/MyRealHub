@@ -7,6 +7,7 @@ import {
   canJoinAsProvider,
   getDashboardPathForRole,
   getProfileRoleForUser,
+  getProviderJoinPath,
   getRequiredCapabilityForPath,
   type ProfileRole,
 } from "@/lib/auth/roles";
@@ -164,7 +165,7 @@ export function AuthMenu({
     return (
       <>
         {profileRole && canJoinAsProvider(profileRole) ? (
-          <NavigationLink href="/signup?role=provider">
+          <NavigationLink href={getProviderJoinPath(profileRole)}>
             Join as Provider
           </NavigationLink>
         ) : null}
@@ -203,7 +204,7 @@ export function AuthMenu({
       </NavigationLink>
       <NavigationLink href="/signup">Sign Up</NavigationLink>
       <Link
-        href="/signup?role=provider"
+        href={getProviderJoinPath(null)}
         className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-700 px-3 py-2 font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
       >
         Join as Provider

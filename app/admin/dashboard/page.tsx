@@ -47,6 +47,8 @@ type ProviderSummaryRow = {
   city: string | null;
   province_state: string | null;
   status: ProviderProfileStatus;
+  review_type: "pending_approval" | "pending_edit" | null;
+  review_submitted_at: string | null;
   submitted_at: string | null;
   updated_at: string | null;
 };
@@ -130,7 +132,9 @@ type FeedbackQueueRpcRow = Omit<FeedbackQueueRow, "screenshotUrl">;
 
 const providerStatusFilters = [
   "all",
+  "pending",
   "pending_approval",
+  "pending_edit",
   "active",
   "inactive",
   "draft",
@@ -293,7 +297,9 @@ const providerStatusFilterOptions: Array<{
   label: string;
 }> = [
   { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
   { value: "pending_approval", label: "Pending approval" },
+  { value: "pending_edit", label: "Pending edit" },
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
   { value: "draft", label: "Draft" },
@@ -308,6 +314,8 @@ const providerSummaryColumns = [
   "city",
   "province_state",
   "status",
+  "review_type",
+  "review_submitted_at",
   "submitted_at",
   "updated_at",
 ].join(",");
@@ -642,12 +650,10 @@ async function getTableCount(tableName: string) {
   return count ?? 0;
 }
 
-async function getProviderCountByStatus(status: ProviderProfileStatus) {
+async function getProviderCountByStatus(status: ProviderProfileStatus | "pending") {
   const supabase = await getServerSupabaseClient();
-  const { count } = await supabase
-    .from("provider_profiles")
-    .select("id", { count: "exact", head: true })
-    .eq("status", status);
+  const query = supabase.from("provider_listing_review_queue").select("id", { count: "exact", head: true });
+  const { count } = await (status === "pending" ? query.not("review_type", "is", null) : query.eq("status", status));
 
   return count ?? 0;
 }
@@ -740,10 +746,14 @@ async function getProviderPageData(
 ): Promise<ProviderPageData> {
   const supabase = await getServerSupabaseClient();
   let countQuery = supabase
-    .from("provider_profiles")
+    .from("provider_listing_review_queue")
     .select("id", { count: "exact", head: true });
 
-  if (statusFilter !== "all") {
+  if (statusFilter === "pending") {
+    countQuery = countQuery.not("review_type", "is", null);
+  } else if (statusFilter === "pending_approval" || statusFilter === "pending_edit") {
+    countQuery = countQuery.eq("review_type", statusFilter);
+  } else if (statusFilter !== "all") {
     countQuery = countQuery.eq("status", statusFilter);
   }
 
@@ -754,12 +764,16 @@ async function getProviderPageData(
   const rangeStart = (page - 1) * PROVIDERS_PER_PAGE;
   const rangeEnd = rangeStart + PROVIDERS_PER_PAGE - 1;
   let providerQuery = supabase
-    .from("provider_profiles")
+    .from("provider_listing_review_queue")
     .select(providerSummaryColumns)
     .order("updated_at", { ascending: false, nullsFirst: false })
     .range(rangeStart, rangeEnd);
 
-  if (statusFilter !== "all") {
+  if (statusFilter === "pending") {
+    providerQuery = providerQuery.not("review_type", "is", null);
+  } else if (statusFilter === "pending_approval" || statusFilter === "pending_edit") {
+    providerQuery = providerQuery.eq("review_type", statusFilter);
+  } else if (statusFilter !== "all") {
     providerQuery = providerQuery.eq("status", statusFilter);
   }
 
@@ -855,17 +869,17 @@ async function getAdminDashboardData({
   ] = await Promise.all([
     getAdminGrowthCounts(),
     getTableCount("provider_profiles"),
-    getProviderCountByStatus("pending_approval"),
+    getProviderCountByStatus("pending"),
     getProviderCountByStatus("active"),
     getTableCount("categories"),
     getTableCount("languages"),
     getTableCount("specialties"),
     getFeedbackQueueData(feedbackStatusFilter, feedbackTypeFilter),
     supabase
-      .from("provider_profiles")
+      .from("provider_listing_review_queue")
       .select(providerSummaryColumns)
-      .eq("status", "pending_approval")
-      .order("submitted_at", { ascending: false, nullsFirst: false })
+      .not("review_type", "is", null)
+      .order("review_submitted_at", { ascending: false, nullsFirst: false })
       .limit(6),
     getProviderPageData(statusFilter, page),
     getLookupPageData<LookupRow>({
@@ -964,12 +978,12 @@ function ProviderReviewListItem({
       <div className="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
         <div className="sm:text-right">
           <span
-            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClassNames[provider.status]}`}
+            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClassNames[provider.review_type === "pending_edit" ? "pending_approval" : provider.status]}`}
           >
-            {statusLabels[provider.status]}
+            {provider.review_type === "pending_edit" ? "Pending edit" : statusLabels[provider.status]}
           </span>
           <p className="mt-1 text-xs text-stone-500">
-            {formatDate(provider.submitted_at ?? provider.updated_at)}
+            {provider.review_type === "pending_edit" ? "Active listing · " : ""}{formatDate(provider.review_submitted_at ?? provider.submitted_at ?? provider.updated_at)}
           </p>
         </div>
         <Link
@@ -2037,9 +2051,9 @@ export default async function AdminDashboardPage({
         <section aria-label="Dashboard totals" className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <CountCard
-              href="#providers"
+              href={getProviderDashboardHref("pending", 1)}
               description="Listings waiting for review."
-              label="Pending approval"
+              label="Pending"
               value={dashboardData.counts.pending}
               tone={dashboardData.counts.pending > 0 ? "warning" : "light"}
             />
@@ -2104,8 +2118,8 @@ export default async function AdminDashboardPage({
         <DashboardSection
           id="providers"
           eyebrow="Providers"
-          title="Approval queue"
-          description="Review new and updated provider listings before they appear in search."
+          title="Pending"
+          description="Review new listings and proposed edits. Approved listings stay public while edits are reviewed."
           actions={
             <span className="w-fit rounded-xl bg-white px-3 py-1 text-xs font-semibold text-sky-900 ring-1 ring-inset ring-sky-200">
               {dashboardData.counts.pending} pending

@@ -13,10 +13,8 @@ import {
   type ProviderProfileFormState,
 } from "@/lib/providers/profile-form";
 import { isOwnedProfileImagePath, PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
-import {
-  getProviderProfileSlug,
-  isProviderProfileId,
-} from "@/lib/providers/slug";
+import { isProviderProfileId } from "@/lib/providers/slug";
+import { getListingRevision, getListingSaveMessage, LISTING_CONFLICT_MESSAGE, runListingOperation } from "@/lib/providers/listing-save";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type SpecialtyRow = {
@@ -92,10 +90,41 @@ function revalidateContactRequestDashboards() {
 }
 
 export async function saveProviderProfile(
-  _state: ProviderProfileFormState,
+  state: ProviderProfileFormState,
   formData: FormData,
 ): Promise<ProviderProfileFormState> {
   const profile = await requireProfileRole("provider");
+  const revision = getListingRevision(formData.get("expectedDetailsRevision"));
+  if (revision === null) return { ...databaseErrorState(LISTING_CONFLICT_MESSAGE), reloadRequired: true };
+  const result = await saveProviderListing(formData, revision, profile.id);
+  return { revision, listingRevision: state.listingRevision, listingStatus: state.listingStatus, reviewStatus: state.reviewStatus, ...result };
+}
+
+export async function deactivateOwnProviderListing(
+  state: ProviderProfileFormState,
+  formData: FormData,
+): Promise<ProviderProfileFormState> {
+  await requireProfileRole("provider");
+  const revision = getListingRevision(formData.get("expectedRevision"));
+  if (!revision || revision === "0") {
+    return { ...state, ...databaseErrorState(LISTING_CONFLICT_MESSAGE), reloadRequired: true };
+  }
+  const supabase = await getServerSupabaseClient();
+  const result = await runListingOperation(supabase, "deactivate_provider_listing", { expected_revision: revision });
+  if (result.error !== null) return { ...state, ...databaseErrorState(result.error), reloadRequired: true };
+  revalidatePath("/settings");
+  revalidatePath("/provider/dashboard");
+  revalidatePath("/admin/dashboard");
+  revalidatePath(`/admin/dashboard/providers/${result.data.id}`);
+  revalidatePath(`/providers/${result.data.slug}`);
+  revalidatePath("/search");
+  return {
+    status: "success", fieldErrors: {}, message: "Your listing is inactive and hidden from the directory. Your account remains available.",
+    listingRevision: result.data.revision, listingStatus: result.data.status, reviewStatus: result.data.review_status ?? null,
+  };
+}
+
+async function saveProviderListing(formData: FormData, revision: string, accountId: string): Promise<ProviderProfileFormState> {
   const intent = getProviderProfileFormIntent(formData);
   const isApprovalRequest = intent === "submit" || intent === "reactivate";
   const completeProfileErrorMessage =
@@ -204,7 +233,7 @@ export async function saveProviderProfile(
   }
 
   const imagePath = values.profileImagePath;
-  if (imagePath && !isOwnedProfileImagePath(imagePath, profile.id)) {
+  if (imagePath && !isOwnedProfileImagePath(imagePath, accountId)) {
     return {
       status: "error",
       message: "The uploaded image could not be linked to this provider account.",
@@ -212,16 +241,7 @@ export async function saveProviderProfile(
     };
   }
 
-  const now = new Date().toISOString();
-  const status = isApprovalRequest ? "pending_approval" : "draft";
-  const slug = getProviderProfileSlug({
-    businessName: values.businessName,
-    displayName: values.fullName,
-    userId: profile.id,
-  });
   const providerProfilePayload: Record<string, string | null> = {
-    user_id: profile.id,
-    slug,
     category_id: values.categoryId || null,
     business_name: values.businessName || null,
     display_name: values.fullName || null,
@@ -232,90 +252,42 @@ export async function saveProviderProfile(
     city: values.city || null,
     province_state: values.province || null,
     country: values.country || null,
-    status,
-    rejection_reason: null,
-    submitted_at: status === "pending_approval" ? now : null,
-    approved_at: null,
   };
-
   if (imagePath) {
-    const {
-      data: { publicUrl },
-    } = supabase.storage
-      .from(PROVIDER_PROFILE_IMAGES_BUCKET)
-      .getPublicUrl(imagePath);
-
+    const { data: { publicUrl } } = supabase.storage.from(PROVIDER_PROFILE_IMAGES_BUCKET).getPublicUrl(imagePath);
     providerProfilePayload.profile_image_path = imagePath;
     providerProfilePayload.profile_image_url = publicUrl;
+  } else if (formData.get("removeProfileImage") === "yes") {
+    providerProfilePayload.profile_image_path = null;
+    providerProfilePayload.profile_image_url = null;
   }
-
-  const { data: providerProfile, error: providerProfileError } = await supabase
-    .from("provider_profiles")
-    .upsert(providerProfilePayload, { onConflict: "user_id" })
-    .select("id")
-    .single();
-
-  if (providerProfileError || !providerProfile) {
-    return databaseErrorState("Profile could not be saved. Please try again.");
-  }
-
-  const [languageDeleteResult, specialtyDeleteResult] = await Promise.all([
-    supabase
-      .from("provider_languages")
-      .delete()
-      .eq("provider_profile_id", providerProfile.id),
-    supabase
-      .from("provider_specialties")
-      .delete()
-      .eq("provider_profile_id", providerProfile.id),
-  ]);
-
-  if (languageDeleteResult.error || specialtyDeleteResult.error) {
-    return databaseErrorState(
-      "Profile saved, but service details could not be refreshed.",
-    );
-  }
-
-  const [languageInsertResult, specialtyInsertResult] = await Promise.all([
-    values.languageIds.length > 0
-      ? supabase.from("provider_languages").insert(
-          values.languageIds.map((languageId) => ({
-            provider_profile_id: providerProfile.id,
-            language_id: languageId,
-          })),
-        )
-      : Promise.resolve({ error: null }),
-    values.specialtyIds.length > 0
-      ? supabase.from("provider_specialties").insert(
-          values.specialtyIds.map((specialtyId) => ({
-            provider_profile_id: providerProfile.id,
-            specialty_id: specialtyId,
-          })),
-        )
-      : Promise.resolve({ error: null }),
-  ]);
-
-  if (languageInsertResult.error || specialtyInsertResult.error) {
-    return databaseErrorState(
-      "Profile saved, but languages or specialties could not be updated.",
-    );
-  }
+  const result = await runListingOperation(supabase, "save_provider_listing_details", {
+    expected_details_revision: revision,
+    fields: providerProfilePayload,
+    language_ids: values.languageIds,
+    specialty_ids: values.specialtyIds,
+    intent,
+  });
+  if (result.error !== null) return { ...databaseErrorState(result.error), reloadRequired: true };
+  const providerProfile = result.data;
 
   revalidatePath("/provider/dashboard");
   revalidatePath("/settings");
-  revalidatePath("/admin/dashboard");
-  revalidatePath(`/admin/dashboard/providers/${providerProfile.id}`);
-  revalidatePath(`/providers/${slug}`);
-  revalidatePath("/search");
+  if (!providerProfile.already_pending) {
+    revalidatePath("/admin/dashboard");
+    revalidatePath(`/admin/dashboard/providers/${providerProfile.id}`);
+    revalidatePath(`/providers/${providerProfile.slug}`);
+    revalidatePath("/search");
+  }
 
   return {
     status: "success",
-    message:
-      intent === "reactivate"
-        ? "Reactivation request sent for admin approval. Your listing is now pending approval."
-        : status === "pending_approval"
-        ? "Profile submitted for admin approval. Your listing is now pending approval."
-        : "Draft saved.",
+    revision: providerProfile.details_revision,
+    listingRevision: providerProfile.revision,
+    listingStatus: providerProfile.status,
+    reviewStatus: providerProfile.review_status ?? null,
+    alreadyPending: providerProfile.already_pending,
+    message: getListingSaveMessage(intent, providerProfile),
     fieldErrors: {},
   };
 }

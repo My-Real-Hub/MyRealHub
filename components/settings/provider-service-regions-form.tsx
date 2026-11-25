@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import type { ProviderServiceRegionsFormState } from "@/app/settings/actions";
 import { saveProviderServiceRegions } from "@/app/settings/actions";
 import {
   MAX_PROVIDER_SERVICE_REGIONS,
@@ -10,12 +11,13 @@ import {
 
 type ProviderServiceRegionsFormProps = {
   providerProfileId: string | null;
+  expectedRegionsRevision: string;
   regions: ServiceRegionOption[];
   selectedRegionIds: string[];
   subdivisions: SubdivisionOption[];
 };
 
-const initialState = {
+const initialState: ProviderServiceRegionsFormState = {
   status: "idle" as const,
   message: "",
   fieldError: "",
@@ -24,11 +26,15 @@ const initialState = {
 const inputClassName = "settings-input";
 
 export function ProviderServiceRegionsForm({
-  providerProfileId,
+  providerProfileId: initialProfileId,
+  expectedRegionsRevision: initialRevision,
   regions,
-  selectedRegionIds,
+  selectedRegionIds: initialSelectedIds,
   subdivisions,
 }: ProviderServiceRegionsFormProps) {
+  const [providerProfileId] = useState(initialProfileId);
+  const [expectedRevision] = useState(initialRevision);
+  const [selectedRegionIds] = useState(initialSelectedIds);
   const initialProvinceCode =
     regions.find((region) => selectedRegionIds.includes(region.id))
       ?.province_code ??
@@ -39,6 +45,17 @@ export function ProviderServiceRegionsForm({
     saveProviderServiceRegions,
     initialState,
   );
+  const messageRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (pending || state.status !== "error" || !state.message) {
+      return;
+    }
+
+    messageRef.current?.focus({ preventScroll: true });
+    messageRef.current?.scrollIntoView({ behavior: "instant", block: "center" });
+  }, [state, pending]);
+
   const [provinceCode, setProvinceCode] = useState(initialProvinceCode);
   const [regionSearch, setRegionSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState(
@@ -83,6 +100,7 @@ export function ProviderServiceRegionsForm({
       action={formAction}
       className="settings-section settings-card"
     >
+      <input type="hidden" name="expectedRegionsRevision" value={state.revision ?? expectedRevision} />
       {selectedIds.map((regionId) => (
         <input
           key={regionId}
@@ -108,13 +126,16 @@ export function ProviderServiceRegionsForm({
 
       {state.status !== "idle" ? (
         <p
-          className={`mt-5 rounded-xl border px-4 py-3 text-sm leading-6 ${state.status === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-800"}`}
+          ref={messageRef}
+          tabIndex={state.status === "error" ? -1 : undefined}
+          className={`mt-5 rounded-xl border px-4 py-3 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 ${state.status === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-800"}`}
           role={state.status === "error" ? "alert" : "status"}
           aria-live="polite"
         >
           {state.message}
         </p>
       ) : null}
+      <button type="button" disabled={pending} className="settings-secondary-button mt-4 w-fit" onClick={() => window.location.reload()}>Reload listing (discards unsaved edits)</button>
       {!providerProfileId ? (
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
           Save your{" "}
@@ -124,7 +145,7 @@ export function ProviderServiceRegionsForm({
           >
             business listing
           </a>{" "}
-          before choosing service regions.
+          and reload the page before choosing service regions.
         </p>
       ) : null}
 
@@ -239,7 +260,7 @@ export function ProviderServiceRegionsForm({
 
       <div className="mt-6 flex flex-col gap-3 border-t border-stone-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs leading-5 text-stone-500">
-          These regions appear on your listing and in directory searches.
+          Saving regions makes your listing a draft. Submit it for approval again to publish the changes. Inactive listings remain inactive.
         </p>
         <button
           type="submit"
