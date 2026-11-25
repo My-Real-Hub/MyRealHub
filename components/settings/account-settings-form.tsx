@@ -225,6 +225,7 @@ export function AccountSettingsForm({
             </h2>
             <p className="mt-1 text-sm leading-6 text-stone-500">
               The name and email associated with your account.
+              {roleLabel === "Provider" ? " Your personal name, bio, and photo are separate from your public business listing." : ""}
             </p>
           </div>
           <span className="w-fit shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-semibold text-stone-600">

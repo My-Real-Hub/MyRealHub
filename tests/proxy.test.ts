@@ -25,7 +25,7 @@ function redirectUrl(response: Response) {
 }
 
 test("proxy matches protected and auth routes while excluding API and static assets", () => {
-  for (const url of ["/dashboard", "/provider/dashboard", "/admin/dashboard", "/settings", "/auth/callback", "/login"]) {
+  for (const url of ["/dashboard", "/provider/dashboard", "/admin/dashboard", "/settings", "/become-provider", "/auth/callback", "/login"]) {
     assert.equal(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url }), true, url);
   }
   for (const url of ["/api/supabase/health", "/api/location/resolve", "/_next/static/chunk.js", "/_next/image", "/favicon.ico", "/images/landing-hero.png"]) {
@@ -35,7 +35,7 @@ test("proxy matches protected and auth routes while excluding API and static ass
 
 test("all protected namespaces redirect anonymous requests to login with their original destination", async () => {
   await withTestSupabase(async () => {
-    for (const path of ["/dashboard/saved?sort=recent", "/provider/dashboard", "/admin/dashboard/providers/123", "/settings?tab=account"]) {
+    for (const path of ["/dashboard/saved?sort=recent", "/provider/dashboard", "/admin/dashboard/providers/123", "/settings?tab=account", "/become-provider"]) {
       const destination = redirectUrl(await proxy(new NextRequest(`https://myrealhub.ca${path}`)));
       assert.equal(destination.origin, "https://myrealhub.ca");
       assert.equal(destination.pathname, "/login");
@@ -128,6 +128,21 @@ test("authenticated login links honor permitted return destinations instead of d
     assert.equal(redirectUrl(await proxy(signedInRequest("/login?next=%2Fproviders%2Fjane"))).pathname, "/providers/jane");
     assert.equal(redirectUrl(await proxy(signedInRequest("/login?next=%2Fadmin%2Fdashboard"))).pathname, "/dashboard");
     assert.equal(redirectUrl(await proxy(signedInRequest("/login?next=%2Flogin"))).pathname, "/dashboard");
+  });
+});
+
+test("provider onboarding admits customer accounts and preserves its login return path", async () => {
+  await withVerifiedRole("user", async () => {
+    assert.equal((await proxy(signedInRequest("/become-provider"))).status, 200);
+    assert.equal(redirectUrl(await proxy(signedInRequest("/login?next=%2Fbecome-provider"))).pathname, "/become-provider");
+  });
+  await withVerifiedRole("admin", async () => {
+    assert.equal(redirectUrl(await proxy(signedInRequest("/become-provider"))).pathname, "/admin/dashboard");
+  });
+  await withVerifiedRole(null, async () => {
+    const destination = redirectUrl(await proxy(signedInRequest("/become-provider")));
+    assert.equal(destination.pathname, "/login");
+    assert.equal(destination.searchParams.get("auth"), "profile-unavailable");
   });
 });
 

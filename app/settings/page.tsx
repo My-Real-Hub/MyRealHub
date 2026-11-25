@@ -1,3 +1,5 @@
+import { getListingEditorSnapshot } from "@/lib/providers/listing-query";
+import { ProviderListingVisibilityForm } from "@/components/providers/provider-listing-visibility-form";
 import Link from "next/link";
 import { ProviderDashboardIcon } from "@/components/dashboard/provider-dashboard-icon";
 import {
@@ -43,23 +45,6 @@ type ProviderProfileRow = ProviderProfileFormData & {
   rejection_reason: string | null;
 };
 
-type ProviderProfileBaseRow = Omit<
-  ProviderProfileRow,
-  "languageIds" | "specialtyIds"
->;
-
-type ProviderLanguageRow = {
-  language_id: string;
-};
-
-type ProviderSpecialtyRow = {
-  specialty_id: string;
-};
-
-type ProviderServiceRegionRow = {
-  service_region_id: string;
-};
-
 type ProviderNotificationPreferenceRow = {
   notification_email: string | null;
 };
@@ -84,58 +69,7 @@ async function getAccountProfile(userId: string) {
 
 async function getProviderProfile(userId: string) {
   const supabase = await getServerSupabaseClient();
-  const { data } = await supabase
-    .from("provider_profiles")
-    .select(
-      [
-        "id",
-        "category_id",
-        "business_name",
-        "display_name",
-        "bio",
-        "phone",
-        "email",
-        "website_url",
-        "city",
-        "province_state",
-        "country",
-        "profile_image_path",
-        "profile_image_url",
-        "status",
-        "accept_new_inquiries",
-        "contact_delivery_method",
-        "new_message_email_enabled",
-        "rejection_reason",
-      ].join(","),
-    )
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (!data) {
-    return null;
-  }
-
-  const providerProfile = data as unknown as ProviderProfileBaseRow;
-  const [languageRows, specialtyRows] = await Promise.all([
-    supabase
-      .from("provider_languages")
-      .select("language_id")
-      .eq("provider_profile_id", providerProfile.id),
-    supabase
-      .from("provider_specialties")
-      .select("specialty_id")
-      .eq("provider_profile_id", providerProfile.id),
-  ]);
-
-  return {
-    ...providerProfile,
-    languageIds: ((languageRows.data ?? []) as ProviderLanguageRow[]).map(
-      (row) => row.language_id,
-    ),
-    specialtyIds: ((specialtyRows.data ?? []) as ProviderSpecialtyRow[]).map(
-      (row) => row.specialty_id,
-    ),
-  } satisfies ProviderProfileRow;
+  return getListingEditorSnapshot(supabase, "user_id", userId);
 }
 
 async function getProviderLookups() {
@@ -207,9 +141,9 @@ async function getProviderCommunicationSettings({
   };
 }
 
-async function getProviderRegionSettings(providerProfileId: string | null) {
+async function getProviderRegionSettings() {
   const supabase = await getServerSupabaseClient();
-  const [subdivisionsResult, regionsResult, selectedRegionsResult] =
+  const [subdivisionsResult, regionsResult] =
     await Promise.all([
       supabase
         .from("canadian_subdivisions")
@@ -220,19 +154,10 @@ async function getProviderRegionSettings(providerProfileId: string | null) {
         .select("id,name,province_code,slug")
         .eq("is_active", true)
         .order("name"),
-      providerProfileId
-        ? supabase
-            .from("provider_service_regions")
-            .select("service_region_id")
-            .eq("provider_profile_id", providerProfileId)
-        : Promise.resolve({ data: [] }),
     ]);
 
   return {
     regions: (regionsResult.data ?? []) as ServiceRegionOption[],
-    selectedRegionIds: (
-      (selectedRegionsResult.data ?? []) as ProviderServiceRegionRow[]
-    ).map((row) => row.service_region_id),
     subdivisions: (subdivisionsResult.data ?? []) as SubdivisionOption[],
   };
 }
@@ -252,26 +177,24 @@ export default async function SettingsPage() {
         }),
   ]);
   const providerRegionSettings = isProvider
-    ? await getProviderRegionSettings(providerProfile?.id ?? null)
+    ? await getProviderRegionSettings()
     : { regions: [], selectedRegionIds: [], subdivisions: [] };
   const displayName =
-    accountProfile?.full_name ??
-    providerProfile?.display_name ??
-    profile.fullName;
+    accountProfile?.full_name ?? profile.fullName;
   const email =
-    accountProfile?.email ?? providerProfile?.email ?? profile.email;
+    accountProfile?.email ?? profile.email;
   const providerCommunicationSettings = isProvider
     ? await getProviderCommunicationSettings({
         accountEmail: email,
         providerProfile,
       })
     : null;
-  const phone = accountProfile?.phone ?? providerProfile?.phone ?? null;
-  const bio = accountProfile?.bio ?? providerProfile?.bio ?? null;
+  const phone = accountProfile?.phone ?? null;
+  const bio = accountProfile?.bio ?? null;
   const avatarPath =
-    accountProfile?.avatar_path ?? providerProfile?.profile_image_path ?? null;
+    accountProfile?.avatar_path ?? null;
   const avatarUrl =
-    accountProfile?.avatar_url ?? providerProfile?.profile_image_url ?? null;
+    accountProfile?.avatar_url ?? null;
   const dashboardPath = getDashboardPathForRole(profile.role);
 
   const navigationItems: SettingsNavigationItem[] = [
@@ -296,6 +219,7 @@ export default async function SettingsPage() {
             icon: "listing",
             group: "business",
           },
+          ...(providerProfile ? [{ id: "listing-visibility", label: "Listing visibility", icon: "listing", group: "business" } satisfies SettingsNavigationItem] : []),
           {
             id: "service-areas",
             label: "Service areas",
@@ -381,10 +305,17 @@ export default async function SettingsPage() {
                       The business details customers see in the directory.
                     </p>
                   </div>
+                  <div className="flex flex-wrap gap-2">
                   <span className="w-fit shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-semibold capitalize text-stone-600">
                     {providerProfile?.status?.replaceAll("_", " ") ??
                       "Not started"}
                   </span>
+                  {providerProfile?.review_status ? (
+                    <span className="w-fit rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-900">
+                      {providerProfile.review_status === "pending_edit" ? "Pending edit" : providerProfile.review_status === "draft" ? "Draft edits" : "Edit needs changes"}
+                    </span>
+                  ) : null}
+                  </div>
                 </div>
                 {providerProfile?.rejection_reason ? (
                   <div
@@ -412,15 +343,17 @@ export default async function SettingsPage() {
                     accountPhone={phone}
                     accountProfileImagePath={avatarPath}
                     accountProfileImageUrl={avatarUrl}
-                    manageSharedFieldsExternally
                   />
                 </div>
               </section>
 
+              {providerProfile ? <ProviderListingVisibilityForm revision={providerProfile.revision} status={providerProfile.status} /> : null}
+
               <ProviderServiceRegionsForm
                 providerProfileId={providerProfile?.id ?? null}
                 regions={providerRegionSettings.regions}
-                selectedRegionIds={providerRegionSettings.selectedRegionIds}
+                expectedRegionsRevision={providerProfile?.regions_revision ?? "0"}
+                selectedRegionIds={providerProfile?.serviceRegionIds ?? []}
                 subdivisions={providerRegionSettings.subdivisions}
               />
 

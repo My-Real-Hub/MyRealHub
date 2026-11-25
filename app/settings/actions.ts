@@ -9,6 +9,7 @@ import {
 } from "@/lib/contact-requests";
 import { isOwnedProfileImagePath, PROVIDER_PROFILE_IMAGES_BUCKET } from "@/lib/providers/profile-image";
 import { isProviderProfileId } from "@/lib/providers/slug";
+import { getListingRevision, LISTING_CONFLICT_MESSAGE, runListingOperation } from "@/lib/providers/listing-save";
 import { MAX_PROVIDER_SERVICE_REGIONS } from "@/lib/service-regions";
 import { PROFILE_BIO_MAX_LENGTH } from "@/lib/settings/profile";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
@@ -30,6 +31,8 @@ export type ProviderServiceRegionsFormState = {
   status: "idle" | "success" | "error";
   message: string;
   fieldError: string;
+  revision?: string;
+  reloadRequired?: boolean;
 };
 
 export type ProviderCommunicationPreferencesFieldErrors = Partial<
@@ -204,6 +207,13 @@ export async function saveProviderServiceRegions(
   formData: FormData,
 ): Promise<ProviderServiceRegionsFormState> {
   const profile = await requireProfileCapability("manage_provider_profile");
+  const revision = getListingRevision(formData.get("expectedRegionsRevision"));
+  if (!revision || revision === "0") return { status: "error", message: LISTING_CONFLICT_MESSAGE, fieldError: "", reloadRequired: true };
+  const result = await replaceProviderRegions(formData, revision, profile.id);
+  return { revision, ...result };
+}
+
+async function replaceProviderRegions(formData: FormData, revision: string, accountId: string): Promise<ProviderServiceRegionsFormState> {
   const serviceRegionIds = getFormStrings(formData, "serviceRegionIds");
   const uniqueServiceRegionIds = Array.from(new Set(serviceRegionIds));
 
@@ -235,7 +245,7 @@ export async function saveProviderServiceRegions(
   const { data: providerProfile, error: providerProfileError } = await supabase
     .from("provider_profiles")
     .select("id,slug")
-    .eq("user_id", profile.id)
+    .eq("user_id", accountId)
     .maybeSingle();
 
   if (providerProfileError || !providerProfile) {
@@ -265,27 +275,26 @@ export async function saveProviderServiceRegions(
     }
   }
 
-  const { error } = await supabase.rpc("replace_provider_service_regions", {
+  const result = await runListingOperation(supabase, "save_provider_service_regions", {
     selected_service_region_ids: serviceRegionIds,
-    target_provider_profile_id: providerProfile.id,
+    expected_regions_revision: revision,
   });
-
-  if (error) {
-    return {
-      status: "error",
-      message: "Service regions could not be saved. Please try again.",
-      fieldError: "",
-    };
-  }
+  if (result.error !== null) return { status: "error", message: result.error, fieldError: "", reloadRequired: true };
 
   revalidatePath("/settings");
   revalidatePath("/provider/dashboard");
   revalidatePath("/search");
-  revalidatePath(`/providers/${providerProfile.slug}`);
+  revalidatePath("/providers/" + providerProfile.slug);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/dashboard/providers/" + providerProfile.id);
 
   return {
     status: "success",
-    message: "Service regions saved.",
+    revision: result.data.regions_revision,
+    message: result.data.no_changes ? "Service regions are unchanged."
+      : result.data.status === "inactive" ? "Service regions saved. Your listing remains inactive."
+        : result.data.status === "active" ? "Service region edits saved as a draft. Your approved listing remains public. Submit your business listing for review when ready."
+          : "Service regions saved as a draft. Submit your business listing for approval when ready to publish.",
     fieldError: "",
   };
 }

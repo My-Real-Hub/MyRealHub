@@ -1,3 +1,4 @@
+import { getListingEditorSnapshot } from "@/lib/providers/listing-query";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -13,8 +14,9 @@ import {
   DashboardStatCard,
 } from "@/components/dashboard/dashboard-shell";
 import { ProfileImage } from "@/components/providers/provider-profile-image";
+import { ProviderReviewMessage } from "@/components/providers/provider-review-message";
 import { requireProfileRole } from "@/lib/auth/session";
-import type { ProviderProfileStatus } from "@/lib/providers/profile-form";
+import type { ProviderProfileStatus, ProviderListingReviewStatus } from "@/lib/providers/profile-form";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
 
 type AdminProviderReviewPageProps = {
@@ -24,6 +26,7 @@ type AdminProviderReviewPageProps = {
 
 type ProviderDetailRow = {
   id: string;
+  revision: string;
   category_id: string | null;
   business_name: string | null;
   display_name: string | null;
@@ -39,6 +42,7 @@ type ProviderDetailRow = {
   license_number: string | null;
   profile_image_url: string | null;
   status: ProviderProfileStatus;
+  review_status: ProviderListingReviewStatus | null;
   rejection_reason: string | null;
   submitted_at: string | null;
   approved_at: string | null;
@@ -46,20 +50,11 @@ type ProviderDetailRow = {
   created_at: string | null;
 };
 
-type LookupNameRow = {
-  id: string;
-  name: string;
-};
-
-type RelationIdRow = {
-  language_id?: string;
-  specialty_id?: string;
-};
-
 type ProviderReviewProfile = ProviderDetailRow & {
   categoryName: string | null;
   languageNames: string[];
   specialtyNames: string[];
+  serviceRegionNames: string[];
 };
 
 type ProviderRatingModerationStatus = "visible" | "hidden" | "removed";
@@ -111,6 +106,12 @@ const reviewMessages: Record<
   string,
   { tone: "success" | "error"; message: string }
 > = {
+  "edit-approved": {
+    tone: "success", message: "Edits approved and published. The listing remains active.",
+  },
+  "edit-rejected": {
+    tone: "success", message: "Edits returned for changes. The previously approved listing remains active and public.",
+  },
   approved: {
     tone: "success",
     message: "Provider approved. The profile is now active and public.",
@@ -145,7 +146,11 @@ const reviewMessages: Record<
   },
   "missing-rejection-reason": {
     tone: "error",
-    message: "Add a rejection reason before rejecting this profile.",
+    message: "Add a rejection reason of 1 to 1,000 characters before rejecting this profile.",
+  },
+  conflict: {
+    tone: "error",
+    message: "This listing changed after you opened the review. No status change was made. Review the latest details below before deciding again.",
   },
   "not-updated": {
     tone: "error",
@@ -194,106 +199,16 @@ function getLocation(provider: ProviderReviewProfile) {
 function getReviewMessage(value: string | string[] | undefined) {
   const review = Array.isArray(value) ? value[0] : value;
 
-  return review ? reviewMessages[review] : null;
+  return review && Object.hasOwn(reviewMessages, review) ? reviewMessages[review] : null;
 }
 
 function getDisplayValue(value: string | number | null) {
   return value === null || value === "" ? "Not added" : String(value);
 }
 
-function getLookupNames(rows: LookupNameRow[], ids: string[]) {
-  const lookup = new Map(rows.map((row) => [row.id, row.name]));
-
-  return ids
-    .map((id) => lookup.get(id))
-    .filter((value): value is string => Boolean(value));
-}
-
 async function getProviderReviewProfile(providerId: string) {
   const supabase = await getServerSupabaseClient();
-  const { data: providerData } = await supabase
-    .from("provider_profiles")
-    .select(
-      [
-        "id",
-        "category_id",
-        "business_name",
-        "display_name",
-        "bio",
-        "phone",
-        "email",
-        "website_url",
-        "city",
-        "province_state",
-        "country",
-        "service_area",
-        "years_experience",
-        "license_number",
-        "profile_image_url",
-        "status",
-        "rejection_reason",
-        "submitted_at",
-        "approved_at",
-        "updated_at",
-        "created_at",
-      ].join(","),
-    )
-    .eq("id", providerId)
-    .maybeSingle();
-
-  if (!providerData) {
-    return null;
-  }
-
-  const provider = providerData as unknown as ProviderDetailRow;
-  const [categoryResult, languageRowsResult, specialtyRowsResult] =
-    await Promise.all([
-      provider.category_id
-        ? supabase
-            .from("categories")
-            .select("id,name")
-            .eq("id", provider.category_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      supabase
-        .from("provider_languages")
-        .select("language_id")
-        .eq("provider_profile_id", provider.id),
-      supabase
-        .from("provider_specialties")
-        .select("specialty_id")
-        .eq("provider_profile_id", provider.id),
-    ]);
-
-  const languageIds = ((languageRowsResult.data ?? []) as RelationIdRow[])
-    .map((row) => row.language_id)
-    .filter((value): value is string => Boolean(value));
-  const specialtyIds = ((specialtyRowsResult.data ?? []) as RelationIdRow[])
-    .map((row) => row.specialty_id)
-    .filter((value): value is string => Boolean(value));
-
-  const [languageResult, specialtyResult] = await Promise.all([
-    languageIds.length > 0
-      ? supabase.from("languages").select("id,name").in("id", languageIds)
-      : Promise.resolve({ data: [] }),
-    specialtyIds.length > 0
-      ? supabase.from("specialties").select("id,name").in("id", specialtyIds)
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  return {
-    ...provider,
-    categoryName:
-      ((categoryResult.data ?? null) as LookupNameRow | null)?.name ?? null,
-    languageNames: getLookupNames(
-      (languageResult.data ?? []) as LookupNameRow[],
-      languageIds,
-    ),
-    specialtyNames: getLookupNames(
-      (specialtyResult.data ?? []) as LookupNameRow[],
-      specialtyIds,
-    ),
-  } satisfies ProviderReviewProfile;
+  return getListingEditorSnapshot(supabase, "id", providerId);
 }
 
 async function getProviderRatings(providerId: string) {
@@ -390,31 +305,6 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-function ReviewMessage({
-  message,
-}: {
-  message: { tone: "success" | "error"; message: string } | null;
-}) {
-  if (!message) {
-    return null;
-  }
-
-  const className =
-    message.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-      : "border-red-200 bg-red-50 text-red-800";
-
-  return (
-    <p
-      className={`rounded-xl border px-4 py-3 text-sm leading-6 ${className}`}
-      role={message.tone === "error" ? "alert" : "status"}
-      aria-live="polite"
-    >
-      {message.message}
-    </p>
-  );
-}
-
 function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
   return (
     <article
@@ -433,15 +323,16 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
         <StatusBadge status={provider.status} />
       </div>
 
-      {provider.status === "pending_approval" ? (
+      {provider.status === "pending_approval" || provider.review_status === "pending_edit" ? (
         <div className="mt-6 grid gap-4">
           <form action={approveProviderProfile}>
             <input name="providerId" type="hidden" value={provider.id} />
+            <input name="expectedRevision" type="hidden" value={provider.revision} />
             <button
               type="submit"
               className="h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
             >
-              Approve provider
+              {provider.review_status === "pending_edit" ? "Approve edit" : "Approve provider"}
             </button>
           </form>
 
@@ -450,6 +341,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
             className="grid gap-3 rounded-xl border border-red-100 bg-red-50 p-4"
           >
             <input name="providerId" type="hidden" value={provider.id} />
+            <input name="expectedRevision" type="hidden" value={provider.revision} />
             <label
               htmlFor="rejection-reason"
               className="grid gap-2 text-sm font-medium text-red-900"
@@ -458,6 +350,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
               <textarea
                 id="rejection-reason"
                 name="rejectionReason"
+                maxLength={1000}
                 defaultValue={provider.rejection_reason ?? ""}
                 className="min-h-28 rounded-xl border border-red-200 bg-white min-w-0 w-full px-3 py-3 text-base leading-6 sm:text-sm text-stone-950 outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
                 required
@@ -467,7 +360,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
               type="submit"
               className="h-11 w-fit rounded-xl bg-red-700 px-4 text-sm font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-100"
             >
-              Reject provider
+              {provider.review_status === "pending_edit" ? "Reject edit" : "Reject provider"}
             </button>
           </form>
         </div>
@@ -476,6 +369,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
       {provider.status === "active" ? (
         <form action={setProviderInactive} className="mt-6">
           <input name="providerId" type="hidden" value={provider.id} />
+            <input name="expectedRevision" type="hidden" value={provider.revision} />
           <button
             type="submit"
             className="h-11 rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-800 transition hover:border-stone-950 hover:text-stone-950 focus:outline-none focus:ring-4 focus:ring-stone-100"
@@ -488,6 +382,7 @@ function ReviewActions({ provider }: { provider: ProviderReviewProfile }) {
       {provider.status === "inactive" ? (
         <form action={setProviderActive} className="mt-6">
           <input name="providerId" type="hidden" value={provider.id} />
+            <input name="expectedRevision" type="hidden" value={provider.revision} />
           <button
             type="submit"
             className="h-11 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
@@ -701,7 +596,15 @@ export default async function AdminProviderReviewPage({
         </div>
 
         <div className="grid gap-6">
-          <ReviewMessage message={reviewMessage} />
+          {provider.review_status === "pending_edit" ? (
+            <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+              Pending edit. You are reviewing proposed changes. The approved listing stays active and public until you approve this edit.
+            </p>
+          ) : null}
+          <ProviderReviewMessage
+            message={reviewMessage}
+            outcome={Array.isArray(query.review) ? query.review[0] : query.review}
+          />
 
           {provider.rejection_reason ? (
             <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">
@@ -717,7 +620,7 @@ export default async function AdminProviderReviewPage({
               className="admin-dashboard-section rounded-2xl border border-stone-200 bg-white p-5 sm:p-6"
             >
               <h2 className="text-xl font-semibold text-stone-950">
-                Profile details
+                {provider.review_status === "pending_edit" ? "Proposed edit" : "Profile details"}
               </h2>
               <div className="mt-6 grid min-w-0 gap-6 sm:grid-cols-[7rem_minmax(0,1fr)]">
                 <ProfileImage
@@ -744,6 +647,7 @@ export default async function AdminProviderReviewPage({
                     label="State or region"
                     value={provider.province_state}
                   />
+                  <DetailItem label="Country" value={provider.country} />
                   <DetailItem
                     label="Service area"
                     value={provider.service_area}
@@ -765,7 +669,15 @@ export default async function AdminProviderReviewPage({
                 </p>
               </div>
 
-              <div className="mt-6 grid gap-6 border-t border-stone-200 pt-6 md:grid-cols-2">
+              <div className="mt-6 grid gap-6 border-t border-stone-200 pt-6 md:grid-cols-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+                    Service regions
+                  </h3>
+                  <div className="mt-3">
+                    <TagList items={provider.serviceRegionNames} />
+                  </div>
+                </div>
                 <div>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
                     Languages
