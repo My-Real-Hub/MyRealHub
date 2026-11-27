@@ -1,4 +1,8 @@
 import {
+  readLimitedJson,
+  RequestBodyTooLargeError,
+} from "@/lib/http/json";
+import {
   autocompletePhotonAddress,
   getPhotonAddressLabel,
   getPhotonCoordinates,
@@ -140,21 +144,14 @@ function resolveFeature(
 }
 
 export async function POST(request: Request) {
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
-
-  if (contentLength > MAX_REQUEST_BYTES) {
-    return errorResponse(
-      "INVALID_REQUEST",
-      "Location request is too large.",
-      413,
-    );
-  }
-
   let body: unknown;
 
   try {
-    body = await request.json();
-  } catch {
+    body = await readLimitedJson(request, MAX_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return errorResponse("INVALID_REQUEST", "Location request is too large.", 413);
+    }
     return errorResponse(
       "INVALID_REQUEST",
       "Enter a valid address or map location.",
@@ -173,8 +170,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const regionRows = await getServiceRegionMatchRows();
-
     if (locationRequest.mode === "autocomplete") {
       if (
         locationRequest.query.length < 3 ||
@@ -187,7 +182,10 @@ export async function POST(request: Request) {
         );
       }
 
-      const features = await autocompletePhotonAddress(locationRequest.query);
+      const [regionRows, features] = await Promise.all([
+        getServiceRegionMatchRows(),
+        autocompletePhotonAddress(locationRequest.query),
+      ]);
       const rejectedOutsideSupportedArea = features.some(
         (feature) =>
           (getPhotonProperty(feature, "countrycode") ?? "").toUpperCase() !==
@@ -241,10 +239,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const features = await reversePhotonLocation(
-      locationRequest.latitude,
-      locationRequest.longitude,
-    );
+    const [regionRows, features] = await Promise.all([
+      getServiceRegionMatchRows(),
+      reversePhotonLocation(locationRequest.latitude, locationRequest.longitude),
+    ]);
     const feature = features[0];
 
     if (!feature) {

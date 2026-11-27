@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import {
   DEFAULT_PROFILE_ROLE,
   getDashboardPathForRole,
@@ -19,10 +19,18 @@ import {
 } from "@/lib/auth/validation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureAccountRole } from "@/lib/auth/account";
-import { getAuthCallbackUrl } from "@/lib/auth/redirects";
+import {
+  getAuthCallbackUrl,
+  getPostAuthRedirectPath,
+} from "@/lib/auth/redirects";
+import {
+  EXISTING_ACCOUNT_MESSAGE,
+  getAuthErrorMessage,
+  getPendingSignUpState,
+} from "@/lib/auth/feedback";
 
 type FormStatus = {
-  type: "error" | "success";
+  type: "error" | "success" | "notice";
   message: string;
 } | null;
 
@@ -47,8 +55,24 @@ const errorFieldClassName =
 const buttonClassName =
   "h-12 rounded-md bg-emerald-700 px-6 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-stone-400";
 
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
+function useAuthFormReady() {
+  // A native form submission before React attaches its handler would bypass
+  // validation. Keep submission disabled until the client is ready.
+  return useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
+}
+
+function AuthJavaScriptNotice() {
+  return (
+    <noscript>
+      <p role="alert" className="text-sm text-red-700">
+        Enable JavaScript to securely use this account form.
+      </p>
+    </noscript>
+  );
 }
 
 function FieldError({ message, id }: { message?: string; id?: string }) {
@@ -71,7 +95,9 @@ function StatusMessage({ status }: { status: FormStatus }) {
   const className =
     status.type === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-      : "border-red-200 bg-red-50 text-red-800";
+      : status.type === "notice"
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-red-200 bg-red-50 text-red-800";
 
   return (
     <p
@@ -95,6 +121,7 @@ function AuthTextField({
   type,
   autoComplete,
   errorMessage,
+  defaultValue,
 }: {
   id: string;
   name: string;
@@ -102,6 +129,7 @@ function AuthTextField({
   type: "text" | "email";
   autoComplete: string;
   errorMessage?: string;
+  defaultValue?: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -113,6 +141,7 @@ function AuthTextField({
         name={name}
         type={type}
         autoComplete={autoComplete}
+        defaultValue={defaultValue}
         className={inputClassName(Boolean(errorMessage))}
         aria-invalid={Boolean(errorMessage)}
         aria-describedby={errorMessage ? `${id}-error` : undefined}
@@ -244,9 +273,13 @@ export function SignUpForm({
   reason = null,
   redirectTo = null,
 }: SignUpFormProps) {
+  const isReady = useAuthFormReady();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
+    null,
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -263,6 +296,7 @@ export function SignUpForm({
 
     setFieldErrors(errors);
     setStatus(null);
+    setConfirmationEmail(null);
 
     if (hasAuthFieldErrors(errors)) {
       return;
@@ -288,26 +322,46 @@ export function SignUpForm({
       });
 
       if (error) {
-        setStatus({ type: "error", message: error.message });
+        setStatus({
+          type: error.code === "user_already_exists" ? "notice" : "error",
+          message: getAuthErrorMessage(
+            error,
+            "Sign up failed. Please try again.",
+          ),
+        });
         return;
       }
 
       if (data.session) {
         const role = await ensureAccountRole(supabase, data.session.user.id);
-        window.location.assign(redirectTo ?? getDashboardPathForRole(role));
+        window.location.assign(getPostAuthRedirectPath(role, redirectTo));
         return;
       }
 
+      const pendingState = getPendingSignUpState(data.user);
+      if (pendingState === "incomplete") {
+        throw new Error(
+          "Account creation could not be confirmed. Please try again.",
+        );
+      }
       form.reset();
+      if (pendingState === "account-may-exist") {
+        setStatus({ type: "notice", message: EXISTING_ACCOUNT_MESSAGE });
+        return;
+      }
+      setConfirmationEmail(normalizeEmail(fields.email));
       setStatus({
         type: "success",
         message:
-          "Check your email to confirm your account before logging in. If you already have an account, log in or reset your password.",
+          "Confirm your email before logging in. Check your inbox and spam folder. If no email arrives, request another link below.",
       });
     } catch (error) {
       setStatus({
         type: "error",
-        message: getErrorMessage(error, "Sign up failed. Please try again."),
+        message: getAuthErrorMessage(
+          error,
+          "Sign up failed. Please try again.",
+        ),
       });
     } finally {
       setIsSubmitting(false);
@@ -316,7 +370,8 @@ export function SignUpForm({
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-      <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+      <form method="post" className="grid gap-4" onSubmit={handleSubmit} noValidate>
+        <AuthJavaScriptNotice />
         <StatusMessage status={status} />
 
         <AuthTextField
@@ -360,11 +415,21 @@ export function SignUpForm({
         <button
           type="submit"
           className={buttonClassName}
-          disabled={isSubmitting}
+          disabled={!isReady || isSubmitting}
         >
           {isSubmitting ? "Creating account..." : "Create account"}
         </button>
       </form>
+
+      {confirmationEmail ? (
+        <div className="mt-5 border-t border-stone-200 pt-5">
+          <ConfirmationEmailForm
+            key={confirmationEmail}
+            initialEmail={confirmationEmail}
+            redirectTo={redirectTo}
+          />
+        </div>
+      ) : null}
 
       <p className="mt-5 text-sm text-stone-600">
         Already have an account?{" "}
@@ -374,22 +439,27 @@ export function SignUpForm({
         >
           Log in
         </Link>
+        {" · "}
+        <Link
+          href="/forgot-password"
+          className="font-semibold text-emerald-800"
+        >
+          Reset password
+        </Link>
       </p>
     </div>
   );
 }
 
-export function LoginForm({
-  reason = null,
+function ConfirmationEmailForm({
+  initialEmail = "",
   redirectTo = null,
-  allowResendConfirmation = false,
-}: LoginFormProps) {
-  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
+}: {
+  initialEmail?: string;
+  redirectTo?: string | null;
+}) {
+  const isReady = useAuthFormReady();
   const [status, setStatus] = useState<FormStatus>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showResendConfirmation, setShowResendConfirmation] = useState(
-    allowResendConfirmation,
-  );
   const [isResending, setIsResending] = useState(false);
 
   async function resendConfirmation(event: FormEvent<HTMLFormElement>) {
@@ -420,12 +490,12 @@ export function LoginForm({
       setStatus({
         type: "success",
         message:
-          "If this account is awaiting confirmation, a new confirmation email will arrive shortly.",
+          "If this account is awaiting confirmation, another email has been requested. Check your inbox and spam folder. If you already confirmed, log in or reset your password.",
       });
     } catch (error) {
       setStatus({
         type: "error",
-        message: getErrorMessage(
+        message: getAuthErrorMessage(
           error,
           "Confirmation email could not be sent. Please try again.",
         ),
@@ -434,6 +504,42 @@ export function LoginForm({
       setIsResending(false);
     }
   }
+
+  return (
+    <form method="post" className="grid gap-3" onSubmit={resendConfirmation} noValidate>
+      <AuthJavaScriptNotice />
+      <StatusMessage status={status} />
+      <p className="text-sm leading-6 text-stone-600">
+        Confirmation links are for accounts that have not been confirmed yet.
+        Already confirmed? Use Forgot password if you cannot log in.
+      </p>
+      <AuthTextField
+        id="resend-confirmation-email"
+        name="email"
+        label="Confirmation email"
+        type="email"
+        autoComplete="email"
+        defaultValue={initialEmail}
+      />
+      <button type="submit" className={buttonClassName} disabled={!isReady || isResending}>
+        {isResending ? "Sending..." : "Resend confirmation email"}
+      </button>
+    </form>
+  );
+}
+
+export function LoginForm({
+  reason = null,
+  redirectTo = null,
+  allowResendConfirmation = false,
+}: LoginFormProps) {
+  const isReady = useAuthFormReady();
+  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
+  const [status, setStatus] = useState<FormStatus>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResendConfirmation, setShowResendConfirmation] = useState(
+    allowResendConfirmation,
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -462,8 +568,15 @@ export function LoginForm({
       });
 
       if (error) {
-        setShowResendConfirmation(error.code === "email_not_confirmed");
-        setStatus({ type: "error", message: error.message });
+        if (error.code === "email_not_confirmed")
+          setShowResendConfirmation(true);
+        setStatus({
+          type: "error",
+          message: getAuthErrorMessage(
+            error,
+            "Login failed. Please try again.",
+          ),
+        });
         return;
       }
 
@@ -471,11 +584,11 @@ export function LoginForm({
         throw new Error("Login could not be completed. Please try again.");
       }
       const role = await ensureAccountRole(supabase, data.user.id);
-      window.location.assign(redirectTo ?? getDashboardPathForRole(role));
+      window.location.assign(getPostAuthRedirectPath(role, redirectTo));
     } catch (error) {
       setStatus({
         type: "error",
-        message: getErrorMessage(error, "Login failed. Please try again."),
+        message: getAuthErrorMessage(error, "Login failed. Please try again."),
       });
     } finally {
       setIsSubmitting(false);
@@ -484,7 +597,8 @@ export function LoginForm({
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-      <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+      <form method="post" className="grid gap-4" onSubmit={handleSubmit} noValidate>
+        <AuthJavaScriptNotice />
         <StatusMessage status={status} />
 
         <AuthTextField
@@ -515,38 +629,27 @@ export function LoginForm({
           <button
             type="submit"
             className={`${buttonClassName} sm:min-w-32`}
-            disabled={isSubmitting}
+            disabled={!isReady || isSubmitting}
           >
             {isSubmitting ? "Logging in..." : "Log in"}
           </button>
         </div>
       </form>
 
-      {showResendConfirmation ? (
-        <form
-          className="mt-5 grid gap-3 border-t border-stone-200 pt-5"
-          onSubmit={resendConfirmation}
-          noValidate
-        >
-          <p className="text-sm leading-6 text-stone-600">
-            Confirm your email before logging in.
-          </p>
-          <AuthTextField
-            id="resend-confirmation-email"
-            name="email"
-            label="Confirmation email"
-            type="email"
-            autoComplete="email"
-          />
-          <button
-            type="submit"
-            className={buttonClassName}
-            disabled={isResending}
-          >
-            {isResending ? "Sending..." : "Resend confirmation email"}
-          </button>
-        </form>
-      ) : null}
+      <details
+        className="mt-5 border-t border-stone-200 pt-5"
+        open={showResendConfirmation}
+        onToggle={(event) =>
+          setShowResendConfirmation(event.currentTarget.open)
+        }
+      >
+        <summary className="cursor-pointer text-sm font-semibold text-emerald-800">
+          Resend confirmation email
+        </summary>
+        <div className="mt-4">
+          <ConfirmationEmailForm redirectTo={redirectTo} />
+        </div>
+      </details>
 
       <p className="mt-5 text-sm text-stone-600">
         New here?{" "}
@@ -562,6 +665,7 @@ export function LoginForm({
 }
 
 export function ForgotPasswordForm() {
+  const isReady = useAuthFormReady();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -598,7 +702,13 @@ export function ForgotPasswordForm() {
       );
 
       if (error) {
-        setStatus({ type: "error", message: error.message });
+        setStatus({
+          type: "error",
+          message: getAuthErrorMessage(
+            error,
+            "The request could not be completed. Please try again.",
+          ),
+        });
         return;
       }
 
@@ -611,7 +721,7 @@ export function ForgotPasswordForm() {
     } catch (error) {
       setStatus({
         type: "error",
-        message: getErrorMessage(
+        message: getAuthErrorMessage(
           error,
           "Password reset request failed. Please try again.",
         ),
@@ -623,7 +733,8 @@ export function ForgotPasswordForm() {
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-      <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+      <form method="post" className="grid gap-4" onSubmit={handleSubmit} noValidate>
+        <AuthJavaScriptNotice />
         <StatusMessage status={status} />
 
         <AuthTextField
@@ -638,7 +749,7 @@ export function ForgotPasswordForm() {
         <button
           type="submit"
           className={buttonClassName}
-          disabled={isSubmitting}
+          disabled={!isReady || isSubmitting}
         >
           {isSubmitting ? "Sending..." : "Send reset email"}
         </button>
@@ -655,6 +766,7 @@ export function ForgotPasswordForm() {
 }
 
 export function ResetPasswordForm() {
+  const isReady = useAuthFormReady();
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [status, setStatus] = useState<FormStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -680,7 +792,13 @@ export function ResetPasswordForm() {
         password: fields.password,
       });
       if (error) {
-        setStatus({ type: "error", message: error.message });
+        setStatus({
+          type: "error",
+          message: getAuthErrorMessage(
+            error,
+            "The request could not be completed. Please try again.",
+          ),
+        });
         return;
       }
       form.reset();
@@ -700,7 +818,7 @@ export function ResetPasswordForm() {
     } catch (error) {
       setStatus({
         type: "error",
-        message: getErrorMessage(
+        message: getAuthErrorMessage(
           error,
           "Your password could not be changed. Please try again.",
         ),
@@ -712,7 +830,8 @@ export function ResetPasswordForm() {
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-      <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+      <form method="post" className="grid gap-4" onSubmit={handleSubmit} noValidate>
+        <AuthJavaScriptNotice />
         <StatusMessage status={status} />
         {!isComplete ? (
           <>
@@ -740,7 +859,7 @@ export function ResetPasswordForm() {
             <button
               type="submit"
               className={buttonClassName}
-              disabled={isSubmitting}
+              disabled={!isReady || isSubmitting}
             >
               {isSubmitting ? "Saving password..." : "Save new password"}
             </button>

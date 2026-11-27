@@ -29,7 +29,7 @@ export default async function LogInPage({ searchParams }: LoginPageProps) {
       : auth === "profile-unavailable"
         ? ACCOUNT_PROFILE_ERROR
         : auth === "confirmation-expired"
-          ? "This confirmation link is invalid or has expired. Try logging in if you have already confirmed your email, or request a new confirmation below."
+          ? "This email link could not be verified. For a password reset, use Forgot password to request a fresh link in this browser. For email confirmation, try logging in or request a new confirmation below."
           : null;
 
   return (

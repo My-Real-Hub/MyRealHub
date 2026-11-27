@@ -367,7 +367,7 @@ export function ProviderLocationSearchFields({
 
   return (
     <section
-      className="p-4 sm:p-5 lg:p-6"
+      className="isolate p-4 sm:p-5 lg:p-6"
       aria-labelledby="search-area-heading"
     >
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.8fr)] lg:gap-6">

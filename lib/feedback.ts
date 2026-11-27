@@ -54,3 +54,69 @@ export function isFeedbackScreenshotMimeType(value: string) {
     value as (typeof FEEDBACK_SCREENSHOT_MIME_TYPES)[number],
   );
 }
+
+export type FeedbackFormFieldErrors = Partial<
+  Record<"type" | "title" | "description" | "currentPageUrl" | "screenshotPath", string>
+>;
+
+export function validateFeedbackPageUrl(value: string) {
+  if (!value || value.length > 2048 || /[\\\u0000-\u001f\u007f]/.test(value)) {
+    return false;
+  }
+
+  if (value.startsWith("/") && !value.startsWith("//")) return true;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function validateFeedbackScreenshotPath(value: string, accountId: string) {
+  return (
+    !value ||
+    (value.length <= 512 &&
+      value.startsWith(`${accountId}/`) &&
+      value.length > accountId.length + 1 &&
+      !/[\\\u0000-\u001f\u007f]/.test(value) &&
+      !value.includes(".."))
+  );
+}
+
+export function validateFeedbackValues({
+  accountId, currentPageUrl, description, screenshotPath, title, type,
+}: {
+  accountId: string;
+  currentPageUrl: string;
+  description: string;
+  screenshotPath: string;
+  title: string;
+  type: string;
+}): FeedbackFormFieldErrors {
+  const fieldErrors: FeedbackFormFieldErrors = {};
+
+  if (!isPlatformFeedbackType(type)) fieldErrors.type = "Choose bug or suggestion.";
+
+  if (!title) {
+    fieldErrors.title = "Title is required.";
+  } else if (title.length > 160) {
+    fieldErrors.title = "Title must be 160 characters or fewer.";
+  }
+
+  if (!description) {
+    fieldErrors.description = "Description is required.";
+  } else if (description.length > 3000) {
+    fieldErrors.description = "Description must be 3,000 characters or fewer.";
+  }
+
+  if (!validateFeedbackPageUrl(currentPageUrl)) {
+    fieldErrors.currentPageUrl = "The page URL could not be captured. Refresh and try again.";
+  }
+  if (!validateFeedbackScreenshotPath(screenshotPath, accountId)) {
+    fieldErrors.screenshotPath = "The screenshot upload could not be verified.";
+  }
+
+  return fieldErrors;
+}

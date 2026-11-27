@@ -27,6 +27,7 @@ export async function SiteHeader() {
 
           <div className="flex flex-wrap items-center gap-2">
             <AuthMenu
+              key={profile ? `${profile.id}:${profile.role}` : "signed-out"}
               initialRole={profile?.role ?? null}
               initialUserId={profile?.id ?? null}
             />

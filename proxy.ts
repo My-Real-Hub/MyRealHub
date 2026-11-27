@@ -7,6 +7,11 @@ import {
   hasProfileCapability,
 } from "@/lib/auth/roles";
 import { getSupabaseConfig } from "@/lib/supabase/client";
+import {
+  getFallbackAuthCallbackPath,
+  getLoginRedirectPath,
+  getPostAuthRedirectPath,
+} from "@/lib/auth/redirects";
 
 const AUTH_ROUTES = ["/login", "/signup"];
 
@@ -17,15 +22,34 @@ function isAuthRoute(pathname: string) {
 }
 
 export async function proxy(request: NextRequest) {
+  const fallbackCallback =
+    request.method === "GET"
+      ? getFallbackAuthCallbackPath(
+          request.nextUrl.pathname,
+          request.nextUrl.searchParams,
+        )
+      : null;
+  if (fallbackCallback) {
+    const response = NextResponse.redirect(
+      new URL(fallbackCallback, request.url),
+    );
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return response;
+  }
+
   const config = getSupabaseConfig();
   const requiredCapability = getRequiredCapabilityForPath(
     request.nextUrl.pathname,
   );
   const shouldRedirectSignedInUser = isAuthRoute(request.nextUrl.pathname);
+  const loginPath = getLoginRedirectPath(
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
 
   if (!config) {
     if (requiredCapability) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL(loginPath, request.url));
     }
 
     return NextResponse.next();
@@ -80,7 +104,7 @@ export async function proxy(request: NextRequest) {
 
   if (!userId) {
     if (requiredCapability) {
-      return redirectTo("/login");
+      return redirectTo(loginPath);
     }
 
     return applyPendingSession(NextResponse.next({ request }));
@@ -102,7 +126,9 @@ export async function proxy(request: NextRequest) {
   const dashboardPath = getDashboardPathForRole(role);
 
   if (shouldRedirectSignedInUser) {
-    return redirectTo(dashboardPath);
+    return redirectTo(
+      getPostAuthRedirectPath(role, request.nextUrl.searchParams.get("next")),
+    );
   }
 
   if (requiredCapability && !hasProfileCapability(role, requiredCapability)) {

@@ -688,7 +688,7 @@ function TopRatedProviderCard({ provider }: { provider: TopRatedProvider }) {
 
 function TopProviderSkeletonGrid() {
   return (
-    <div className="mt-6 grid gap-4 md:grid-cols-3" aria-label="Loading providers">
+    <div className="mt-6 grid gap-4 md:grid-cols-3" role="status" aria-label="Loading providers">
       {[0, 1, 2].map((item) => (
         <div
           key={item}

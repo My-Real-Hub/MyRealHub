@@ -1,5 +1,9 @@
+"use client";
+
+import { useActionState } from "react";
 import Link from "next/link";
 import { saveProvider, unsaveProvider } from "@/app/providers/save-actions";
+import type { SaveProviderFormState } from "@/lib/providers/saved-mutation";
 
 type SaveProviderButtonProps = {
   appearance?: "default" | "workspace" | "search" | "profile";
@@ -37,6 +41,10 @@ export function SaveProviderButton({
   unsavedLabel = "Save provider",
 }: SaveProviderButtonProps) {
   const sizeClassName = sizeClassNames[size];
+  const [state, formAction, pending] = useActionState(
+    isSaved ? unsaveProvider : saveProvider,
+    { status: "idle", message: "" } as SaveProviderFormState,
+  );
 
   if (!isSignedIn) {
     return (
@@ -56,11 +64,12 @@ export function SaveProviderButton({
   }
 
   return (
-    <form action={isSaved ? unsaveProvider : saveProvider}>
+    <form action={formAction}>
       <input type="hidden" name="providerId" value={providerId} />
       <input type="hidden" name="returnPath" value={returnPath} />
       <button
         type="submit"
+        disabled={pending}
         aria-label={ariaLabel}
         className={
           appearance === "workspace"
@@ -74,8 +83,11 @@ export function SaveProviderButton({
                   : `${baseClassName} ${sizeClassName} w-full border border-stone-300 text-stone-800 hover:border-teal-800 hover:text-teal-900 focus:ring-teal-100`
         }
       >
-        {isSaved ? savedLabel : unsavedLabel}
+        {pending ? "Saving…" : isSaved ? savedLabel : unsavedLabel}
       </button>
+      {state.status === "error" ? (
+        <p role="alert" className="mt-2 text-sm text-red-700">{state.message}</p>
+      ) : null}
     </form>
   );
 }

@@ -37,6 +37,7 @@ const PROTECTED_ROUTE_CAPABILITIES: Array<{
   capability: ProfileCapability;
   prefix: string;
 }> = [
+  { prefix: "/become-provider", capability: "manage_account_settings" },
   { prefix: "/dashboard", capability: "consume_services" },
   { prefix: "/settings", capability: "manage_account_settings" },
   { prefix: "/provider", capability: "manage_provider_profile" },
@@ -85,6 +86,12 @@ export function hasProfileCapability(
 
 export function getDashboardPathForRole(role: ProfileRole) {
   return DASHBOARD_PATHS[role];
+}
+
+export function getProviderJoinPath(role: ProfileRole | null) {
+  if (!role) return "/signup?role=provider";
+  if (role === "user") return "/become-provider";
+  return getDashboardPathForRole(role);
 }
 
 export function getRequiredCapabilityForPath(pathname: string) {

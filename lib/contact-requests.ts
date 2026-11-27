@@ -1,4 +1,47 @@
+import { validateEmail } from "@/lib/auth/validation";
+
 export const CONTACT_REQUESTS_PER_PAGE = 10;
+
+export type ContactProviderFieldErrors = Partial<
+  Record<"name" | "email" | "phone" | "subject" | "message", string>
+>;
+
+export function validateContactRequest(values: {
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+}): ContactProviderFieldErrors {
+  const errors: ContactProviderFieldErrors = {};
+
+  if (!values.name) {
+    errors.name = "Name is required.";
+  } else if (values.name.length > 120) {
+    errors.name = "Name must be 120 characters or fewer.";
+  }
+
+  const emailError = validateEmail(values.email);
+  if (emailError) errors.email = emailError;
+
+  if (values.phone.length > 40) {
+    errors.phone = "Phone must be 40 characters or fewer.";
+  }
+
+  if (!values.subject) {
+    errors.subject = "Subject is required.";
+  } else if (values.subject.length > 160) {
+    errors.subject = "Subject must be 160 characters or fewer.";
+  }
+
+  if (!values.message) {
+    errors.message = "Message is required.";
+  } else if (values.message.length > 2000) {
+    errors.message = "Message must be 2,000 characters or fewer.";
+  }
+
+  return errors;
+}
 
 export const CONTACT_DELIVERY_METHODS = ["in_app", "email"] as const;
 
@@ -127,9 +170,9 @@ export function getPaginationItems(currentPage: number, totalPages: number) {
 }
 
 export function getPositivePage(value: string | undefined) {
-  const page = Number.parseInt(value ?? "", 10);
+  const page = /^\d+$/.test(value ?? "") ? Number(value) : Number.NaN;
 
-  return Number.isFinite(page) && page > 0 ? page : 1;
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
 }
 
 export function getQueryValue(value: string | string[] | undefined) {

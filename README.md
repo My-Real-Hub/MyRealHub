@@ -65,7 +65,7 @@ copy .env.example .env.local
 npx supabase login
 npx supabase link --project-ref eywzwkfeghbhwtsnjuti
 npx supabase db push --dry-run
-npx supabase db push --include-seed
+npx supabase db push
 npm run lint
 npm run typecheck
 npm run dev
@@ -78,6 +78,22 @@ cp .env.example .env.local
 ```
 
 ## Common Commands
+
+The October 2026 audit, remaining gaps, and demo/public release gates are in
+[the production readiness plan](docs/production-readiness-plan.md).
+
+```bash
+npm run check
+npx playwright install chromium
+npm run test:e2e
+```
+
+`check` runs lint, TypeScript, all unit/workflow/security-invariant tests, and a
+production build. Browser tests use that build on port 3100; they require the
+server port to be free. Backend checks and dedicated staging-role tests are
+opt-in, as described in the readiness plan. `npm run test:db` requires a
+disposable local Supabase instance with Docker; it does not target the linked
+hosted project.
 
 ```bash
 npm run dev
@@ -107,7 +123,7 @@ Shows which Supabase migrations would be pushed.
 npm run db:push
 ```
 
-Applies pending Supabase migrations and runs `supabase/seed.sql`.
+Applies pending Supabase migrations only. Demo seed data must never be loaded into a production database.
 
 ```bash
 npm run db:migrations

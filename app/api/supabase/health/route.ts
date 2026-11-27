@@ -22,6 +22,7 @@ export async function GET() {
   try {
     const response = await fetch(healthUrl, {
       cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
       headers: {
         apikey: config.supabaseAnonKey,
       },

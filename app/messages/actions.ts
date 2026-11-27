@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { hasProfileCapability } from "@/lib/auth/roles";
 import {
+  isConversationActionInput,
+  isConversationStatusUpdate,
+  validateConversationMessageBody,
+} from "@/lib/messages-validation";
+import {
   getConversationMessages,
   getConversationPatch,
   getConversationRequestIds,
@@ -33,10 +38,6 @@ type UpdateConversationStatusInput = ConversationActionInput & {
   note?: string;
   status: "rejected" | "archived";
 };
-
-function isConversationMode(value: unknown): value is ConversationMode {
-  return value === "consumer" || value === "provider";
-}
 
 async function getMessagingProfile() {
   const profile = await getCurrentProfile();
@@ -73,7 +74,7 @@ function getGenericMessageError(action: "load" | "read" | "send" | "status") {
 export async function openConversation(
   input: ConversationActionInput,
 ): Promise<ConversationActionResult> {
-  if (!isConversationMode(input.mode)) {
+  if (!isConversationActionInput(input)) {
     return {
       status: "error",
       message: getGenericMessageError("load"),
@@ -146,28 +147,21 @@ export async function openConversation(
 export async function sendConversationMessage(
   input: SendConversationMessageInput,
 ): Promise<ConversationActionResult> {
-  if (!isConversationMode(input.mode)) {
+  if (!isConversationActionInput(input)) {
     return {
       status: "error",
       message: getGenericMessageError("send"),
     };
   }
 
+  const bodyError = validateConversationMessageBody(input.body);
+  if (bodyError) {
+    return {
+      status: "error",
+      message: bodyError,
+    };
+  }
   const body = input.body.trim();
-
-  if (!body) {
-    return {
-      status: "error",
-      message: "Write a message before sending.",
-    };
-  }
-
-  if (body.length > 2000) {
-    return {
-      status: "error",
-      message: "Messages must be 2,000 characters or fewer.",
-    };
-  }
 
   const profile = await getMessagingProfile();
 
@@ -223,7 +217,7 @@ export async function sendConversationMessage(
 export async function updateConversationStatus(
   input: UpdateConversationStatusInput,
 ): Promise<ConversationActionResult> {
-  if (!isConversationMode(input.mode)) {
+  if (!isConversationStatusUpdate(input)) {
     return {
       status: "error",
       message: getGenericMessageError("status"),
